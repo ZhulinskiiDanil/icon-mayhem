@@ -1,6 +1,8 @@
 #include "CustomizerPopup.hpp"
 
 #include "../hooks/SimplePlayerHair.hpp"
+#include "PresetsPopup.hpp"
+#include "Sections.hpp"
 
 #include <Geode/ui/NineSlice.hpp>
 #include <Geode/ui/Scrollbar.hpp>
@@ -67,67 +69,6 @@ namespace
       PreviewMode{IconType::Swing, "Swing"},
   };
 
-  // ! --- Sections --- !
-  // A new customization only needs its settings in mod.json and a section here
-
-  struct Section
-  {
-    char const *name;
-    std::vector<char const *> keys;
-  };
-
-  std::vector<Section> const &sections()
-  {
-    static std::vector<Section> const list{
-        {"Hair",
-         {
-             "enabled",
-             "show-in-garage",
-             "style",
-             "spin-with-icon",
-             "density",
-             "hair-length",
-             "segments",
-             "lock-width",
-             "physics-title",
-             "volume",
-             "hitbox-multiplier",
-             "wind-multiplier",
-             "gravity",
-             "damping",
-             "look-title",
-             "color-source",
-             "custom-color",
-             "outline",
-         }},
-        {"Front",
-         {
-             "face-locks-title",
-             "face-locks",
-             "face-lock-left",
-             "face-lock-right",
-             "face-lock-length",
-             "face-lock-width",
-             "face-lock-inset-x",
-             "face-lock-inset-y",
-             "face-lock-color",
-             "face-lock-custom-color",
-             "bangs-title",
-             "bangs",
-             "bangs-length",
-             "bangs-density",
-             "bangs-spread",
-             "bangs-arc-size",
-             "bangs-arc-softness",
-             "bangs-inset-x",
-             "bangs-inset-y",
-             "bangs-color",
-             "bangs-custom-color",
-         }},
-    };
-    return list;
-  }
-
   ButtonSprite *textButton(char const *text, int width, char const *texture = "GJ_button_01.png")
   {
     return ButtonSprite::create(text, width, true, "goldFont.fnt", texture, 24.f, .6f);
@@ -183,6 +124,11 @@ bool CustomizerPopup::initCustomizer()
                                              menu_selector(CustomizerPopup::onReset));
   reset->setID("reset-button");
   m_buttonMenu->addChildAtPosition(reset, Anchor::BottomRight, {-50.f, 19.f});
+
+  auto presetsButton = CCMenuItemSpriteExtra::create(textButton("Presets", 70), this,
+                                                     menu_selector(CustomizerPopup::onPresets));
+  presetsButton->setID("presets-button");
+  m_buttonMenu->addChildAtPosition(presetsButton, Anchor::BottomRight, {-222.f, 19.f});
 
   // Hitbox helpers toggle next to the reset button
   m_showHitboxes = Mod::get()->getSavedValue<bool>(kHitboxesSave, false);
@@ -366,7 +312,7 @@ void CustomizerPopup::buildTabs()
   m_tabMenu->setTouchPriority(m_list->getTouchPriority() - 1);
   m_tabMenu->setID("tabs");
 
-  auto const &list = sections();
+  auto const &list = customizerSections();
   for (size_t i = 0; i < list.size(); ++i)
   {
     auto sprite = textButton(list[i].name, 60, i == m_section ? "GJ_button_01.png" : "GJ_button_04.png");
@@ -382,7 +328,7 @@ void CustomizerPopup::buildTabs()
 
 void CustomizerPopup::showSection(size_t index)
 {
-  auto const &list = sections();
+  auto const &list = customizerSections();
   if (index >= list.size())
     return;
   m_section = index;
@@ -456,9 +402,20 @@ void CustomizerPopup::applyHitboxes()
   }
 }
 
+void CustomizerPopup::onPresets(CCObject *)
+{
+  auto popup = PresetsPopup::create([self = Ref(this)]
+                                    {
+                                      for (auto row : self->m_rows)
+                                        row->refresh();
+                                    });
+  if (popup)
+    popup->show();
+}
+
 void CustomizerPopup::onReset(CCObject *)
 {
-  auto const &section = sections()[m_section];
+  auto const &section = customizerSections()[m_section];
 
   createQuickPopup(
       "Reset",
@@ -469,7 +426,7 @@ void CustomizerPopup::onReset(CCObject *)
         if (!confirmed)
           return;
 
-        for (auto key : sections()[self->m_section].keys)
+        for (auto key : customizerSections()[self->m_section].keys)
         {
           if (auto setting = Mod::get()->getSetting(key))
             setting->reset();

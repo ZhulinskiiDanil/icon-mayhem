@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.0
+
+- Presets: save your look under a name and load it in one tap
+- Share presets through the clipboard or as a .json file, import them the same way
+- Presets button in the customizer, next to the hitbox helpers
+
 ## v1.1.0
 
 - Face locks: wavy locks framing the face, left and right can be shown separately, with their own width, position and color

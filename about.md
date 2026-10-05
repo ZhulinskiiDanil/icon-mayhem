@@ -12,6 +12,7 @@ A growing collection of **crazy customizations** for your icons. First up: **phy
 - **Face locks and bangs**: wavy locks framing the face and a fringe over it, drawn in front of the icon. Fit them to any icon: move them, bend the bangs along a round top, give them their own color
 - **Garage preview** with a light breeze, so you can see your hairstyle before playing
 - **Customizer** with a live icon preview: switch game modes, make the icon jump or run and watch the hair react while you tweak it. Open it with the button in the pause menu, changes apply instantly
+- **Presets**: save your look under a name and switch between looks in one tap. Share a preset by copying it to the clipboard or saving it to a file, import presets from friends the same way
 
 ## Settings
 

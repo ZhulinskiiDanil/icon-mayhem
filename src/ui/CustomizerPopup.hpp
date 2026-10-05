@@ -8,7 +8,7 @@
 
 // ! --- Customizer popup --- !
 // Icon preview on the left (switch game modes, jump, run), settings of the selected
-// section on the right. Sections are plain lists of setting keys, see kSections.
+// section on the right. Sections are plain lists of setting keys, see Sections.hpp.
 
 class CustomizerPopup : public geode::Popup
 {
@@ -31,6 +31,7 @@ private:
   void onRun(cocos2d::CCObject *sender);
   void onReset(cocos2d::CCObject *sender);
   void onHitboxes(cocos2d::CCObject *sender);
+  void onPresets(cocos2d::CCObject *sender);
   void applyHitboxes();
 
   // Preview
