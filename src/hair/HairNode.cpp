@@ -45,6 +45,34 @@ namespace
   constexpr float kFullCombSpeed = 250.f;  // units / s of horizontal speed that comb the hair fully
   constexpr float kMotionResponse = 4.f;   // how fast the combing follows the speed, 1 / s
 
+  // Hair in front of the face, see buildFrontTarget()
+  constexpr float kFaceLockRootX = .78f;      // across the face, relative to the head half size
+  constexpr float kFaceLockRootY = .9f;       // up from the center, same units
+  constexpr float kFaceLockFlare = 22.f;      // degrees the locks start out away from the face
+  constexpr float kFaceLockWaves = 1.5f;      // waves along a lock
+  constexpr float kFaceLockWaveAmp = 16.f;    // degrees
+  constexpr float kFaceLockStiffness = .6f;
+  constexpr float kBangRootY = 1.f;           // bangs grow right at the hairline
+  constexpr float kBangSpread = .8f;          // part of the face width the bangs cover
+  constexpr float kBangFan = 16.f;            // degrees the side bangs turn out
+  constexpr float kBangWidth = 1.5f;          // wide locks overlap into one fringe
+  constexpr float kBangStiffness = 1.6f;      // short and neat, they keep their shape
+  constexpr float kArcSharpExponent = 8.f;    // arc softness 0: flat middle, only the ends drop
+  constexpr float kArcSoftExponent = 1.5f;    // arc softness 1: one smooth arc
+  constexpr float kMaxArcTurn = 45.f;         // degrees the bangs on a steep arc turn out at most
+  constexpr float kFrontStiffnessPower = 1.f; // front locks keep their shape further down
+
+  // Hitbox helpers of the customizer, see drawDebug()
+  constexpr ccColor4F kDebugCollider = {0.f, 1.f, 1.f, 1.f};
+  constexpr ccColor4F kDebugFloor = {1.f, .55f, 0.f, 1.f};
+  constexpr ccColor4F kDebugRoots = {1.f, 1.f, 0.f, 1.f};
+  constexpr ccColor4F kDebugBangs = {1.f, .3f, 1.f, 1.f};
+  constexpr ccColor4F kDebugFaceLocks = {.3f, 1.f, .3f, 1.f};
+  constexpr float kDebugLine = .35f; // icon units
+  constexpr float kDebugDot = .9f;
+  constexpr int kDebugColliderPoints = 64;
+  constexpr int kDebugArcPoints = 24;
+
   constexpr int kCurveSubdiv = 3;      // drawn points per simulated segment
   constexpr int kCurveSubdivDense = 2; // fewer for dense hair, the thin locks don't need it
   constexpr int kDenseLockCount = 64;
@@ -206,6 +234,12 @@ HairNode *HairNode::attach(CCSprite *head, CCNode *behind, CCSprite *primary, CC
   node->autorelease();
 
   parent->addChild(node, behind->getZOrder() - 1);
+
+  // Face locks and bangs go over the icon
+  node->m_front = CCDrawNode::create();
+  node->m_front->setID("hair-front"_spr);
+  parent->addChild(node->m_front, behind->getZOrder() + 1);
+
   return node;
 }
 
@@ -228,7 +262,7 @@ bool HairNode::init(CCSprite *head, CCSprite *primary, CCSprite *secondary, CCNo
 
 void HairNode::reloadConfig()
 {
-  int const oldCount = m_config.lockCount;
+  size_t const oldCount = m_locks.size();
   int const oldSegments = m_config.segments;
   bool const firstLoad = m_locks.empty();
 
@@ -238,11 +272,11 @@ void HairNode::reloadConfig()
 
   // Same amount of strands: keep simulating, the hair smoothly moves into its new shape.
   // That's what makes dragging a slider in the customizer look alive
-  if (!firstLoad && oldCount == m_config.lockCount && oldSegments == m_config.segments)
+  if (!firstLoad && oldCount == m_locks.size() && oldSegments == m_config.segments)
     return;
 
-  m_sim.setup(m_config.lockCount, m_config.segments);
-  m_targets.assign(m_config.lockCount, HairStrandTarget{});
+  m_sim.setup(static_cast<int>(m_locks.size()), m_config.segments);
+  m_targets.assign(m_locks.size(), HairStrandTarget{});
   for (auto &target : m_targets)
     target.restDirs.resize(m_config.segments);
   m_needsReset = true;
@@ -297,6 +331,52 @@ void HairNode::generateLocks()
   // Draw order is the strand order, back layer first
   std::sort(m_locks.begin(), m_locks.end(), [](Lock const &a, Lock const &b)
             { return a.depth < b.depth; });
+
+  m_frontStart = m_locks.size();
+  m_bangsStart = m_locks.size();
+  this->addFrontLocks(rng);
+}
+
+void HairNode::addFrontLocks(std::mt19937 &rng)
+{
+  std::uniform_real_distribution<float> random(0.f, 1.f);
+
+  if (m_config.faceLocks)
+  {
+    // +1 is the left side of the face: `across` points to the back of the icon
+    for (float side : {1.f, -1.f})
+    {
+      if ((side > 0.f && !m_config.faceLockLeft) || (side < 0.f && !m_config.faceLockRight))
+        continue;
+
+      Lock lock;
+      lock.kind = LockKind::FaceLock;
+      lock.side = side;
+      lock.length = m_config.faceLockLength;
+      lock.width = m_config.faceLockWidth;
+      lock.curl = 0.f;
+      lock.depth = 1.f;
+      m_locks.push_back(lock);
+    }
+  }
+
+  // Bangs last, they cover the face locks
+  m_bangsStart = m_locks.size();
+  if (m_config.bangs)
+  {
+    int const count = m_config.bangsCount;
+    for (int i = 0; i < count; ++i)
+    {
+      Lock lock;
+      lock.kind = LockKind::Bang;
+      lock.side = count == 1 ? 0.f : (static_cast<float>(i) + .5f) / static_cast<float>(count) * 2.f - 1.f;
+      lock.length = m_config.bangsLength * (.85f + .3f * random(rng));
+      lock.width = m_config.lockWidth * kBangWidth * (.85f + .3f * random(rng));
+      lock.curl = 0.f;
+      lock.depth = .5f + .5f * random(rng);
+      m_locks.push_back(lock);
+    }
+  }
 }
 
 float HairNode::headUnit() const
@@ -333,6 +413,8 @@ void HairNode::visit()
       this->reloadConfig();
 
     this->clear();
+    if (m_front)
+      m_front->clear();
     if (!this->isActive())
     {
       m_needsReset = true;
@@ -381,7 +463,7 @@ void HairNode::updateMotion(float dt, CCPoint const &headCenter, bool snap)
   // Only the speed along the ground counts, jumping up and down doesn't comb the hair
   CCPoint const down = m_gravityDir ? m_gravityDir() : CCPoint{0.f, -1.f};
   float const speed = std::abs(velocity.cross(down));
-  float const target = std::clamp(speed / (kFullCombSpeed * m_simScale), 0.f, 1.f);
+  float const target = std::clamp(speed / (kFullCombSpeed * m_simScale) * m_config.windMultiplier, 0.f, 1.f);
   m_motion = approach(m_motion, target, kMotionResponse * dt);
 }
 
@@ -420,10 +502,22 @@ void HairNode::buildTargets(CCPoint const &headCenter, CCPoint const &up, CCPoin
   CCPoint const horizontal = {-worldUp.y, worldUp.x};
   CCPoint const comb = normalized(worldBack - worldUp * kCombDown, worldDown);
 
+  // Across the face, the front locks spread along it
+  CCPoint const across = normalized(back, {-up.y, up.x});
+
   for (size_t s = 0; s < m_locks.size(); ++s)
   {
     auto const &lock = m_locks[s];
     auto &target = m_targets[s];
+
+    if (lock.kind != LockKind::Back)
+    {
+      this->buildFrontTarget(lock, target, headCenter, up, across);
+      continue;
+    }
+
+    target.collide = true;
+    target.stiffnessPower = style.stiffnessPower;
 
     float const angle = radians(lock.angle);
     CCPoint const radial = up * std::cos(angle) + back * std::sin(angle);
@@ -468,6 +562,77 @@ void HairNode::buildTargets(CCPoint const &headCenter, CCPoint const &up, CCPoin
   }
 }
 
+void HairNode::buildFrontTarget(Lock const &lock, HairStrandTarget &target, CCPoint const &headCenter,
+                                CCPoint const &up, CCPoint const &across)
+{
+  // Front locks lie on the face, in front of the head, so they never collide with it.
+  // Their shape is glued to the head frame like the rest of the hairstyle
+  int const segments = m_config.segments;
+  float const unit = m_simScale; // icon units to sim units
+  float const half = kHeadRadius * unit;
+  CCPoint const down = up * -1.f;
+
+  target.collide = false;
+  target.stiffnessPower = kFrontStiffnessPower;
+  target.segmentLength = lock.length * m_simScale / static_cast<float>(segments);
+
+  float stiffness;
+  if (lock.kind == LockKind::FaceLock)
+  {
+    // From the top corners of the face, out a bit and then down in soft waves.
+    // Inset X moves both locks to the middle, inset Y down the face
+    float const x = half * kFaceLockRootX - m_config.faceLockInsetX * unit;
+    float const y = half * kFaceLockRootY - m_config.faceLockInsetY * unit;
+    target.root = headCenter + up * y + across * (lock.side * x);
+    for (int k = 0; k < segments; ++k)
+    {
+      float const t = (static_cast<float>(k) + .5f) / static_cast<float>(segments);
+      float const wave = std::sin(t * kFaceLockWaves * 2.f * kPi) * kFaceLockWaveAmp;
+      float const angle = radians(kFaceLockFlare * (1.f - t) + wave);
+      target.restDirs[k] = down * std::cos(angle) + across * (lock.side * std::sin(angle));
+    }
+    stiffness = kFaceLockStiffness;
+  }
+  else
+  {
+    // A row along the hairline, falling down and fanning out a little to the sides
+    float const spread = std::max(m_config.bangsSpread, .05f);
+    float const t = std::abs(lock.side);
+    float const exponent = this->bangArcExponent();
+    target.root = this->bangRoot(lock.side, headCenter, up, across);
+
+    // On a steep arc the bangs fall away from it, like hair along a round hairline
+    float const slope = t > 0.f ? m_config.bangsArcSize * exponent * std::pow(t, exponent - 1.f) / (spread * kHeadRadius) : 0.f;
+    float const arcTurn = std::min(std::atan(slope) * 180.f / kPi, kMaxArcTurn);
+    float const angle = radians(lock.side * kBangFan + (lock.side < 0.f ? -arcTurn : arcTurn));
+    CCPoint const dir = down * std::cos(angle) + across * std::sin(angle);
+    for (int k = 0; k < segments; ++k)
+      target.restDirs[k] = dir;
+    stiffness = kBangStiffness;
+  }
+
+  target.stiffness = m_config.volume * stiffness * kSpringScale * kBaseGravity * m_simScale / target.segmentLength;
+}
+
+float HairNode::bangArcExponent() const
+{
+  return kArcSharpExponent + (kArcSoftExponent - kArcSharpExponent) * m_config.bangsArcSoftness;
+}
+
+CCPoint HairNode::bangRoot(float side, CCPoint const &headCenter, CCPoint const &up, CCPoint const &across) const
+{
+  // The hairline is an arc for icons with a round top: |x|^n drops the ends by the arc size,
+  // a high n keeps the middle flat, a low one makes a smooth arc
+  float const unit = m_simScale;
+  float const spread = std::max(m_config.bangsSpread, .05f);
+  float const drop = m_config.bangsArcSize * std::pow(std::abs(side), this->bangArcExponent());
+
+  float const x = side * spread * kHeadRadius;
+  float const y = kHeadRadius * kBangRootY - drop - m_config.bangsInsetY;
+  CCPoint const right = across * -1.f;
+  return headCenter + up * (y * unit) + across * (x * unit) + right * (m_config.bangsInsetX * unit);
+}
+
 void HairNode::simulate(float dt)
 {
   auto const headToSim = CCAffineTransformConcat(m_head->nodeToWorldTransform(), m_simSpace->worldToNodeTransform());
@@ -489,8 +654,8 @@ void HairNode::simulate(float dt)
   this->buildTargets(headCenter, up, back);
 
   HairSimParams params;
-  params.stiffnessPower = styleShape(m_config.style).stiffnessPower;
   params.damping = m_config.damping;
+  params.windMultiplier = m_config.windMultiplier;
   params.teleportDistance = kTeleportDistance * std::max(m_simScale, 1.f);
   params.headCenter = headCenter;
   // Everything the hair lies on scales with the hitbox setting, the roots and the floor don't
@@ -533,7 +698,7 @@ void HairNode::simulate(float dt)
   {
     m_time += dt;
     float const gust = std::sin(m_time * 1.3f) + .5f * std::sin(m_time * 3.1f + 1.f);
-    params.wind = CCPoint{gust * kWindStrength * m_simScale, 0.f};
+    params.wind = CCPoint{gust * kWindStrength * m_config.windMultiplier * m_simScale, 0.f};
   }
 
   m_frameParams = params;
@@ -555,18 +720,34 @@ void HairNode::simulate(float dt)
 
 ccColor4F HairNode::hairColor() const
 {
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  return this->sourceColor(m_config.colorSource, m_config.customColor);
+}
 
-  switch (m_config.colorSource)
+ccColor4F HairNode::lockColor(LockKind kind) const
+{
+  if (kind == LockKind::FaceLock && m_config.faceLockColorSource != HairColorSource::Hair)
+    return this->sourceColor(m_config.faceLockColorSource, m_config.faceLockColor);
+  if (kind == LockKind::Bang && m_config.bangsColorSource != HairColorSource::Hair)
+    return this->sourceColor(m_config.bangsColorSource, m_config.bangsColor);
+  return this->hairColor();
+}
+
+ccColor4F HairNode::sourceColor(HairColorSource source, ccColor3B const &custom) const
+{
+  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  auto const secondary = m_secondary ? m_secondary->getColor() : m_primary->getColor();
+
+  switch (source)
   {
   case HairColorSource::Primary:
     return premultiplied(m_primary->getColor(), alpha);
-  case HairColorSource::Secondary:
-    return premultiplied(m_secondary ? m_secondary->getColor() : m_primary->getColor(), alpha);
   case HairColorSource::Custom:
-    return premultiplied(m_config.customColor, alpha);
+    return premultiplied(custom, alpha);
+  case HairColorSource::Hair:
+  case HairColorSource::Secondary:
+    break;
   }
-  return premultiplied(m_primary->getColor(), alpha);
+  return premultiplied(secondary, alpha);
 }
 
 void HairNode::drawCap(CCAffineTransform const &simToHair, ccColor4F const &color, float outline, ccColor4F const &outlineColor)
@@ -609,29 +790,46 @@ void HairNode::drawCap(CCAffineTransform const &simToHair, ccColor4F const &colo
 
 void HairNode::redraw()
 {
-  auto const simToHair = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), this->worldToNodeTransform());
-  auto const headToHair = CCAffineTransformConcat(m_head->nodeToWorldTransform(), this->worldToNodeTransform());
-  float const hairScale = applyVec({1.f, 0.f}, headToHair).getLength() * this->headUnit();
+  this->drawLocks(this, 0, m_frontStart, true);
+  if (!m_front)
+    return;
+
+  // Each group gets its own outline so the bangs clearly lie over the face locks
+  this->drawLocks(m_front, m_frontStart, m_bangsStart, false);
+  this->drawLocks(m_front, m_bangsStart, m_locks.size(), false);
+
+  if (m_debugDraw)
+    this->drawDebug();
+}
+
+void HairNode::drawLocks(CCDrawNode *node, size_t from, size_t to, bool withCap)
+{
+  if (from >= to)
+    return;
+
+  auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
+  auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
+  float const hairScale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
 
   float const outline = kOutlineWidth * hairScale;
-  auto const color = this->hairColor();
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const hair = this->hairColor();
+  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, hair.a};
   auto const &strands = m_sim.strands();
   int const subdiv = m_config.lockCount > kDenseLockCount ? kCurveSubdivDense : kCurveSubdiv;
+  to = std::min(to, strands.size());
 
-  // All outlines first so overlapping locks merge into one hair shape
   for (int pass = m_config.outline ? 0 : 1; pass < 2; ++pass)
   {
-    if (pass == 1)
-      this->drawCap(simToHair, shaded(color, kBackShade), m_config.outline ? outline : 0.f, outlineColor);
+    if (pass == 1 && withCap)
+      this->drawCap(simToNode, shaded(hair, kBackShade), m_config.outline ? outline : 0.f, outlineColor);
 
-    for (size_t s = 0; s < strands.size() && s < m_locks.size(); ++s)
+    for (size_t s = from; s < to; ++s)
     {
       auto const &lock = m_locks[s];
       float const rootRadius = lock.width * .5f * hairScale;
-      auto const lockColor = shaded(color, kBackShade + (1.f - kBackShade) * lock.depth);
+      auto const color = shaded(this->lockColor(lock.kind), kBackShade + (1.f - kBackShade) * lock.depth);
 
-      buildCurve(strands[s], simToHair, subdiv, m_curve);
+      buildCurve(strands[s], simToNode, subdiv, m_curve);
       int const last = static_cast<int>(m_curve.size()) - 1;
 
       for (int k = 1; k <= last; ++k)
@@ -640,10 +838,69 @@ void HairNode::redraw()
         float const radius = rootRadius * (1.f - kTipTaper * along);
 
         if (pass == 0)
-          this->drawSegment(m_curve[k - 1], m_curve[k], radius + outline * (1.f - kOutlineTaper * along), outlineColor);
+          node->drawSegment(m_curve[k - 1], m_curve[k], radius + outline * (1.f - kOutlineTaper * along), outlineColor);
         else
-          this->drawSegment(m_curve[k - 1], m_curve[k], radius, lockColor);
+          node->drawSegment(m_curve[k - 1], m_curve[k], radius, color);
       }
+    }
+  }
+}
+
+// ! --- Hitbox helpers --- !
+
+void HairNode::drawDebug()
+{
+  auto const simToFront = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), m_front->worldToNodeTransform());
+  auto const headToFront = CCAffineTransformConcat(m_head->nodeToWorldTransform(), m_front->worldToNodeTransform());
+  float const scale = applyVec({1.f, 0.f}, headToFront).getLength() * this->headUnit();
+  float const line = kDebugLine * scale;
+  float const dot = kDebugDot * scale;
+
+  auto const &params = m_frameParams;
+  CCPoint const center = params.headCenter;
+  auto toFront = [&](CCPoint const &point)
+  { return CCPointApplyAffineTransform(point, simToFront); };
+
+  // Collider the hair lies on, with the windward side pressed while moving
+  CCPoint previous;
+  for (int i = 0; i <= kDebugColliderPoints; ++i)
+  {
+    float const angle = 2.f * kPi * static_cast<float>(i) / static_cast<float>(kDebugColliderPoints);
+    CCPoint const dir = {std::cos(angle), std::sin(angle)};
+    CCPoint const point = toFront(center + dir * params.headSurface(dir));
+    if (i > 0)
+      m_front->drawSegment(previous, point, line, kDebugCollider);
+    previous = point;
+  }
+
+  // Floor while standing on the ground
+  if (params.floorDistance > 0.f)
+  {
+    CCPoint const floor = center + params.floorDown * params.floorDistance;
+    CCPoint const along = CCPoint{-params.floorDown.y, params.floorDown.x} * (params.floorDistance * 2.f);
+    m_front->drawSegment(toFront(floor - along), toFront(floor + along), line, kDebugFloor);
+  }
+
+  // Roots of every lock
+  for (size_t s = 0; s < m_locks.size() && s < m_targets.size(); ++s)
+  {
+    auto const color = m_locks[s].kind == LockKind::Back       ? kDebugRoots
+                       : m_locks[s].kind == LockKind::FaceLock ? kDebugFaceLocks
+                                                               : kDebugBangs;
+    m_front->drawDot(toFront(m_targets[s].root), m_locks[s].kind == LockKind::Back ? dot * .6f : dot, color);
+  }
+
+  // The whole bangs hairline, so the arc settings are visible even with a few locks
+  if (m_config.bangs)
+  {
+    CCPoint const across = normalized(m_frameBack, {-m_frameUp.y, m_frameUp.x});
+    for (int i = 0; i <= kDebugArcPoints; ++i)
+    {
+      float const side = static_cast<float>(i) / static_cast<float>(kDebugArcPoints) * 2.f - 1.f;
+      CCPoint const point = toFront(this->bangRoot(side, center, m_frameUp, across));
+      if (i > 0)
+        m_front->drawSegment(previous, point, line, kDebugBangs);
+      previous = point;
     }
   }
 }

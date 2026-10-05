@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.0
+
+- Face locks: wavy locks framing the face, left and right can be shown separately, with their own width, position and color
+- Bangs over the top of the face: spread, an arc for icons with a round top, position and their own color. They lie over the face locks
+- Front tab in the customizer for the face locks and bangs
+- Hitbox helpers in the customizer preview: the collider, the floor, the roots and the bangs hairline
+- Wind multiplier: how much the air affects the hair while moving, 0 makes it look like you're standing still
+- Hair length up to 200, gravity up to 10, damping up to 1
+
 ## v1.0.0
 
 - Physics-based hair in every game mode

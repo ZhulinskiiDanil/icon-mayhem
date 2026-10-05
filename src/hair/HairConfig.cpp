@@ -12,6 +12,8 @@ namespace
 
   HairColorSource parseColorSource(std::string const &value)
   {
+    if (value == "Hair")
+      return HairColorSource::Hair;
     if (value == "Primary")
       return HairColorSource::Primary;
     if (value == "Custom")
@@ -43,7 +45,33 @@ HairConfig HairConfig::load()
   cfg.segments = static_cast<int>(mod->getSettingValue<int64_t>("segments"));
   cfg.lockWidth = static_cast<float>(mod->getSettingValue<double>("lock-width"));
   cfg.volume = static_cast<float>(mod->getSettingValue<double>("volume"));
+
+  auto number = [&](std::string_view key)
+  { return static_cast<float>(mod->getSettingValue<double>(key)); };
+
+  cfg.faceLocks = mod->getSettingValue<bool>("face-locks");
+  cfg.faceLockLeft = mod->getSettingValue<bool>("face-lock-left");
+  cfg.faceLockRight = mod->getSettingValue<bool>("face-lock-right");
+  cfg.faceLockLength = number("face-lock-length");
+  cfg.faceLockWidth = number("face-lock-width");
+  cfg.faceLockInsetX = number("face-lock-inset-x");
+  cfg.faceLockInsetY = number("face-lock-inset-y");
+  cfg.faceLockColorSource = parseColorSource(mod->getSettingValue<std::string>("face-lock-color"));
+  cfg.faceLockColor = mod->getSettingValue<ccColor3B>("face-lock-custom-color");
+
+  cfg.bangs = mod->getSettingValue<bool>("bangs");
+  cfg.bangsLength = number("bangs-length");
+  cfg.bangsCount = static_cast<int>(mod->getSettingValue<int64_t>("bangs-density"));
+  cfg.bangsSpread = number("bangs-spread");
+  cfg.bangsArcSize = number("bangs-arc-size");
+  cfg.bangsArcSoftness = number("bangs-arc-softness");
+  cfg.bangsInsetX = number("bangs-inset-x");
+  cfg.bangsInsetY = number("bangs-inset-y");
+  cfg.bangsColorSource = parseColorSource(mod->getSettingValue<std::string>("bangs-color"));
+  cfg.bangsColor = mod->getSettingValue<ccColor3B>("bangs-custom-color");
+
   cfg.hitboxMultiplier = static_cast<float>(mod->getSettingValue<double>("hitbox-multiplier"));
+  cfg.windMultiplier = static_cast<float>(mod->getSettingValue<double>("wind-multiplier"));
   cfg.gravity = static_cast<float>(mod->getSettingValue<double>("gravity"));
   cfg.damping = static_cast<float>(mod->getSettingValue<double>("damping"));
   cfg.colorSource = parseColorSource(mod->getSettingValue<std::string>("color-source"));
@@ -52,6 +80,7 @@ HairConfig HairConfig::load()
 
   cfg.lockCount = std::clamp(cfg.lockCount, 1, 256);
   cfg.segments = std::clamp(cfg.segments, 3, 16);
+  cfg.bangsCount = std::clamp(cfg.bangsCount, 1, 32);
 
   return cfg;
 }

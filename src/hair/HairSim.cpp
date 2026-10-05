@@ -114,11 +114,12 @@ void HairSim::step(float dt, std::vector<HairStrandTarget> const &targets, HairS
   m_accumulator += std::min(dt, kMaxFrameTime);
 
   int const steps = static_cast<int>(m_accumulator / kFixedStep);
+  CCPoint const headStep = steps > 0 ? (params.headCenter - m_frameHead) / static_cast<float>(steps) : CCPoint{};
   for (int i = 0; i < steps; ++i)
   {
     // Roots move smoothly between last frame and this one across the substeps
     float const alpha = static_cast<float>(i + 1) / static_cast<float>(steps);
-    substep(kFixedStep, alpha, targets, params);
+    substep(kFixedStep, alpha, headStep, targets, params);
   }
   m_accumulator -= steps * kFixedStep;
 
@@ -132,9 +133,14 @@ void HairSim::step(float dt, std::vector<HairStrandTarget> const &targets, HairS
   m_lastHead = params.headCenter;
 }
 
-void HairSim::substep(float h, float alpha, std::vector<HairStrandTarget> const &targets, HairSimParams const &params)
+void HairSim::substep(float h, float alpha, CCPoint const &headStep, std::vector<HairStrandTarget> const &targets,
+                      HairSimParams const &params)
 {
   float const keep = 1.f - perStep(params.damping, h);
+
+  // Damping is air drag: it pulls the hair towards the speed of the air around it. With full wind
+  // the air stands still and the hair trails behind, without wind it moves along with the head
+  CCPoint const airStep = headStep * (1.f - params.windMultiplier);
   CCPoint const accel = (params.gravity + params.wind) * (h * h);
   CCPoint const head = lerp(m_frameHead, params.headCenter, alpha);
 
@@ -152,7 +158,7 @@ void HairSim::substep(float h, float alpha, std::vector<HairStrandTarget> const 
     // Verlet integration
     for (int k = 1; k <= m_segments; ++k)
     {
-      CCPoint const velocity = (pos[k] - prev[k]) * keep;
+      CCPoint const velocity = airStep + (pos[k] - prev[k] - airStep) * keep;
       prev[k] = pos[k];
       pos[k] = pos[k] + velocity + accel;
     }
@@ -162,12 +168,12 @@ void HairSim::substep(float h, float alpha, std::vector<HairStrandTarget> const 
       // Style spring towards the rest direction relative to the parent point,
       // sampled mid-segment so even the tip keeps a little of its shape
       float const along = (static_cast<float>(k) - .5f) / static_cast<float>(m_segments);
-      float const spring = target.stiffness * std::pow(1.f - along, params.stiffnessPower);
+      float const spring = target.stiffness * std::pow(1.f - along, target.stiffnessPower);
       CCPoint const rest = pos[k - 1] + target.restDirs[k - 1] * segLen;
       pos[k] = lerp(pos[k], rest, std::min(spring * h * h, kMaxSpringPull));
 
       // Head collider, the first segments start inside it so let them grow out gradually
-      if (params.headBox || params.headRadius > 0.f)
+      if (target.collide && (params.headBox || params.headRadius > 0.f))
       {
         CCPoint const fromHead = pos[k] - head;
         float const dist = fromHead.getLength();

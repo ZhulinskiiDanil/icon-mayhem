@@ -15,13 +15,15 @@ struct HairStrandTarget
   cocos2d::CCPoint root;
   std::vector<cocos2d::CCPoint> restDirs; // unit vectors, one per segment
   float segmentLength = 2.f;
-  float stiffness = 0.f; // style spring at the root, 1 / s^2
+  float stiffness = 0.f;      // style spring at the root, 1 / s^2
+  float stiffnessPower = 2.f; // how fast the style spring fades towards the tip
+  bool collide = true;        // false for hair lying in front of the face, it never touches the head
 };
 
 struct HairSimParams
 {
-  float stiffnessPower = 2.f; // how fast the style spring fades towards the tip
   float damping = .06f;
+  float windMultiplier = 1.f; // 0: the air moves with the head, the hair doesn't trail behind
   cocos2d::CCPoint gravity = {0.f, -900.f}; // units / s^2
   cocos2d::CCPoint wind = {0.f, 0.f};       // units / s^2
   float teleportDistance = 160.f;
@@ -64,7 +66,8 @@ public:
   int segments() const { return m_segments; }
 
 private:
-  void substep(float h, float alpha, std::vector<HairStrandTarget> const &targets, HairSimParams const &params);
+  void substep(float h, float alpha, cocos2d::CCPoint const &headStep, std::vector<HairStrandTarget> const &targets,
+               HairSimParams const &params);
 
   int m_segments = 0;
   float m_accumulator = 0.f;

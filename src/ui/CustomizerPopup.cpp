@@ -34,6 +34,24 @@ namespace
   constexpr CCSize kListSize = {240.f, 170.f};
   constexpr float kTabsY = 228.f;
 
+  // Hitbox helpers, remembered between openings
+  constexpr char const *kHitboxesSave = "customizer-hitboxes";
+
+  struct LegendEntry
+  {
+    char const *name;
+    ccColor3B color;
+  };
+
+  // Same colors as HairNode::drawDebug()
+  constexpr std::array kLegend{
+      LegendEntry{"Hitbox", {0, 255, 255}},
+      LegendEntry{"Floor", {255, 140, 0}},
+      LegendEntry{"Roots", {255, 255, 0}},
+      LegendEntry{"Face locks", {77, 255, 77}},
+      LegendEntry{"Bangs", {255, 77, 255}},
+  };
+
   struct PreviewMode
   {
     IconType type;
@@ -74,12 +92,37 @@ namespace
              "physics-title",
              "volume",
              "hitbox-multiplier",
+             "wind-multiplier",
              "gravity",
              "damping",
              "look-title",
              "color-source",
              "custom-color",
              "outline",
+         }},
+        {"Front",
+         {
+             "face-locks-title",
+             "face-locks",
+             "face-lock-left",
+             "face-lock-right",
+             "face-lock-length",
+             "face-lock-width",
+             "face-lock-inset-x",
+             "face-lock-inset-y",
+             "face-lock-color",
+             "face-lock-custom-color",
+             "bangs-title",
+             "bangs",
+             "bangs-length",
+             "bangs-density",
+             "bangs-spread",
+             "bangs-arc-size",
+             "bangs-arc-softness",
+             "bangs-inset-x",
+             "bangs-inset-y",
+             "bangs-color",
+             "bangs-custom-color",
          }},
     };
     return list;
@@ -141,6 +184,19 @@ bool CustomizerPopup::initCustomizer()
   reset->setID("reset-button");
   m_buttonMenu->addChildAtPosition(reset, Anchor::BottomRight, {-50.f, 19.f});
 
+  // Hitbox helpers toggle next to the reset button
+  m_showHitboxes = Mod::get()->getSavedValue<bool>(kHitboxesSave, false);
+  auto hitboxes = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(CustomizerPopup::onHitboxes), .5f);
+  hitboxes->toggle(m_showHitboxes);
+  hitboxes->setID("hitboxes-toggle");
+  m_buttonMenu->addChildAtPosition(hitboxes, Anchor::BottomRight, {-160.f, 19.f});
+
+  auto hitboxesLabel = CCLabelBMFont::create("Hitboxes", "bigFont.fnt");
+  hitboxesLabel->setScale(.4f);
+  hitboxesLabel->setAnchorPoint({0.f, .5f});
+  m_mainLayer->addChildAtPosition(hitboxesLabel, Anchor::BottomRight, {-146.f, 19.f});
+  this->applyHitboxes();
+
   this->showSection(0);
   this->scheduleUpdate();
   return true;
@@ -168,6 +224,20 @@ void CustomizerPopup::buildPreview()
   m_stage->setPosition(kStagePosition);
   m_stage->setID("stage");
   panel->addChild(m_stage);
+
+  // What the hitbox helper colors mean
+  m_legend = CCNode::create();
+  m_legend->setID("hitboxes-legend");
+  for (size_t i = 0; i < kLegend.size(); ++i)
+  {
+    auto label = CCLabelBMFont::create(kLegend[i].name, "bigFont.fnt");
+    label->setScale(.28f);
+    label->setColor(kLegend[i].color);
+    label->setAnchorPoint({0.f, 1.f});
+    label->setPosition({6.f, kPreviewSize.height - 5.f - static_cast<float>(i) * 9.f});
+    m_legend->addChild(label);
+  }
+  panel->addChild(m_legend);
 
   m_player = SimplePlayer::create(0);
   m_player->setScale(kPreviewScale);
@@ -229,6 +299,9 @@ void CustomizerPopup::updatePreviewIcon()
     m_player->disableGlowOutline();
 
   m_modeLabel->setString(mode.name);
+
+  // Robot and spider hair appears on the first switch to them
+  this->applyHitboxes();
   m_jumpTime = -1.f;
   m_spin = 0.f;
   m_player->setRotation(0.f);
@@ -360,6 +433,27 @@ void CustomizerPopup::onRun(CCObject *)
 {
   m_running = !m_running;
   m_runSprite->setString(m_running ? "Stop" : "Run");
+}
+
+void CustomizerPopup::onHitboxes(CCObject *sender)
+{
+  // The toggler flips its state after the callback
+  m_showHitboxes = !static_cast<CCMenuItemToggler *>(sender)->isToggled();
+  Mod::get()->setSavedValue(kHitboxesSave, m_showHitboxes);
+  this->applyHitboxes();
+}
+
+void CustomizerPopup::applyHitboxes()
+{
+  if (m_legend)
+    m_legend->setVisible(m_showHitboxes);
+
+  auto const hair = getSimplePlayerHair(m_player);
+  for (auto node : {hair.icon, hair.robot, hair.spider})
+  {
+    if (node)
+      node->setDebugDraw(m_showHitboxes);
+  }
 }
 
 void CustomizerPopup::onReset(CCObject *)
