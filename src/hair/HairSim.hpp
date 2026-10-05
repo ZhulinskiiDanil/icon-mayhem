@@ -6,7 +6,7 @@
 // ! --- Hair simulation --- !
 // Verlet strands with a pinned root, follow-the-leader length constraint,
 // a soft "style" spring that pulls every segment towards its rest direction
-// (strong at the root, almost gone at the tip), a round or box collider for the head
+// (strong at the root, almost gone at the tip), a round or squircle collider for the head
 // and an optional floor under it.
 // Works in an arbitrary 2D space (the player's parent), knows nothing about nodes.
 
@@ -30,13 +30,16 @@ struct HairSimParams
   float headRadius = 0.f; // round collider, 0 disables it
   float rootRadius = 0.f; // distance from the head center to the roots
 
-  // Rounded box collider instead of the round one
+  // Squircle collider instead of the round one: flat enough for the hair to lie on the faces
+  // of a cube, round enough to go around its corners instead of leaving them bald
   bool headBox = false;
   cocos2d::CCPoint headAxisX = {1.f, 0.f};
   cocos2d::CCPoint headAxisY = {0.f, 1.f};
   float headHalfSize = 0.f;
-  float headCorner = 0.f;
-  float headPad = 0.f; // how far above the faces the hair rests
+  float headExponent = 6.f; // 2 is a circle, the higher the squarer
+
+  // Distance from the head center to the collider surface along a unit direction
+  float headSurface(cocos2d::CCPoint const &dir) const;
 
   cocos2d::CCPoint floorDown = {0.f, -1.f};
   float floorDistance = 0.f; // floor below the head center, 0 disables it

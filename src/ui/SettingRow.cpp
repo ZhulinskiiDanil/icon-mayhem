@@ -16,8 +16,9 @@ namespace
   constexpr float kPadding = 8.f;
   constexpr float kLabelScale = .4f;
   constexpr float kLabelWidth = .42f;  // part of the row the setting name may take
-  constexpr float kSliderScale = .45f;
-  constexpr float kValueWidth = 30.f;  // space for the slider value on the right
+  constexpr float kSliderWidth = 70.f;
+  constexpr float kInputWidth = 52.f;  // number input on the right, before scaling
+  constexpr float kInputScale = .6f;
   constexpr float kChoiceWidth = 90.f; // space for the "< Option >" control
 
   template <class S>
@@ -127,17 +128,33 @@ void SettingRow::addToggle()
 void SettingRow::addSlider()
 {
   float const centerY = this->getContentHeight() / 2.f;
+  float const inputWidth = kInputWidth * kInputScale;
+  bool const isInt = as<IntSettingV3>(m_setting) != nullptr;
 
-  m_slider = Slider::create(this, menu_selector(SettingRow::onSlider));
-  m_slider->setScale(kSliderScale);
-  m_slider->setPosition({m_width - kPadding - kValueWidth - 52.f, centerY});
+  // Typing a value works everywhere, the slider is for quick tweaks with the live preview
+  m_input = TextInput::create(kInputWidth, "0");
+  m_input->setScale(kInputScale);
+  m_input->setPosition({m_width - kPadding - inputWidth / 2.f, centerY});
+  this->addChild(m_input);
+
+  m_slider = SliderNode::create([this](SliderNode *, float value)
+                                {
+                                  double const snap = this->numberSnap();
+                                  double snapped = value;
+                                  if (snap > 0.0)
+                                    snapped = std::round(snapped / snap) * snap;
+                                  this->setNumberValue(snapped);
+                                });
+  m_slider->setMin(static_cast<float>(this->numberMin()));
+  m_slider->setMax(static_cast<float>(this->numberMax()));
+  if (this->numberSnap() > 0.0)
+    m_slider->setSnapStep(static_cast<float>(this->numberSnap()));
+  m_slider->setContentSize({kSliderWidth, m_slider->getContentHeight()});
+  m_slider->setAnchorPoint({1.f, .5f});
+  m_slider->setPosition({m_width - kPadding - inputWidth - 8.f, centerY});
   this->addChild(m_slider);
 
-  m_valueLabel = CCLabelBMFont::create("0", "bigFont.fnt");
-  m_valueLabel->setAnchorPoint({1.f, .5f});
-  m_valueLabel->setScale(.32f);
-  m_valueLabel->setPosition({m_width - kPadding, centerY});
-  this->addChild(m_valueLabel);
+  m_slider->linkTextInput(m_input, isInt ? 0 : 2);
 }
 
 void SettingRow::addArrows()
@@ -184,11 +201,8 @@ void SettingRow::refresh()
   }
   else if (m_slider)
   {
-    float const range = static_cast<float>(this->numberMax() - this->numberMin());
-    float const value = range > 0.f ? static_cast<float>(this->numberValue() - this->numberMin()) / range : 0.f;
-    m_slider->m_touchLogic->m_thumb->setValue(std::clamp(value, 0.f, 1.f));
-    m_slider->updateBar();
-    this->updateValueLabel();
+    // Also updates the linked input
+    m_slider->setValue(static_cast<float>(this->numberValue()));
   }
   else if (auto setting = as<StringSettingV3>(m_setting); setting && m_valueLabel)
   {
@@ -246,17 +260,6 @@ double SettingRow::numberSnap() const
   return 0.0;
 }
 
-void SettingRow::updateValueLabel()
-{
-  if (!m_valueLabel)
-    return;
-
-  if (as<IntSettingV3>(m_setting))
-    m_valueLabel->setString(fmt::format("{}", std::llround(this->numberValue())).c_str());
-  else
-    m_valueLabel->setString(fmt::format("{:.2f}", this->numberValue()).c_str());
-}
-
 // ! --- Callbacks --- !
 
 void SettingRow::onToggle(CCObject *)
@@ -264,20 +267,6 @@ void SettingRow::onToggle(CCObject *)
   // The toggler flips its state after the callback
   if (auto setting = as<BoolSettingV3>(m_setting))
     setting->setValue(!m_toggle->isToggled());
-}
-
-void SettingRow::onSlider(CCObject *)
-{
-  double const min = this->numberMin();
-  double const max = this->numberMax();
-  double value = min + m_slider->m_touchLogic->m_thumb->getValue() * (max - min);
-
-  double const snap = this->numberSnap();
-  if (snap > 0.0)
-    value = std::round(value / snap) * snap;
-
-  this->setNumberValue(value);
-  this->updateValueLabel();
 }
 
 void SettingRow::onArrow(CCObject *sender)

@@ -49,7 +49,7 @@ HairConfig HairConfig::load()
   cfg.customColor = mod->getSettingValue<ccColor3B>("custom-color");
   cfg.outline = mod->getSettingValue<bool>("outline");
 
-  cfg.lockCount = std::clamp(cfg.lockCount, 1, 64);
+  cfg.lockCount = std::clamp(cfg.lockCount, 1, 256);
   cfg.segments = std::clamp(cfg.segments, 3, 16);
 
   return cfg;

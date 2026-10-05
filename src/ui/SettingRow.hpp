@@ -1,11 +1,13 @@
 #pragma once
 
 #include <Geode/Geode.hpp>
-#include <Geode/binding/Slider.hpp>
+#include <Geode/ui/SliderNode.hpp>
+#include <Geode/ui/TextInput.hpp>
 
 // ! --- Setting row --- !
 // One row of the customizer list, built from a mod setting by its type:
-// title, toggle, slider (int / float), arrows (string with options) or color picker.
+// title, toggle, slider with a text input (int / float), arrows (string with options)
+// or color picker.
 // Writing the setting is enough, HairConfig::version() makes the hair pick it up.
 
 class SettingRow : public cocos2d::CCNode
@@ -27,7 +29,6 @@ private:
   void addColor();
 
   void onToggle(cocos2d::CCObject *sender);
-  void onSlider(cocos2d::CCObject *sender);
   void onArrow(cocos2d::CCObject *sender);
   void onColor(cocos2d::CCObject *sender);
   void onInfo(cocos2d::CCObject *sender);
@@ -38,14 +39,14 @@ private:
   double numberMin() const;
   double numberMax() const;
   double numberSnap() const;
-  void updateValueLabel();
 
   std::shared_ptr<geode::SettingV3> m_setting;
   float m_width = 0.f;
 
   cocos2d::CCMenu *m_menu = nullptr;
   CCMenuItemToggler *m_toggle = nullptr;
-  Slider *m_slider = nullptr;
+  geode::SliderNode *m_slider = nullptr;
+  geode::TextInput *m_input = nullptr;
   cocos2d::CCLabelBMFont *m_valueLabel = nullptr;
   cocos2d::CCSprite *m_colorSprite = nullptr;
 };

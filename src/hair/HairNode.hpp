@@ -61,6 +61,8 @@ private:
   void buildTargets(cocos2d::CCPoint const &headCenter, cocos2d::CCPoint const &up, cocos2d::CCPoint const &back);
   void simulate(float dt);
   void redraw();
+  void drawCap(cocos2d::CCAffineTransform const &simToHair, cocos2d::ccColor4F const &color, float outline,
+               cocos2d::ccColor4F const &outlineColor);
   cocos2d::ccColor4F hairColor() const;
 
   cocos2d::CCSprite *m_head = nullptr;
@@ -80,6 +82,13 @@ private:
   HairSim m_sim;
   std::vector<HairStrandTarget> m_targets;
   std::vector<cocos2d::CCPoint> m_curve; // scratch buffer for drawing
+
+  // Last simulated frame, the base under the locks is drawn from it
+  HairSimParams m_frameParams;
+  cocos2d::CCPoint m_frameUp = {0.f, 1.f};
+  cocos2d::CCPoint m_frameBack = {-1.f, 0.f};
+  float m_capFrom = 0.f; // degrees, the arc the locks grow on
+  float m_capTo = 0.f;
 
   float m_simScale = 1.f; // sim units per hair unit, a hair unit is 1/30 of the head size
   float m_upAngle = 0.f;  // radians, smoothed "away from gravity" direction

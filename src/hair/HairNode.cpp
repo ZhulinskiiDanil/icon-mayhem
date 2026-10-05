@@ -1,6 +1,7 @@
 #include "HairNode.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <numbers>
 #include <random>
@@ -18,8 +19,14 @@ namespace
   constexpr float kHeadRadius = 15.f;     // hair units, half of the cube
   constexpr float kRootDepth = .72f;      // roots sit inside the head so the icon hides them
   constexpr float kColliderScale = 1.1f;  // round heads: hair rests a bit above them
-  constexpr float kBoxPad = 1.f;          // cube heads: hair lies right on the faces
-  constexpr float kBoxCorner = 3.f;       // rounded corners so the hair slides around them
+  constexpr float kBoxScale = 1.32f;      // cube heads: hair rests this far out on the faces...
+  constexpr float kBoxExponent = 3.5f;    // ...and goes around the corners in a wide arc (squircle, 2 is a circle)
+  // Base under the locks: barely peeks out of the head so it never shows as a cushion
+  // when the locks move away, and is much rounder than the collider
+  constexpr float kCapScale = 1.05f;   // half size of the base relative to the head
+  constexpr float kCapExponent = 3.f;  // squircle exponent of the base on cubes, 2 is a circle
+  constexpr int kCapPoints = 24;
+  constexpr float kCapEdgeFade = .15f;    // part of the base arc on each end that sinks into the head
   constexpr float kSpringScale = 13.f;    // style spring vs gravity, see buildTargets()
   constexpr float kTurnSpeed = 12.f;      // radians / s the hairstyle rotates after a gravity flip
   constexpr float kFacingSpeed = 6.f;     // facing units / s when turning around
@@ -29,12 +36,15 @@ namespace
   constexpr float kWindwardComb = .7f;     // locks facing the movement turn back right at the root
   constexpr float kCombAlong = .6f;        // every lock turns back along its length
   constexpr float kDrapeAlong = .9f;       // standing still every lock falls down along its length
+  constexpr float kDrapeBackBias = .6f;    // moves the parting forward, 0 parts the hair right on top
   constexpr float kCombDown = .35f;        // combed hair points back and a bit down
   constexpr float kCurlReference = 9.f;    // style curl that gives kCombAlong as is
   constexpr float kFullCombSpeed = 250.f;  // units / s of horizontal speed that comb the hair fully
   constexpr float kMotionResponse = 4.f;   // how fast the combing follows the speed, 1 / s
 
   constexpr int kCurveSubdiv = 3;      // drawn points per simulated segment
+  constexpr int kCurveSubdivDense = 2; // fewer for dense hair, the thin locks don't need it
+  constexpr int kDenseLockCount = 64;
   constexpr float kTipTaper = .92f;    // how much thinner the tip is than the root
   constexpr float kOutlineWidth = .6f; // icon units
   constexpr float kOutlineTaper = .6f; // outline thins towards the tip too, no blobs on the ends
@@ -122,7 +132,7 @@ namespace
   }
 
   // Smooth curve through the simulated points, already moved into the hair node space
-  void buildCurve(std::vector<CCPoint> const &pts, CCAffineTransform const &toHair, std::vector<CCPoint> &out)
+  void buildCurve(std::vector<CCPoint> const &pts, CCAffineTransform const &toHair, int subdiv, std::vector<CCPoint> &out)
   {
     int const n = static_cast<int>(pts.size());
     auto at = [&](int i)
@@ -137,9 +147,9 @@ namespace
     out.clear();
     for (int i = 0; i + 1 < n; ++i)
     {
-      for (int j = 0; j < kCurveSubdiv; ++j)
+      for (int j = 0; j < subdiv; ++j)
       {
-        float const t = static_cast<float>(j) / static_cast<float>(kCurveSubdiv);
+        float const t = static_cast<float>(j) / static_cast<float>(subdiv);
         out.push_back(CCPointApplyAffineTransform(catmullRom(at(i - 1), at(i), at(i + 1), at(i + 2), t), toHair));
       }
     }
@@ -253,6 +263,9 @@ void HairNode::generateLocks()
 
   // Where along the head the top (angle 0) is, the length profile peaks around it
   float const top = -style.frontAngle / (style.backAngle - style.frontAngle);
+
+  m_capFrom = frontAngle;
+  m_capTo = backAngle;
 
   m_locks.clear();
   for (int i = 0; i < count; ++i)
@@ -417,7 +430,9 @@ void HairNode::buildTargets(CCPoint const &headCenter, CCPoint const &up, CCPoin
     if (m_config.spinWithIcon)
     {
       // Standing still a lock falls down on the side of the head it grows from
-      CCPoint const side = horizontal * (radial.dot(horizontal) >= 0.f ? 1.f : -1.f);
+      // The parting sits in front of the top, so most of the hair goes back and the front makes a fringe
+      float const sideness = radial.dot(horizontal) + kDrapeBackBias * worldBack.dot(horizontal);
+      CCPoint const side = horizontal * (sideness >= 0.f ? 1.f : -1.f);
       float const drapeTurn = turnAngle(radial, worldDown, side);
 
       // Moving, locks get combed back over the top. The ones facing the wind turn
@@ -484,9 +499,8 @@ void HairNode::simulate(float dt)
     params.headBox = true;
     params.headAxisX = normalized(applyVec({1.f, 0.f}, headToSim), {1.f, 0.f});
     params.headAxisY = normalized(applyVec({0.f, 1.f}, headToSim), {0.f, 1.f});
-    params.headHalfSize = kHeadRadius * m_simScale;
-    params.headCorner = kBoxCorner * m_simScale;
-    params.headPad = kBoxPad * m_simScale;
+    params.headHalfSize = kHeadRadius * kBoxScale * m_simScale;
+    params.headExponent = kBoxExponent;
   }
 
   CCPoint const down = m_gravityDir ? m_gravityDir() : CCPoint{0.f, -1.f};
@@ -505,6 +519,10 @@ void HairNode::simulate(float dt)
     float const gust = std::sin(m_time * 1.3f) + .5f * std::sin(m_time * 3.1f + 1.f);
     params.wind = CCPoint{gust * kWindStrength * m_simScale, 0.f};
   }
+
+  m_frameParams = params;
+  m_frameUp = up;
+  m_frameBack = back;
 
   if (m_needsReset)
   {
@@ -535,6 +553,44 @@ ccColor4F HairNode::hairColor() const
   return premultiplied(m_primary->getColor(), alpha);
 }
 
+void HairNode::drawCap(CCAffineTransform const &simToHair, ccColor4F const &color, float outline, ccColor4F const &outlineColor)
+{
+  // Base of the hairstyle along the collider surface, fills the gaps between the locks
+  // (a parting on top, the corners of a cube) so no background shows through the hair
+  std::array<CCPoint, kCapPoints + 1> verts;
+  CCPoint const center = m_frameParams.headCenter;
+  float const capSize = kHeadRadius * kCapScale * m_simScale;
+
+  verts[0] = CCPointApplyAffineTransform(center, simToHair);
+  for (int i = 0; i < kCapPoints; ++i)
+  {
+    float const t = static_cast<float>(i) / static_cast<float>(kCapPoints - 1);
+    float const angle = radians(m_capFrom + (m_capTo - m_capFrom) * t);
+    CCPoint const dir = normalized(m_frameUp * std::cos(angle) + m_frameBack * std::sin(angle), m_frameUp);
+    // The ends sink into the head, otherwise they'd stick out as ledges when the locks move away
+    float const edge = std::clamp(std::min(t, 1.f - t) / kCapEdgeFade, 0.f, 1.f);
+    float surface = capSize;
+    if (m_frameParams.headBox)
+    {
+      float const x = std::abs(dir.dot(m_frameParams.headAxisX));
+      float const y = std::abs(dir.dot(m_frameParams.headAxisY));
+      surface /= std::pow(std::pow(x, kCapExponent) + std::pow(y, kCapExponent), 1.f / kCapExponent);
+    }
+    CCPoint point = center + dir * (m_frameParams.rootRadius + (surface - m_frameParams.rootRadius) * edge);
+
+    if (m_frameParams.floorDistance > 0.f)
+    {
+      float const below = (point - center).dot(m_frameParams.floorDown) - m_frameParams.floorDistance;
+      if (below > 0.f)
+        point = point - m_frameParams.floorDown * below;
+    }
+
+    verts[i + 1] = CCPointApplyAffineTransform(point, simToHair);
+  }
+
+  this->drawPolygon(verts.data(), static_cast<unsigned>(verts.size()), color, outline, outlineColor);
+}
+
 void HairNode::redraw()
 {
   auto const simToHair = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), this->worldToNodeTransform());
@@ -545,17 +601,21 @@ void HairNode::redraw()
   auto const color = this->hairColor();
   auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
   auto const &strands = m_sim.strands();
+  int const subdiv = m_config.lockCount > kDenseLockCount ? kCurveSubdivDense : kCurveSubdiv;
 
   // All outlines first so overlapping locks merge into one hair shape
   for (int pass = m_config.outline ? 0 : 1; pass < 2; ++pass)
   {
+    if (pass == 1)
+      this->drawCap(simToHair, shaded(color, kBackShade), m_config.outline ? outline : 0.f, outlineColor);
+
     for (size_t s = 0; s < strands.size() && s < m_locks.size(); ++s)
     {
       auto const &lock = m_locks[s];
       float const rootRadius = lock.width * .5f * hairScale;
       auto const lockColor = shaded(color, kBackShade + (1.f - kBackShade) * lock.depth);
 
-      buildCurve(strands[s], simToHair, m_curve);
+      buildCurve(strands[s], simToHair, subdiv, m_curve);
       int const last = static_cast<int>(m_curve.size()) - 1;
 
       for (int k = 1; k <= last; ++k)
