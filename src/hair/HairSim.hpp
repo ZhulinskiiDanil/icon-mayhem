@@ -38,6 +38,14 @@ struct HairSimParams
   float headHalfSize = 0.f;
   float headExponent = 6.f; // 2 is a circle, the higher the squarer
 
+  // Oncoming air presses the hair to the windward side of the head: the collider shrinks
+  // there towards a tight shape (a sharp squircle for cubes, a small circle otherwise)
+  cocos2d::CCPoint windDir = {1.f, 0.f}; // direction of movement
+  float windPress = 0.f;                 // 0 standing still .. 1 moving fast
+  float tightRadius = 0.f;
+  float tightHalfSize = 0.f;
+  float tightExponent = 8.f;
+
   // Distance from the head center to the collider surface along a unit direction
   float headSurface(cocos2d::CCPoint const &dir) const;
 

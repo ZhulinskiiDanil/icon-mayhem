@@ -12,6 +12,9 @@ namespace
   constexpr float kFixedStep = 1.f / 240.f;
   constexpr float kMaxFrameTime = 1.f / 20.f;
 
+  // How quickly the windward side gets pressed fully, at 1 only hair right in front is pressed fully
+  constexpr float kWindPressGain = 1.5f;
+
   // Max part of the way a segment moves towards its rest pose in one substep, keeps stiff hair stable
   constexpr float kMaxSpringPull = .9f;
 
@@ -31,14 +34,23 @@ namespace
 
 float HairSimParams::headSurface(CCPoint const &dir) const
 {
-  if (!headBox)
-    return headRadius;
-
   // Squircle |x|^n + |y|^n = a^n in the head space
-  float const x = std::abs(dir.dot(headAxisX));
-  float const y = std::abs(dir.dot(headAxisY));
-  float const norm = std::pow(std::pow(x, headExponent) + std::pow(y, headExponent), 1.f / headExponent);
-  return norm > .0001f ? headHalfSize / norm : headHalfSize;
+  auto squircle = [&](float halfSize, float exponent)
+  {
+    float const x = std::abs(dir.dot(headAxisX));
+    float const y = std::abs(dir.dot(headAxisY));
+    float const norm = std::pow(std::pow(x, exponent) + std::pow(y, exponent), 1.f / exponent);
+    return norm > .0001f ? halfSize / norm : halfSize;
+  };
+
+  float const relaxed = headBox ? squircle(headHalfSize, headExponent) : headRadius;
+
+  float const press = std::clamp(dir.dot(windDir) * windPress * kWindPressGain, 0.f, 1.f);
+  if (press <= 0.f)
+    return relaxed;
+
+  float const tight = headBox ? squircle(tightHalfSize, tightExponent) : tightRadius;
+  return relaxed + (std::min(tight, relaxed) - relaxed) * press;
 }
 
 // ! --- Setup --- !

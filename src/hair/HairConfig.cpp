@@ -43,6 +43,7 @@ HairConfig HairConfig::load()
   cfg.segments = static_cast<int>(mod->getSettingValue<int64_t>("segments"));
   cfg.lockWidth = static_cast<float>(mod->getSettingValue<double>("lock-width"));
   cfg.volume = static_cast<float>(mod->getSettingValue<double>("volume"));
+  cfg.hitboxMultiplier = static_cast<float>(mod->getSettingValue<double>("hitbox-multiplier"));
   cfg.gravity = static_cast<float>(mod->getSettingValue<double>("gravity"));
   cfg.damping = static_cast<float>(mod->getSettingValue<double>("damping"));
   cfg.colorSource = parseColorSource(mod->getSettingValue<std::string>("color-source"));

@@ -29,6 +29,7 @@ struct HairConfig
   int segments = 8;
   float lockWidth = 3.f; // icon units, at the root
   float volume = .7f;
+  float hitboxMultiplier = 1.f; // size of the head collider
   float gravity = 1.f;
   float damping = .06f;
   HairColorSource colorSource = HairColorSource::Secondary;

@@ -22,6 +22,7 @@ A growing collection of **crazy customizations** for your icons. First up: **phy
 | Segments | Smoothness of the hair, more segments make it softer |
 | Lock width | Width of a lock at the root, every lock tapers to a point |
 | Volume | How strongly the hair keeps its shape near the roots. **Lower it if the hair is too stiff** |
+| Hitbox multiplier | Size of the invisible head the hair lies on. Bigger keeps the hair further from the icon |
 | Gravity | How heavy the hair is |
 | Damping | How quickly the hair stops swinging |
 | Color | Primary or secondary icon color, or a custom one |

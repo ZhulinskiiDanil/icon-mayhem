@@ -73,6 +73,7 @@ namespace
              "lock-width",
              "physics-title",
              "volume",
+             "hitbox-multiplier",
              "gravity",
              "damping",
              "look-title",

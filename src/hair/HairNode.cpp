@@ -21,6 +21,9 @@ namespace
   constexpr float kColliderScale = 1.1f;  // round heads: hair rests a bit above them
   constexpr float kBoxScale = 1.32f;      // cube heads: hair rests this far out on the faces...
   constexpr float kBoxExponent = 3.5f;    // ...and goes around the corners in a wide arc (squircle, 2 is a circle)
+  constexpr float kPressedScale = 1.1f;   // the windward side while moving: hair lies right on the face
+  constexpr float kPressedExponent = 8.f;
+  constexpr float kPressedRoundScale = 1.03f;
   // Base under the locks: barely peeks out of the head so it never shows as a cushion
   // when the locks move away, and is much rounder than the collider
   constexpr float kCapScale = 1.05f;   // half size of the base relative to the head
@@ -490,7 +493,9 @@ void HairNode::simulate(float dt)
   params.damping = m_config.damping;
   params.teleportDistance = kTeleportDistance * std::max(m_simScale, 1.f);
   params.headCenter = headCenter;
-  params.headRadius = kHeadRadius * kColliderScale * m_simScale;
+  // Everything the hair lies on scales with the hitbox setting, the roots and the floor don't
+  float const hitbox = kHeadRadius * m_config.hitboxMultiplier * m_simScale;
+  params.headRadius = hitbox * kColliderScale;
   params.rootRadius = kHeadRadius * kRootDepth * m_simScale;
 
   // A cube is a box, the hair lies right on its faces and slides around the corners
@@ -499,12 +504,23 @@ void HairNode::simulate(float dt)
     params.headBox = true;
     params.headAxisX = normalized(applyVec({1.f, 0.f}, headToSim), {1.f, 0.f});
     params.headAxisY = normalized(applyVec({0.f, 1.f}, headToSim), {0.f, 1.f});
-    params.headHalfSize = kHeadRadius * kBoxScale * m_simScale;
+    params.headHalfSize = hitbox * kBoxScale;
     params.headExponent = kBoxExponent;
   }
 
   CCPoint const down = m_gravityDir ? m_gravityDir() : CCPoint{0.f, -1.f};
   params.gravity = down * (kBaseGravity * m_config.gravity * m_simScale);
+
+  // Oncoming air presses the hair to the front of the head instead of letting it bulge like a shield.
+  // `worldBack` shrinks while turning around, so does the pressing
+  CCPoint worldUp;
+  CCPoint worldBack;
+  this->gravityAxes(worldUp, worldBack);
+  params.windDir = worldBack * -1.f;
+  params.windPress = m_motion;
+  params.tightRadius = hitbox * kPressedRoundScale;
+  params.tightHalfSize = hitbox * kPressedScale;
+  params.tightExponent = kPressedExponent;
 
   // Standing on the ground: hair under the head spreads along the floor instead of going through it
   if (m_onGround && m_onGround())

@@ -112,6 +112,17 @@
 				"slider": true
 			}
 		},
+		"hitbox-multiplier": {
+			"name": "Hitbox multiplier",
+			"description": "Size of the invisible head the hair lies on, relative to the icon. Bigger keeps the hair further from the icon, smaller lets it fall closer and hide behind it",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
 		"gravity": {
 			"name": "Gravity",
 			"description": "How heavy the hair is",
