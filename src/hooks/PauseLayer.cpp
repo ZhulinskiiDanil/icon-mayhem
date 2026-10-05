@@ -1,11 +1,12 @@
+#include "../ui/CustomizerPopup.hpp"
+
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PauseLayer.hpp>
-#include <Geode/ui/GeodeUI.hpp>
 
 using namespace geode::prelude;
 
 // ! --- PauseLayer --- !
-// Settings button in the pause menu, changes apply right away thanks to HairConfig::version()
+// Customizer button in the pause menu, changes apply right away thanks to HairConfig::version()
 
 class $modify(HairPauseLayer, PauseLayer)
 {
@@ -41,6 +42,7 @@ class $modify(HairPauseLayer, PauseLayer)
 
   void onHairSettings(CCObject *)
   {
-    openSettingsPopup(Mod::get());
+    if (auto popup = CustomizerPopup::create())
+      popup->show();
   }
 };

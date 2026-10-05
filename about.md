@@ -10,7 +10,7 @@ A growing collection of **crazy customizations** for your icons. First up: **phy
 - **Platformer support**: the hairstyle turns around when you change direction
 - **3 hairstyles**: *Flowing*, *Long* and *Spiky*
 - **Garage preview** with a light breeze, so you can see your hairstyle before playing
-- **Pause menu button** to change the hair settings in the middle of a level, changes apply instantly
+- **Customizer** with a live icon preview: switch game modes, make the icon jump or run and watch the hair react while you tweak it. Open it with the button in the pause menu, changes apply instantly
 
 ## Settings
 

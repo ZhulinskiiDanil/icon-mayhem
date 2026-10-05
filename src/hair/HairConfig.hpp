@@ -23,6 +23,7 @@ struct HairConfig
   bool enabled = true;
   bool showInGarage = true;
   HairStyle style = HairStyle::Flowing;
+  bool spinWithIcon = true;
   int lockCount = 24;
   float length = 20.f; // icon units, the cube is ~30
   int segments = 8;

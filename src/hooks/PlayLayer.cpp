@@ -21,15 +21,27 @@ namespace
     return !player->m_isRobot && !player->m_isSpider;
   }
 
+  // The icon itself touches the ground, a cube riding a ship or UFO doesn't
+  bool iconStandsOnGround(PlayerObject *player)
+  {
+    return player->m_isOnGround && !player->m_isShip && !player->m_isBird;
+  }
+
+  // The cube itself or the cube riding a ship / UFO / jetpack, the ball, wave and swing are rounder
+  bool iconIsCube(PlayerObject *player)
+  {
+    return !player->m_isBall && !player->m_isDart && !player->m_isSwing;
+  }
+
   CCSprite *headOf(GJRobotSprite *body)
   {
     return body->m_headSprite ? static_cast<CCSprite *>(body->m_headSprite) : body;
   }
 
-  void setupHair(HairNode *hair, PlayerObject *player, std::function<bool()> modeMatches)
+  HairNode *setupHair(HairNode *hair, PlayerObject *player, std::function<bool()> modeMatches)
   {
     if (!hair)
-      return;
+      return nullptr;
 
     hair->setShouldShow([player, modeMatches = std::move(modeMatches)]
                         { return isAlive(player) && modeMatches(); });
@@ -37,6 +49,7 @@ namespace
                         { return player->m_isUpsideDown ? CCPoint{0.f, 1.f} : CCPoint{0.f, -1.f}; });
     hair->setFacing([player]
                     { return player->m_isGoingLeft ? -1.f : 1.f; });
+    return hair;
   }
 
   void attachHair(PlayerObject *player)
@@ -48,9 +61,16 @@ namespace
     auto primary = player->m_iconSprite;
     auto secondary = player->m_iconSpriteSecondary;
 
-    setupHair(HairNode::attach(player->m_iconSprite, player->m_iconSprite, primary, secondary, simSpace),
-              player, [player]
-              { return usesIconSprite(player); });
+    auto iconHair = setupHair(HairNode::attach(player->m_iconSprite, player->m_iconSprite, primary, secondary, simSpace),
+                              player, [player]
+                              { return usesIconSprite(player); });
+    if (iconHair)
+    {
+      iconHair->setOnGround([player]
+                            { return iconStandsOnGround(player); });
+      iconHair->setBoxHead([player]
+                           { return iconIsCube(player); });
+    }
 
     if (auto robot = player->m_robotSprite)
     {

@@ -5,4 +5,4 @@
 - Physics-based hair in every game mode
 - Hairstyles: Flowing, Long and Spiky
 - Hair preview in the garage
-- Hair settings button in the pause menu
+- Customizer popup with a live icon preview, opened from the pause menu

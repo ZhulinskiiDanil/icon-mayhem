@@ -12,8 +12,8 @@
 // (the player's parent), so the hair reacts to the real movement of the icon.
 // Everything is done in visit(), which runs after the game updated the player
 // this frame, so the roots never lag behind the icon.
-// The hairstyle is oriented by gravity and movement direction, not by the icon
-// rotation, so a spinning cube keeps its hair on top and it always trails behind.
+// The hairstyle is either glued to the top of the icon and spins with it, or oriented
+// by gravity and movement direction so it always stays on top of the head.
 
 class HairNode : public cocos2d::CCDrawNode
 {
@@ -27,6 +27,10 @@ public:
   void setGravityDir(std::function<cocos2d::CCPoint()> fn) { m_gravityDir = std::move(fn); }
   // +1 when moving right in sim space, -1 when moving left
   void setFacing(std::function<float()> fn) { m_facingFn = std::move(fn); }
+  // The head stands on the floor below it (a grounded cube or ball), hair can't go under it
+  void setOnGround(std::function<bool()> fn) { m_onGround = std::move(fn); }
+  // The head is a cube, the hair lies on its faces (a round collider otherwise)
+  void setBoxHead(std::function<bool()> fn) { m_boxHead = std::move(fn); }
   void setIdleWind(bool enabled) { m_idleWind = enabled; }
   void setGarage(bool garage) { m_isGarage = garage; }
   void resetSim() { m_needsReset = true; }
@@ -51,7 +55,10 @@ private:
   float headUnit() const; // head-local units per hair unit
   bool isActive() const;
   void updateFrame(float dt, bool snap);
-  void buildTargets(cocos2d::CCPoint const &headCenter);
+  void updateMotion(float dt, cocos2d::CCPoint const &headCenter, bool snap);
+  void gravityAxes(cocos2d::CCPoint &up, cocos2d::CCPoint &back) const;
+  void iconAxes(cocos2d::CCAffineTransform const &headToSim, cocos2d::CCPoint &up, cocos2d::CCPoint &back) const;
+  void buildTargets(cocos2d::CCPoint const &headCenter, cocos2d::CCPoint const &up, cocos2d::CCPoint const &back);
   void simulate(float dt);
   void redraw();
   cocos2d::ccColor4F hairColor() const;
@@ -64,6 +71,8 @@ private:
   std::function<bool()> m_shouldShow;
   std::function<cocos2d::CCPoint()> m_gravityDir;
   std::function<float()> m_facingFn;
+  std::function<bool()> m_onGround;
+  std::function<bool()> m_boxHead;
 
   HairConfig m_config;
   unsigned m_configVersion = 0;
@@ -75,6 +84,8 @@ private:
   float m_simScale = 1.f; // sim units per hair unit, a hair unit is 1/30 of the head size
   float m_upAngle = 0.f;  // radians, smoothed "away from gravity" direction
   float m_facing = 1.f;   // smoothed, -1..1
+  float m_motion = 0.f;   // smoothed, 0 standing still .. 1 moving fast enough to comb the hair back
+  cocos2d::CCPoint m_lastHeadCenter;
   unsigned m_lastFrame = 0;
   float m_time = 0.f;
   bool m_needsReset = true;

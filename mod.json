@@ -45,6 +45,12 @@
 			"default": "Flowing",
 			"one-of": ["Flowing", "Long", "Spiky"]
 		},
+		"spin-with-icon": {
+			"name": "Spin with icon",
+			"description": "The hair is attached to the top of the icon and spins with it in jumps. Turn off to keep the hair on top of the head at all times",
+			"type": "bool",
+			"default": true
+		},
 		"density": {
 			"name": "Density",
 			"description": "Number of hair locks",

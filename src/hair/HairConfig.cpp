@@ -37,6 +37,7 @@ HairConfig HairConfig::load()
   cfg.enabled = mod->getSettingValue<bool>("enabled");
   cfg.showInGarage = mod->getSettingValue<bool>("show-in-garage");
   cfg.style = parseStyle(mod->getSettingValue<std::string>("style"));
+  cfg.spinWithIcon = mod->getSettingValue<bool>("spin-with-icon");
   cfg.lockCount = static_cast<int>(mod->getSettingValue<int64_t>("density"));
   cfg.length = static_cast<float>(mod->getSettingValue<double>("hair-length"));
   cfg.segments = static_cast<int>(mod->getSettingValue<int64_t>("segments"));

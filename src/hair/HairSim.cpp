@@ -20,6 +20,43 @@ namespace
     return a + (b - a) * t;
   }
 
+  float signOf(float v)
+  {
+    return v < 0.f ? -1.f : 1.f;
+  }
+
+  // Pushes `point` out of the rounded box head until it is `minDistance` above its surface
+  void pushOutOfBox(CCPoint &point, CCPoint const &head, HairSimParams const &params, float minDistance)
+  {
+    CCPoint const fromHead = point - head;
+    float const x = fromHead.dot(params.headAxisX);
+    float const y = fromHead.dot(params.headAxisY);
+
+    // Signed distance to a rounded box and its gradient, in the box space
+    float const inner = params.headHalfSize - params.headCorner;
+    float const qx = std::abs(x) - inner;
+    float const qy = std::abs(y) - inner;
+
+    float distance;
+    CCPoint normal;
+    if (qx > 0.f || qy > 0.f)
+    {
+      float const ox = std::max(qx, 0.f);
+      float const oy = std::max(qy, 0.f);
+      float const len = std::sqrt(ox * ox + oy * oy);
+      distance = len - params.headCorner;
+      normal = len > .0001f ? CCPoint{ox / len * signOf(x), oy / len * signOf(y)} : CCPoint{0.f, signOf(y)};
+    }
+    else
+    {
+      distance = std::max(qx, qy) - params.headCorner;
+      normal = qx > qy ? CCPoint{signOf(x), 0.f} : CCPoint{0.f, signOf(y)};
+    }
+
+    if (distance < minDistance)
+      point = point + (params.headAxisX * normal.x + params.headAxisY * normal.y) * (minDistance - distance);
+  }
+
   // Converts a "per 1/60 s" factor into a factor for a step of `h` seconds
   float perStep(float perFrame, float h)
   {
@@ -141,13 +178,26 @@ void HairSim::substep(float h, float alpha, std::vector<HairStrandTarget> const 
       pos[k] = lerp(pos[k], rest, std::min(spring * h * h, kMaxSpringPull));
 
       // Head collider, the first segments start inside it so let them grow out gradually
-      if (params.headRadius > 0.f)
+      float const grownOut = params.rootRadius + static_cast<float>(k) * segLen * .9f;
+      if (params.headBox)
+      {
+        pushOutOfBox(pos[k], head, params, std::min(params.headPad, grownOut - params.headHalfSize));
+      }
+      else if (params.headRadius > 0.f)
       {
         CCPoint const fromHead = pos[k] - head;
         float const dist = fromHead.getLength();
-        float const minDist = std::min(params.headRadius, params.rootRadius + k * segLen * .9f);
+        float const minDist = std::min(params.headRadius, grownOut);
         if (dist < minDist && dist > .0001f)
           pos[k] = head + fromHead * (minDist / dist);
+      }
+
+      // Floor goes after the head so the hair never sinks into the ground
+      if (params.floorDistance > 0.f)
+      {
+        float const below = (pos[k] - head).dot(params.floorDown) - params.floorDistance;
+        if (below > 0.f)
+          pos[k] = pos[k] - params.floorDown * below;
       }
 
       // Follow-the-leader length constraint, the root is fixed so one pass is exact
