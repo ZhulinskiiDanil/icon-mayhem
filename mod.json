@@ -1,0 +1,154 @@
+{
+	"geode": "5.10.1",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081",
+		"ios": "2.2081"
+	},
+	"id": "zhulis.icon-mayhem",
+	"name": "Icon Mayhem",
+	"version": "v1.0.0",
+	"developer": "Zhulis",
+	"description": "Crazy customization for your icons, starting with physics-based hair",
+	"repository": "https://github.com/ZhulinskiiDanil/icon-mayhem",
+	"tags": ["customization"],
+	"dependencies": {
+		"geode.node-ids": ">=v1.23.3"
+	},
+	"resources": {
+		"sprites": [
+			"resources/*.png"
+		]
+	},
+	"settings": {
+		"hair-title": {
+			"type": "title",
+			"name": "Hair"
+		},
+		"enabled": {
+			"name": "Enable hair",
+			"description": "Show hair on the cube",
+			"type": "bool",
+			"default": true
+		},
+		"show-in-garage": {
+			"name": "Show in garage",
+			"description": "Show hair on the icon preview in the garage",
+			"type": "bool",
+			"default": true
+		},
+		"style": {
+			"name": "Hairstyle",
+			"description": "Shape of the hairstyle",
+			"type": "string",
+			"default": "Flowing",
+			"one-of": ["Flowing", "Long", "Spiky"]
+		},
+		"density": {
+			"name": "Density",
+			"description": "Number of hair locks",
+			"type": "int",
+			"default": 24,
+			"min": 4,
+			"max": 64,
+			"control": {
+				"slider": true,
+				"slider-step": 1
+			}
+		},
+		"hair-length": {
+			"name": "Length",
+			"description": "Length of the longest locks in icon units (the cube is about 30)",
+			"type": "float",
+			"default": 20,
+			"min": 4,
+			"max": 50,
+			"control": {
+				"slider": true
+			}
+		},
+		"segments": {
+			"name": "Segments",
+			"description": "More segments make the hair smoother and softer",
+			"type": "int",
+			"default": 8,
+			"min": 4,
+			"max": 14,
+			"control": {
+				"slider": true,
+				"slider-step": 1
+			}
+		},
+		"lock-width": {
+			"name": "Lock width",
+			"description": "Width of a lock at the root in icon units, it tapers to a point",
+			"type": "float",
+			"default": 3,
+			"min": 0.5,
+			"max": 6,
+			"control": {
+				"slider": true
+			}
+		},
+		"physics-title": {
+			"type": "title",
+			"name": "Physics"
+		},
+		"volume": {
+			"name": "Volume",
+			"description": "How strongly the hair keeps its style near the roots, the tips always stay loose",
+			"type": "float",
+			"default": 0.7,
+			"min": 0,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"gravity": {
+			"name": "Gravity",
+			"description": "How heavy the hair is",
+			"type": "float",
+			"default": 1,
+			"min": 0,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"damping": {
+			"name": "Damping",
+			"description": "How quickly the hair stops swinging",
+			"type": "float",
+			"default": 0.06,
+			"min": 0,
+			"max": 0.5,
+			"control": {
+				"slider": true
+			}
+		},
+		"look-title": {
+			"type": "title",
+			"name": "Look"
+		},
+		"color-source": {
+			"name": "Color",
+			"description": "Primary / Secondary use the icon colors, Custom uses the color below",
+			"type": "string",
+			"default": "Secondary",
+			"one-of": ["Primary", "Secondary", "Custom"]
+		},
+		"custom-color": {
+			"name": "Custom color",
+			"type": "color",
+			"default": "#3a2a80"
+		},
+		"outline": {
+			"name": "Outline",
+			"description": "Draw a black outline like the icon has",
+			"type": "bool",
+			"default": true
+		}
+	}
+}
