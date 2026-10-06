@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.0
+
+- Game modes: turn the whole customization off in some game modes, for example keep it on the cube only
+- General tab in the customizer
+- Headphones (plain or with cat ears) whose lights glow to the level music
+- Glasses: round, hearts or stars, with tinted lenses
+- Earrings (drops, hearts, stars, pearls) and a cat bell on a collar, swinging when you move
+- Colored streaks in the bangs, the face locks or the hair
+- Pets: a bunny and a slime, and moods: the pet falls asleep with you, cheers on checkpoints and level completes, cries when you die
+- Orbs and pads throw the hair up with a puff of sparkles
+- Settings search in the customizer
+- Star presets as favorites and switch between them with the new button in the pause menu
+- Looks per mode: wear another preset in each game mode, separately for player 1 and player 2 in dual
+- Player 2 in dual gets the hair and accessories too, it had none before
+- Built-in presets wear the new accessories: Angel got its wings, Kitty a bell and a kitten, Sakura a bunny, glasses for Short and Ahoge and more
+
 ## v1.3.0
 
 - Hair under a cap: "Cap gap" leaves the top of the head bare so the hair comes out from under a cap

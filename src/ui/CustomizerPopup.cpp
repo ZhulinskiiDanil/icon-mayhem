@@ -1,4 +1,5 @@
 #include "CustomizerPopup.hpp"
+#include "LooksPopup.hpp"
 
 #include "../hair/HairConfig.hpp"
 #include "../hooks/SimplePlayerHair.hpp"
@@ -35,7 +36,8 @@ namespace
 
   // Settings list on the right
   constexpr CCPoint kListOrigin = {180.f, 38.f};
-  constexpr CCSize kListSize = {240.f, 170.f};
+  constexpr CCSize kListSize = {240.f, 146.f};
+  constexpr float kSearchY = 201.f;
   constexpr float kTabsY = 228.f;
 
   // Undo
@@ -125,6 +127,21 @@ bool CustomizerPopup::initCustomizer()
 
   this->buildPreview();
   this->buildTabs();
+
+  // Search over all tabs, between the tabs and the list
+  m_search = TextInput::create(kListSize.width / .7f, "Search settings");
+  m_search->setScale(.7f);
+  m_search->setID("search");
+  m_search->setCallback([this](std::string const &text)
+                        {
+                          m_query = text;
+                          if (m_query.empty())
+                            this->showSection(m_section);
+                          else
+                            this->showSearch(m_query);
+                          this->buildTabs();
+                        });
+  m_mainLayer->addChildAtPosition(m_search, Anchor::BottomLeft, {kListOrigin.x + kListSize.width / 2.f, kSearchY});
 
   auto reset = CCMenuItemSpriteExtra::create(textButton("Reset", 60, "GJ_button_04.png"), this,
                                              menu_selector(CustomizerPopup::onReset));
@@ -340,14 +357,15 @@ void CustomizerPopup::buildTabs()
   m_tabMenu->ignoreAnchorPointForPosition(false);
   m_tabMenu->setAnchorPoint({.5f, .5f});
   m_tabMenu->setContentSize({kListSize.width, 30.f});
-  m_tabMenu->setLayout(RowLayout::create()->setGap(6.f));
+  m_tabMenu->setLayout(RowLayout::create()->setGap(4.f));
   m_tabMenu->setTouchPriority(m_list->getTouchPriority() - 1);
   m_tabMenu->setID("tabs");
 
   auto const &list = customizerSections();
   for (size_t i = 0; i < list.size(); ++i)
   {
-    auto sprite = textButton(list[i].name, 44, i == m_section ? "GJ_button_01.png" : "GJ_button_04.png");
+    bool const selected = m_query.empty() && i == m_section;
+    auto sprite = textButton(list[i].name, 40, selected ? "GJ_button_01.png" : "GJ_button_04.png");
     auto tab = CCMenuItemSpriteExtra::create(sprite, this, menu_selector(CustomizerPopup::onTab));
     tab->setTag(static_cast<int>(i));
     m_tabMenu->addChild(tab);
@@ -365,16 +383,102 @@ void CustomizerPopup::showSection(size_t index)
     return;
   m_section = index;
 
+  this->clearList();
+  for (auto key : list[index].keys)
+    this->addRow(key);
+
+  m_list->m_contentLayer->updateLayout();
+  m_list->scrollToTop();
+}
+
+void CustomizerPopup::clearList()
+{
   m_list->m_contentLayer->removeAllChildren();
   m_rows.clear();
+  m_shownKeys.clear();
+}
 
-  for (auto key : list[index].keys)
+void CustomizerPopup::addRow(char const *key)
+{
+  if (std::string_view(key) == "@looks")
   {
-    if (auto row = SettingRow::create(key, kListSize.width))
+    m_list->m_contentLayer->addChild(createLooksRow(kListSize.width));
+    return;
+  }
+
+  if (auto row = SettingRow::create(key, kListSize.width))
+  {
+    m_list->m_contentLayer->addChild(row);
+    m_rows.push_back(row);
+    m_shownKeys.push_back(key);
+  }
+}
+
+void CustomizerPopup::showSearch(std::string const &query)
+{
+  auto lower = [](std::string text)
+  {
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c)
+                   { return static_cast<char>(std::tolower(c)); });
+    return text;
+  };
+  std::string const needle = lower(query);
+  auto matches = [&](char const *key, std::shared_ptr<SettingV3> const &setting)
+  {
+    return lower(key).find(needle) != std::string::npos ||
+           lower(setting->getDisplayName()).find(needle) != std::string::npos ||
+           lower(setting->getDescription().value_or("")).find(needle) != std::string::npos;
+  };
+
+  this->clearList();
+  for (auto const &section : customizerSections())
+  {
+    // A header for each tab with matches: "Tab", or "Tab > Section" under a title.
+    // A matching title brings its whole block along
+    std::string title;
+    bool titleMatches = false;
+    std::string lastHeader;
+    for (auto key : section.keys)
     {
-      m_list->m_contentLayer->addChild(row);
-      m_rows.push_back(row);
+      auto setting = Mod::get()->getSetting(key);
+      if (!setting)
+        continue;
+      if (typeinfo_pointer_cast<TitleSettingV3>(setting))
+      {
+        title = setting->getDisplayName();
+        titleMatches = matches(key, setting);
+        continue;
+      }
+      if (!titleMatches && !matches(key, setting))
+        continue;
+
+      std::string const header = title.empty() ? section.name : fmt::format("{} > {}", section.name, title);
+      if (header != lastHeader)
+      {
+        lastHeader = header;
+        auto row = CCNode::create();
+        row->setContentSize({kListSize.width, 18.f});
+        auto label = CCLabelBMFont::create(header.c_str(), "goldFont.fnt");
+        label->setScale(.45f);
+        label->setAnchorPoint({0.f, .5f});
+        label->setPosition({6.f, 9.f});
+        row->addChild(label);
+        m_list->m_contentLayer->addChild(row);
+      }
+      this->addRow(key);
     }
+  }
+
+  if (m_rows.empty())
+  {
+    auto row = CCNode::create();
+    row->setContentSize({kListSize.width, 40.f});
+    auto label = CCLabelBMFont::create("Nothing found", "bigFont.fnt");
+    label->setScale(.4f);
+    label->setOpacity(150);
+    label->setPosition({kListSize.width / 2.f, 20.f});
+    row->addChild(label);
+    m_list->m_contentLayer->addChild(row);
   }
 
   m_list->m_contentLayer->updateLayout();
@@ -386,9 +490,12 @@ void CustomizerPopup::showSection(size_t index)
 void CustomizerPopup::onTab(CCObject *sender)
 {
   auto const index = static_cast<size_t>(static_cast<CCNode *>(sender)->getTag());
-  if (index == m_section)
+  if (index == m_section && m_query.empty())
     return;
 
+  // A tab ends the search
+  m_query.clear();
+  m_search->setString("");
   this->showSection(index);
   this->buildTabs();
 }
@@ -521,18 +628,20 @@ void CustomizerPopup::onPresets(CCObject *)
 
 void CustomizerPopup::onReset(CCObject *)
 {
-  auto const &section = customizerSections()[m_section];
+  // The settings on screen: the tab, or what the search found
+  std::string const what = m_query.empty() ? fmt::format("all <cy>{}</c> settings", customizerSections()[m_section].name)
+                                           : "the <cy>found</c> settings";
 
   createQuickPopup(
       "Reset",
-      fmt::format("Reset all <cy>{}</c> settings to their defaults?", section.name),
+      fmt::format("Reset {} to their defaults?", what),
       "Cancel", "Reset",
       [self = Ref(this)](FLAlertLayer *, bool confirmed)
       {
         if (!confirmed)
           return;
 
-        for (auto key : customizerSections()[self->m_section].keys)
+        for (auto key : self->m_shownKeys)
         {
           if (auto setting = Mod::get()->getSetting(key))
             setting->reset();

@@ -90,6 +90,25 @@ void HairSim::setup(int strandCount, int segments)
   m_initialized = false;
 }
 
+void HairSim::kick(CCPoint const &velocity, CCPoint const &center, float puff)
+{
+  if (!m_initialized || m_segments <= 0)
+    return;
+
+  // Verlet keeps the velocity in the previous positions
+  for (size_t s = 0; s < m_pos.size(); ++s)
+  {
+    for (int k = 1; k <= m_segments; ++k)
+    {
+      float const weight = static_cast<float>(k) / static_cast<float>(m_segments);
+      CCPoint const away = m_pos[s][k] - center;
+      float const length = away.getLength();
+      CCPoint const outward = length > .0001f ? away / length : CCPoint{};
+      m_prev[s][k] = m_prev[s][k] - (velocity + outward * puff) * (weight * kFixedStep);
+    }
+  }
+}
+
 void HairSim::reset(std::vector<HairStrandTarget> const &targets, CCPoint const &headCenter)
 {
   for (size_t s = 0; s < m_pos.size() && s < targets.size(); ++s)

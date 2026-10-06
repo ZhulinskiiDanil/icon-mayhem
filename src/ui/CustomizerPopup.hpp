@@ -22,6 +22,10 @@ private:
   void buildPreview();
   void buildTabs();
   void showSection(size_t index);
+  // Every setting of every tab whose name or description has the query in it
+  void showSearch(std::string const &query);
+  void clearList();
+  void addRow(char const *key);
   void updatePreviewIcon();
 
   void update(float dt) override;
@@ -66,5 +70,8 @@ private:
   cocos2d::CCMenu *m_tabMenu = nullptr;
   geode::ScrollLayer *m_list = nullptr;
   std::vector<SettingRow *> m_rows;
+  std::vector<char const *> m_shownKeys; // what Reset resets
   size_t m_section = 0;
+  geode::TextInput *m_search = nullptr;
+  std::string m_query;
 };

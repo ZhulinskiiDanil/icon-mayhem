@@ -51,6 +51,9 @@ namespace
   constexpr ccColor3B kDropColor = {120, 200, 255};
   constexpr float kDropGravity = 70.f; // icon units / s^2
   constexpr int kCelebrateHearts = 10;
+  constexpr float kOrbKick = 180.f; // icon units / s the hair is thrown with at kick 1
+  constexpr float kOrbPuff = 60.f;
+  constexpr int kOrbSparkles = 6;
   constexpr int kCheckpointSparkles = 6;
   constexpr int kDeathPetals = 18;
   constexpr int kDeathHearts = 6;
@@ -261,12 +264,28 @@ void HairNode::celebrate()
 {
   if (m_config.reactions)
     this->burst(ParticleKind::Heart, kCelebrateHearts, m_frameParams.headCenter);
+  this->petReact(PetMood::Happy, 3.f);
 }
 
 void HairNode::checkpointReached()
 {
   if (m_config.reactions)
     this->burst(ParticleKind::Sparkle, kCheckpointSparkles, m_frameParams.headCenter);
+  this->petReact(PetMood::Happy, 1.5f);
+}
+
+void HairNode::boosted(CCPoint const &up)
+{
+  if (!m_config.orbReaction || m_needsReset || !this->isActive())
+    return;
+
+  // The hair flies up with the icon and puffs out, the bows and wings get thrown too
+  float const kick = m_config.orbKick;
+  m_sim.kick(up * (kOrbKick * kick * m_simScale), m_frameParams.headCenter, kOrbPuff * kick * m_simScale);
+  m_bowWobbleSpeed += (m_random() % 2 == 0 ? -1.f : 1.f) * 260.f * kick;
+  if (m_config.wings != WingStyle::None)
+    m_wingSpeed += 300.f * kick;
+  this->burst(ParticleKind::Sparkle, kOrbSparkles, m_frameParams.headCenter);
 }
 
 void HairNode::onDeath()
@@ -491,10 +510,18 @@ void HairNode::visitEffects(CCDrawNode *node)
   node->clear();
   unsigned const frame = CCDirector::sharedDirector()->getTotalFrames();
 
-  // Death: the reactions start here, the hair node itself may be hidden with the player
+  // Death: the reactions start here, the hair node itself may be hidden with the player.
+  // Only when the rig was showing, not in a game mode with the customization turned off
   bool const dead = m_isDeadFn && m_isDeadFn();
-  if (dead && !m_wasDead && frame - m_aliveFrame < 5)
-    this->onDeath();
+  if (dead && !m_wasDead)
+  {
+    m_diedActive = frame - m_aliveFrame < 5;
+    if (m_diedActive)
+    {
+      this->onDeath();
+      this->petReact(PetMood::Sad, 0.f);
+    }
+  }
   m_wasDead = dead;
 
   if (!dead && !this->isActive())
@@ -503,9 +530,18 @@ void HairNode::visitEffects(CCDrawNode *node)
     return;
   }
 
-  // Nobody updated the particles this frame (the player is hidden): keep them going
+  // Nobody updated the particles and the pet this frame (the player is hidden): keep them going
+  float const dt = CCDirector::sharedDirector()->getDeltaTime();
   if (m_particlesFrame != frame)
-    this->updateParticles(CCDirector::sharedDirector()->getDeltaTime());
+    this->updateParticles(dt);
+
+  // The pet floats in the sim space too, so it stays with you after a death
+  if (m_config.pet != PetStyle::None && (!dead || m_diedActive))
+  {
+    if (m_petFrame != frame)
+      this->updatePetAlone(dt);
+    this->drawPet(node);
+  }
 
   this->drawParticles(node);
 }

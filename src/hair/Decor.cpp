@@ -80,7 +80,7 @@ bool HairNode::decorActive() const
   return m_config.blush || m_config.sparkles != SparkleStyle::None || m_config.clipCount > 0 || m_config.headband ||
          m_config.flowers != FlowerStyle::None || m_config.halo || m_config.petals || m_config.sleepy ||
          m_config.wings != WingStyle::None || m_config.pet != PetStyle::None || m_config.hat != HatStyle::None ||
-         m_config.sticker != StickerStyle::None || m_config.reactions || m_config.cuteDeath;
+         m_config.sticker != StickerStyle::None || m_config.reactions || m_config.cuteDeath || this->charmsActive();
 }
 
 // ! --- Hair look --- !

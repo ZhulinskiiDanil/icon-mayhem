@@ -8,7 +8,7 @@
 	},
 	"id": "zhulis.icon-mayhem",
 	"name": "Icon Mayhem",
-	"version": "v1.3.0",
+	"version": "v1.4.0",
 	"developer": "Zhulis",
 	"description": "Cute and crazy icon customizations: physics-based hair, accessories, wings, a pet and effects",
 	"repository": "https://github.com/ZhulinskiiDanil/icon-mayhem",
@@ -25,6 +25,75 @@
 		]
 	},
 	"settings": {
+		"general-title": {
+			"type": "title",
+			"name": "General"
+		},
+		"show-in-garage": {
+			"name": "Show in garage",
+			"description": "Show hair on the icon preview in the garage",
+			"type": "bool",
+			"default": true
+		},
+		"modes-title": {
+			"type": "title",
+			"name": "Game modes",
+			"description": "Turn the whole customization (hair, accessories, pet, effects) off in some game modes"
+		},
+		"mode-cube": {
+			"name": "Cube",
+			"description": "Customize the cube",
+			"type": "bool",
+			"default": true
+		},
+		"mode-ship": {
+			"name": "Ship",
+			"description": "Customize the cube riding the ship",
+			"type": "bool",
+			"default": true
+		},
+		"mode-ball": {
+			"name": "Ball",
+			"description": "Customize the ball",
+			"type": "bool",
+			"default": true
+		},
+		"mode-ufo": {
+			"name": "UFO",
+			"description": "Customize the cube riding the UFO",
+			"type": "bool",
+			"default": true
+		},
+		"mode-wave": {
+			"name": "Wave",
+			"description": "Customize the wave",
+			"type": "bool",
+			"default": true
+		},
+		"mode-robot": {
+			"name": "Robot",
+			"description": "Customize the head of the robot",
+			"type": "bool",
+			"default": true
+		},
+		"mode-spider": {
+			"name": "Spider",
+			"description": "Customize the head of the spider",
+			"type": "bool",
+			"default": true
+		},
+		"mode-swing": {
+			"name": "Swing",
+			"description": "Customize the swing",
+			"type": "bool",
+			"default": true
+		},
+		"mode-jetpack": {
+			"name": "Jetpack",
+			"description": "Customize the cube riding the jetpack",
+			"type": "bool",
+			"default": true
+		},
 		"hair-title": {
 			"type": "title",
 			"name": "Hair"
@@ -32,12 +101,6 @@
 		"enabled": {
 			"name": "Enable hair",
 			"description": "Show hair on the cube",
-			"type": "bool",
-			"default": true
-		},
-		"show-in-garage": {
-			"name": "Show in garage",
-			"description": "Show hair on the icon preview in the garage",
 			"type": "bool",
 			"default": true
 		},
@@ -832,7 +895,7 @@
 			"description": "A tiny friend floating behind you",
 			"type": "string",
 			"default": "None",
-			"one-of": ["None", "Cat", "Ghost", "Bird"]
+			"one-of": ["None", "Cat", "Ghost", "Bird", "Bunny", "Slime"]
 		},
 		"pet-size": {
 			"name": "Pet size",
@@ -867,6 +930,12 @@
 			"name": "Pet custom color",
 			"type": "color",
 			"default": "#F5D7B5"
+		},
+		"pet-moods": {
+			"name": "Pet moods",
+			"description": "The pet falls asleep with you, cheers on checkpoints and level completes and is sad when you die",
+			"type": "bool",
+			"default": true
 		},
 		"hat-title": {
 			"type": "title",
@@ -921,6 +990,204 @@
 		},
 		"hat-custom-color": {
 			"name": "Hat custom color",
+			"type": "color",
+			"default": "#D9303E"
+		},
+		"headphones-title": {
+			"type": "title",
+			"name": "Headphones"
+		},
+		"headphones": {
+			"name": "Headphones",
+			"description": "Headphones over the head, plain or with little cat ears",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Plain", "Cat ears"]
+		},
+		"headphones-size": {
+			"name": "Headphones size",
+			"description": "Size of the ear cups and the band",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 1.6,
+			"control": {
+				"slider": true
+			}
+		},
+		"headphones-color": {
+			"name": "Headphones color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"headphones-custom-color": {
+			"name": "Custom color",
+			"type": "color",
+			"default": "#F5F0FF"
+		},
+		"headphones-light": {
+			"name": "Light color",
+			"description": "The glowing rings on the ear cups",
+			"type": "color",
+			"default": "#FF8FB1"
+		},
+		"headphones-beat": {
+			"name": "Glow to the music",
+			"description": "The lights glow and the cups bump to the beat of the level music",
+			"type": "bool",
+			"default": true
+		},
+		"glasses-title": {
+			"type": "title",
+			"name": "Glasses"
+		},
+		"glasses": {
+			"name": "Glasses",
+			"description": "Round glasses, heart or star shaped ones",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Round", "Hearts", "Stars"]
+		},
+		"glasses-x": {
+			"name": "Glasses spread",
+			"description": "Icon units from the middle of the face to each lens",
+			"type": "float",
+			"default": 6.5,
+			"min": 2,
+			"max": 12,
+			"control": {
+				"slider": true
+			}
+		},
+		"glasses-y": {
+			"name": "Glasses height",
+			"description": "Icon units from the middle of the face, up is positive",
+			"type": "float",
+			"default": 0,
+			"min": -12,
+			"max": 10,
+			"control": {
+				"slider": true
+			}
+		},
+		"glasses-size": {
+			"name": "Glasses size",
+			"description": "Size of the lenses",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 1.6,
+			"control": {
+				"slider": true
+			}
+		},
+		"glasses-color": {
+			"name": "Frame color",
+			"type": "color",
+			"default": "#2B2140"
+		},
+		"glasses-tint": {
+			"name": "Lens tint",
+			"type": "color",
+			"default": "#BEE6FF"
+		},
+		"glasses-tint-opacity": {
+			"name": "Lens opacity",
+			"description": "How strongly the lenses are tinted, 0 is clear glass",
+			"type": "float",
+			"default": 0.35,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"earrings-title": {
+			"type": "title",
+			"name": "Earrings"
+		},
+		"earrings": {
+			"name": "Earrings",
+			"description": "Earrings on both sides of the head that swing when you move",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Drops", "Hearts", "Stars", "Pearls"]
+		},
+		"earring-size": {
+			"name": "Earring size",
+			"description": "Size of the charms",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 1.6,
+			"control": {
+				"slider": true
+			}
+		},
+		"earring-length": {
+			"name": "Chain length",
+			"description": "Icon units the charm hangs below the ear",
+			"type": "float",
+			"default": 2.5,
+			"min": 0,
+			"max": 8,
+			"control": {
+				"slider": true
+			}
+		},
+		"earring-height": {
+			"name": "Earring height",
+			"description": "Icon units from the middle of the head side, up is positive",
+			"type": "float",
+			"default": -4,
+			"min": -12,
+			"max": 8,
+			"control": {
+				"slider": true
+			}
+		},
+		"earring-color": {
+			"name": "Earring color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"earring-custom-color": {
+			"name": "Custom color",
+			"type": "color",
+			"default": "#FFD24A"
+		},
+		"bell-title": {
+			"type": "title",
+			"name": "Bell"
+		},
+		"bell": {
+			"name": "Cat bell",
+			"description": "A collar with a little bell that swings when you jump. Hangs from the scarf knot when the scarf is on",
+			"type": "bool",
+			"default": false
+		},
+		"bell-size": {
+			"name": "Bell size",
+			"description": "Size of the bell",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 1.6,
+			"control": {
+				"slider": true
+			}
+		},
+		"bell-color": {
+			"name": "Bell color",
+			"type": "color",
+			"default": "#FFD24A"
+		},
+		"collar-color": {
+			"name": "Collar color",
 			"type": "color",
 			"default": "#D9303E"
 		},
@@ -1127,6 +1394,30 @@
 				"slider": true
 			}
 		},
+		"streaks": {
+			"name": "Colored streaks",
+			"description": "How many locks get a different color",
+			"type": "int",
+			"default": 0,
+			"min": 0,
+			"max": 8,
+			"control": {
+				"slider": true,
+				"slider-step": 1
+			}
+		},
+		"streak-placement": {
+			"name": "Streak placement",
+			"description": "Where the colored locks are",
+			"type": "string",
+			"default": "Bangs",
+			"one-of": ["Bangs", "Face locks", "Front", "Back", "Scattered"]
+		},
+		"streak-color": {
+			"name": "Streak color",
+			"type": "color",
+			"default": "#FF8FB1"
+		},
 		"blush-title": {
 			"type": "title",
 			"name": "Blush"
@@ -1270,6 +1561,23 @@
 			"description": "On death the hair bursts into petals and hearts",
 			"type": "bool",
 			"default": false
+		},
+		"orb-reaction": {
+			"name": "Orbs and pads",
+			"description": "The hair flies up with a puff of sparkles when an orb or a pad launches you",
+			"type": "bool",
+			"default": false
+		},
+		"orb-kick": {
+			"name": "Orb kick",
+			"description": "How strongly orbs and pads throw the hair",
+			"type": "float",
+			"default": 1,
+			"min": 0,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
 		},
 		"sparkles-title": {
 			"type": "title",

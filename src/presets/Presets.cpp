@@ -1,6 +1,7 @@
 #include "Presets.hpp"
 
 #include "../ui/Sections.hpp"
+#include "Looks.hpp"
 
 #include <algorithm>
 #include <array>
@@ -15,6 +16,8 @@ namespace
 {
   constexpr char const *kFormat = "icon-mayhem-preset";
   constexpr int kVersion = 1;
+  constexpr char const *kFavoritesSave = "favorite-presets";
+  constexpr char const *kLastQuickSave = "last-quick-preset";
 
   // Preset name -> file name, anything unusual becomes "_"
   std::string fileName(std::string_view name)
@@ -252,9 +255,72 @@ bool presets::exists(std::string_view name)
   return std::filesystem::exists(pathOf(name), error);
 }
 
+std::optional<Preset> presets::find(std::string_view name)
+{
+  if (exists(name))
+  {
+    if (auto preset = readFile(pathOf(name)))
+      return std::move(preset).unwrap();
+  }
+  for (auto &preset : builtIn())
+  {
+    if (preset.name == name)
+      return std::move(preset);
+  }
+  return std::nullopt;
+}
+
+// ! --- Favorites --- !
+
+std::vector<std::string> presets::favorites()
+{
+  return Mod::get()->getSavedValue<std::vector<std::string>>(kFavoritesSave, {});
+}
+
+bool presets::isFavorite(std::string_view name)
+{
+  auto const list = favorites();
+  return std::find(list.begin(), list.end(), name) != list.end();
+}
+
+void presets::setFavorite(std::string_view name, bool favorite)
+{
+  auto list = favorites();
+  std::erase(list, std::string(name));
+  if (favorite)
+    list.emplace_back(name);
+  Mod::get()->setSavedValue(kFavoritesSave, list);
+}
+
+std::optional<std::string> presets::applyNextFavorite()
+{
+  // Favorites whose preset still exists, in the order they were starred
+  std::vector<Preset> looks;
+  for (auto const &name : favorites())
+  {
+    if (auto preset = find(name))
+      looks.push_back(std::move(*preset));
+  }
+  if (looks.empty())
+    return std::nullopt;
+
+  auto const last = Mod::get()->getSavedValue<std::string>(kLastQuickSave, "");
+  size_t next = 0;
+  for (size_t i = 0; i < looks.size(); ++i)
+  {
+    if (looks[i].name == last)
+      next = (i + 1) % looks.size();
+  }
+
+  apply(looks[next]);
+  Mod::get()->setSavedValue(kLastQuickSave, looks[next].name);
+  return looks[next].name;
+}
+
 Result<> presets::save(Preset const &preset)
 {
   GEODE_UNWRAP(file::createDirectoryAll(folder()));
+  looks::invalidate();
   return writeFile(preset, pathOf(preset.name));
 }
 
@@ -262,6 +328,7 @@ Result<> presets::remove(std::string_view name)
 {
   std::error_code error;
   std::filesystem::remove(pathOf(name), error);
+  looks::invalidate();
   if (error)
     return Err("Unable to delete the preset: {}", error.message());
   return Ok();
@@ -365,6 +432,16 @@ Preset presets::surprise()
   set["scarf"] = chance(.15f);
   set["scarf-color"] = "Custom";
   set["scarf-custom-color"] = palette.accent;
+  set["streaks"] = chance(.2f) ? static_cast<int>(between(1.f, 3.99f)) : 0;
+  set["streak-placement"] = pick({"Bangs", "Bangs", "Face locks", "Front", "Scattered"});
+  set["streak-color"] = palette.accent;
+  set["headphones"] = chance(.1f) ? pick({"Plain", "Cat ears"}) : "None";
+  set["headphones-light"] = palette.accent;
+  set["glasses"] = chance(.12f) ? pick({"Round", "Hearts", "Stars"}) : "None";
+  set["earrings"] = chance(.15f) ? pick({"Drops", "Hearts", "Stars", "Pearls"}) : "None";
+  set["earring-color"] = "Custom";
+  set["earring-custom-color"] = palette.accent;
+  set["bell"] = chance(.1f);
 
   // Effects
   set["blush"] = chance(.7f);
@@ -389,11 +466,14 @@ Preset presets::surpriseColors()
   for (auto [source, custom] : {std::pair{"tie-color", "tie-custom-color"}, std::pair{"bow-color", "bow-custom-color"},
                                 std::pair{"clip-color", "clip-custom-color"}, std::pair{"flower-color", "flower-custom-color"},
                                 std::pair{"headband-color", "headband-custom-color"}, std::pair{"scarf-color", "scarf-custom-color"},
-                                std::pair{"tips-color", "tips-custom-color"}, std::pair{"hat-color", "hat-custom-color"}})
+                                std::pair{"tips-color", "tips-custom-color"}, std::pair{"hat-color", "hat-custom-color"},
+                                std::pair{"earring-color", "earring-custom-color"}})
   {
     set[source] = "Custom";
     set[custom] = palette.accent;
   }
+  set["streak-color"] = palette.accent;
+  set["headphones-light"] = palette.accent;
   return preset;
 }
 

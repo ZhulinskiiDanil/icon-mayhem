@@ -149,8 +149,8 @@ CCNode *PresetsPopup::createRow(Preset const &preset)
 
   auto name = CCLabelBMFont::create(preset.name.c_str(), "bigFont.fnt");
   name->setAnchorPoint({0.f, .5f});
-  name->limitLabelWidth(120.f, .45f, .1f);
-  name->setPosition({8.f, centerY});
+  name->limitLabelWidth(100.f, .45f, .1f);
+  name->setPosition({28.f, centerY});
   row->addChild(name);
 
   auto menu = CCMenu::create();
@@ -164,6 +164,24 @@ CCNode *PresetsPopup::createRow(Preset const &preset)
     button->setPosition({x, centerY});
     menu->addChild(button);
   };
+
+  // Star: a favorite, switched through with the button in the pause menu
+  bool const favorite = presets::isFavorite(preset.name);
+  auto star = CCSprite::createWithSpriteFrameName("GJ_starsIcon_001.png");
+  star->setScale(.7f);
+  if (!favorite)
+  {
+    star->setColor({70, 70, 70});
+    star->setOpacity(160);
+  }
+  addButton(star, 15.f, [this, name = preset.name, favorite](auto)
+            {
+              presets::setFavorite(name, !favorite);
+              // Stay where the list was scrolled to
+              float const scrolled = m_list->m_contentLayer->getPositionY();
+              this->refreshList();
+              m_list->m_contentLayer->setPositionY(scrolled);
+            });
 
   float const right = kListSize.width;
   addButton(textButton("Load", 44, "GJ_button_01.png", 20.f), right - 170.f, [this, preset](auto)

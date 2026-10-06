@@ -15,6 +15,31 @@ namespace
     return type == IconType::Cube || type == IconType::Ball || type == IconType::Wave || type == IconType::Swing;
   }
 
+  GameMode gameModeOf(IconType type)
+  {
+    switch (type)
+    {
+    case IconType::Ship:
+      return GameMode::Ship;
+    case IconType::Ball:
+      return GameMode::Ball;
+    case IconType::Ufo:
+      return GameMode::Ufo;
+    case IconType::Wave:
+      return GameMode::Wave;
+    case IconType::Robot:
+      return GameMode::Robot;
+    case IconType::Spider:
+      return GameMode::Spider;
+    case IconType::Swing:
+      return GameMode::Swing;
+    case IconType::Jetpack:
+      return GameMode::Jetpack;
+    default:
+      return GameMode::Cube;
+    }
+  }
+
   CCSprite *headOf(GJRobotSprite *body)
   {
     return body->m_headSprite ? static_cast<CCSprite *>(body->m_headSprite) : body;
@@ -62,6 +87,8 @@ class $modify(HairSimplePlayer, SimplePlayer)
     hair->setIdleWind(m_fields->m_garage);
     hair->setShouldShow([this, showFor = std::move(showFor)]
                         { return showFor(m_fields->m_iconType); });
+    hair->setGameMode([this]
+                      { return gameModeOf(m_fields->m_iconType); });
     return hair;
   }
 

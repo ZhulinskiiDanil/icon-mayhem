@@ -8,12 +8,13 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Real physics**: the hair has weight and inertia, trails behind you while you move, gets pressed to the head by the oncoming air and falls back down when you stop
 - **Spins with the icon** in jumps, or stays on top of the head with "Spin with icon" off. A gravity flip swings it over to the other side
 - **Gusty wind**: real wind never blows the same, so it changes strength in gusts and makes every lock flutter on its own
+- **Pick the game modes**: turn the whole customization off where you don't want it, for example keep it on the cube only
 - **Platformer support**: the hairstyle turns around when you change direction
 - **3 hairstyles**: *Flowing*, *Long* and *Spiky*
 - **Face locks and bangs**: wavy locks framing the face and a fringe over it, drawn in front of the icon. Fit them to any icon: move them, bend the bangs along a round top, give them their own color
 - **Hair under a cap**: leave the top of the head bare and the hair comes out from under the cap or hat of your icon
 - **Ponytail and twin tails** tied with a scrunchie or a bow, **braids**, an **ahoge** that bounces on every jump
-- **Hair shine** and **dyed tips**
+- **Hair shine**, **dyed tips** and **colored streaks** in the bangs or the hair
 
 ## Accessories
 
@@ -23,7 +24,10 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Flowers** in the hair or a flower crown, a floating **halo**
 - **Wings**: angel, fairy or bat wings that flap on every jump
 - **Hats**: a beret, a beanie with a bouncy pom-pom or a witch hat with a bending tip
-- **Pet**: a little cat, ghost or bird floating behind you. It blinks, follows you around and hops when you land
+- **Headphones**, plain or with cat ears, their lights glow to the level music
+- **Glasses**: round, heart or star shaped, with tinted lenses
+- **Earrings** and a **cat bell** on a collar that swing when you jump
+- **Pet**: a little cat, ghost, bird, bunny or slime floating behind you. It blinks, follows you around, hops when you land, falls asleep with you, cheers on checkpoints and is sad when you die
 
 ## Effects
 
@@ -33,20 +37,26 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Sleepy**: stand still for a while and little "Z"s float up while the ahoge and ears droop
 - **Reactions**: a sweat drop when you die, hearts when you beat a level, sparkles on checkpoints
 - **Cute death**: the hair bursts into petals and hearts
+- **Orbs and pads** throw the hair up with a puff of sparkles
 
 ## Customizer and presets
 
 - **Live preview**: switch game modes, make the icon jump or run and watch the hair react while you tweak it. Changes apply instantly
 - **Hitbox helpers** show the head collider, the roots and the bangs hairline, so the hair is easy to fit to any icon
 - **Quick actions**: **Undo**, a **Surprise** look, random **Colors**, **Match** all hair parts to the hair color
+- **Search** over all the settings
 - **Built-in presets**: Kepochka, Kitty, Sakura, Angel, Fairy, Twin Tails, Ponytail, Short and Ahoge
 - **Your own presets**: save your look under a name and switch between looks in one tap. Share a preset through the clipboard or as a file, import presets from friends the same way
+- **Favorites**: star presets and switch between them with the star button in the pause menu
+- **Looks per mode**: wear another preset in each game mode, for example a witch hat on the ship, separately for player 1 and player 2 in dual
 - **Garage preview** with a light breeze, so you can see your look before playing
 
 ## Settings
 
 | Setting | What it does |
 | --- | --- |
+| Game modes | Turn the whole customization (hair, accessories, pet, effects) on or off for each game mode |
+| Looks per mode | A preset for each game mode, for player 1 and player 2 separately. Player 2 also has a look for all modes |
 | Hairstyle | Shape of the hairstyle |
 | Density | Number of hair locks |
 | Length | Length of the longest locks |
@@ -76,11 +86,16 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 | Halo | Height, size, color and glow |
 | Wings | Angel, fairy or bat: size, how strongly they flap, color |
 | Hat | Beret, beanie or witch hat: size, tilt, position, color |
-| Pet | Cat, ghost or bird: size, how far behind it floats, color |
+| Pet | Cat, ghost, bird, bunny or slime: size, how far behind it floats, color, moods |
+| Headphones | Plain or with cat ears: size, color, light color, glowing to the music |
+| Glasses | Round, hearts or stars: spread, height, size, frame color, lens tint |
+| Earrings | Drops, hearts, stars or pearls: size, chain length, height, color |
+| Cat bell | A bell on a collar (or on the scarf): size, bell and collar color |
 | Color | Primary or secondary icon color, or a custom one |
 | Outline | Black outline around the hair, like the icon has |
 | Hair shine | A glossy ring of light across the hair: position and strength |
 | Dyed tips | The locks fade into a second color towards the tips |
+| Colored streaks | How many locks get another color and where: bangs, face locks, front, back or scattered |
 | Blush | Color, opacity, size, position, anime lines, brighter after landings |
 | Face sticker | Band-aid, heart, star or freckles: side, position, size, color |
 | Hearts and sparkles | Hearts, sparkles or both: amount, burst on landing, size, color |
@@ -88,6 +103,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 | Sleepy | Seconds of standing still before the "Z"s appear |
 | Reactions | Sweat drop on death, hearts on level complete, sparkles on checkpoints |
 | Cute death | On death the hair bursts into petals and hearts |
+| Orbs and pads | Orbs and pads throw the hair up with sparkles, and how strongly |
 | Volume | How strongly the hair keeps its shape near the roots. **Lower it if the hair is too stiff** |
 | Hitbox multiplier | Size of the invisible head the hair lies on. Bigger keeps the hair further from the icon |
 | Wind multiplier | How much the air affects the hair while moving. 0 makes it look like you're standing still |

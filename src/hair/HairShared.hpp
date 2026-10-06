@@ -200,4 +200,43 @@ namespace hair
       node->drawPolygon(spike.data(), 3, color, 0.f, color);
     }
   }
+  // A charm on a short chain: swings around the pull of gravity, kicked when what it hangs on
+  // speeds up or stops. Angles are radians from straight down, counterclockwise
+  struct Pendulum
+  {
+    float angle = 0.f;
+    float speed = 0.f; // radians / s
+
+    void reset()
+    {
+      angle = 0.f;
+      speed = 0.f;
+    }
+
+    // `down` is a unit vector, `accel` the acceleration of the anchor, `length` from the anchor to the charm
+    void update(float dt, cocos2d::CCPoint const &down, cocos2d::CCPoint const &accel, float gravity, float length,
+                float damping)
+    {
+      if (dt <= 0.f || length <= 0.f)
+        return;
+
+      // Small steps keep a short chain stable after a lag spike
+      int const steps = std::clamp(static_cast<int>(std::ceil(dt * 240.f)), 1, 16);
+      float const h = dt / static_cast<float>(steps);
+      // In the frame of the anchor gravity pulls along `down`, the acceleration pushes the other way
+      cocos2d::CCPoint const pull = down * gravity - accel;
+      for (int i = 0; i < steps; ++i)
+      {
+        cocos2d::CCPoint const dir = rotated(down, angle);
+        float const torque = dir.x * pull.y - dir.y * pull.x;
+        speed += (torque / length - speed * damping) * h;
+        angle = std::remainder(angle + speed * h, 2.f * kPi);
+      }
+    }
+
+    cocos2d::CCPoint direction(cocos2d::CCPoint const &down) const
+    {
+      return rotated(down, angle);
+    }
+  };
 }

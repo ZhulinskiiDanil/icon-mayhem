@@ -1,4 +1,5 @@
 #include "HairNode.hpp"
+#include "../presets/Looks.hpp"
 #include "HairShared.hpp"
 
 #include <algorithm>
@@ -199,7 +200,7 @@ void HairNode::reloadConfig()
   int const oldSegments = m_config.segments;
   bool const firstLoad = m_locks.empty();
 
-  m_config = HairConfig::load();
+  m_config = m_useLooks ? looks::configFor(m_lookName) : HairConfig::load();
   m_configVersion = HairConfig::version();
   this->generateLocks();
 
@@ -286,6 +287,66 @@ void HairNode::generateLocks()
 
   m_ribbonsStart = m_locks.size();
   this->addRibbonLocks();
+  this->markStreaks();
+}
+
+void HairNode::markStreaks()
+{
+  int const count = m_config.streaks;
+  if (count <= 0)
+    return;
+
+  // Candidates in the order they get picked
+  std::vector<Lock *> candidates;
+  auto collect = [&](size_t from, size_t to, LockKind kind)
+  {
+    for (size_t i = from; i < to; ++i)
+    {
+      if (m_locks[i].kind == kind)
+        candidates.push_back(&m_locks[i]);
+    }
+  };
+
+  switch (m_config.streakPlacement)
+  {
+  case StreakPlacement::Bangs:
+  {
+    collect(m_bangsStart, m_ribbonsStart, LockKind::Bang);
+    // A group a little off the middle, like a dyed lock in the fringe
+    std::sort(candidates.begin(), candidates.end(), [](Lock *a, Lock *b)
+              { return std::abs(a->side - .3f) < std::abs(b->side - .3f); });
+    break;
+  }
+  case StreakPlacement::FaceLocks:
+    collect(m_frontStart, m_bangsStart, LockKind::FaceLock);
+    break;
+  case StreakPlacement::Front:
+  case StreakPlacement::Back:
+  case StreakPlacement::Scattered:
+  {
+    // Locks of the front layer show the color best
+    for (size_t i = 0; i < m_tailsStart; ++i)
+    {
+      if (m_locks[i].depth >= .4f)
+        candidates.push_back(&m_locks[i]);
+    }
+    if (m_config.streakPlacement == StreakPlacement::Scattered)
+    {
+      std::mt19937 rng(77);
+      std::shuffle(candidates.begin(), candidates.end(), rng);
+    }
+    else
+    {
+      float const sign = m_config.streakPlacement == StreakPlacement::Front ? 1.f : -1.f;
+      std::sort(candidates.begin(), candidates.end(), [sign](Lock *a, Lock *b)
+                { return a->angle * sign < b->angle * sign; });
+    }
+    break;
+  }
+  }
+
+  for (size_t i = 0; i < candidates.size() && i < static_cast<size_t>(count); ++i)
+    candidates[i]->streak = true;
 }
 
 void HairNode::addFrontLocks(std::mt19937 &rng)
@@ -341,6 +402,8 @@ float HairNode::headUnit() const
 bool HairNode::isActive() const
 {
   if (!(m_config.enabled || this->extrasActive() || this->decorActive()) || (m_isGarage && !m_config.showInGarage))
+    return false;
+  if (m_gameModeFn && !m_config.showsIn(m_gameModeFn()))
     return false;
   return !m_shouldShow || m_shouldShow();
 }
@@ -402,6 +465,16 @@ void HairNode::visit()
       m_needsReset = true;
     m_lastFrame = frame;
 
+    // Another game mode or player 2 can wear another look
+    if (m_useLooks)
+    {
+      auto look = looks::lookFor(m_playerTwo, m_gameModeFn ? m_gameModeFn() : GameMode::Count);
+      if (look != m_lookName)
+      {
+        m_lookName = std::move(look);
+        m_configVersion = HairConfig::version() - 1;
+      }
+    }
     if (m_configVersion != HairConfig::version())
       this->reloadConfig();
 
@@ -687,6 +760,7 @@ void HairNode::simulate(float dt)
   this->updateWings(dt, !onGround && m_wasOnGround && !m_needsReset);
   m_wasOnGround = onGround;
   this->updatePet(dt, headCenter);
+  this->updateCharms(dt);
   this->updateDecor(dt, headCenter, up, across);
 
   // How fast the hairstyle frame turns: a spinning cube in a jump, a gravity flip
@@ -780,6 +854,8 @@ ccColor4F HairNode::hairColor() const
 ccColor4F HairNode::lockColor(Lock const &lock) const
 {
   auto const kind = lock.kind;
+  if (lock.streak)
+    return this->sourceColor(HairColorSource::Custom, m_config.streakColor);
   // Bow ribbons: the head bow has its own color, the bows on the tails use the tie color
   if (kind == LockKind::Ribbon)
   {
@@ -896,19 +972,22 @@ void HairNode::redraw()
   this->drawBlush(m_front);
   this->drawSticker(m_front);
   this->drawScarfBand(m_front);
+  this->drawCollarAndBell(m_front);
+  this->drawEarrings(m_front);
   if (m_config.braidFaceLocks)
     this->drawBraids(m_front, m_frontStart, m_bangsStart);
   else
     this->drawLocks(m_front, m_frontStart, m_bangsStart, false);
+  this->drawGlasses(m_front);
   this->drawLocks(m_front, m_bangsStart, m_ribbonsStart, false);
   this->drawHeadband(m_front);
   this->drawFlowers(m_front);
+  this->drawHeadphones(m_front);
   this->drawHat(m_front);
   this->drawClips(m_front);
   this->drawLocks(m_front, m_ribbonsStart, m_locks.size(), false);
   this->drawBows(m_front);
   this->drawHalo(m_front);
-  this->drawPet(m_front);
 
   if (m_debugDraw)
     this->drawDebug();

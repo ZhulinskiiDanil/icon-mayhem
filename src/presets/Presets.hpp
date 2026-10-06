@@ -3,6 +3,7 @@
 #include <Geode/Geode.hpp>
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,15 @@ namespace presets
   // Presets shipped with the mod (resources/presets/preset-*.json), sorted by name
   std::vector<Preset> builtIn();
   bool exists(std::string_view name);
+  // A saved preset by name, or a built-in one
+  std::optional<Preset> find(std::string_view name);
+
+  // Favorites, switched through from the pause menu
+  std::vector<std::string> favorites();
+  bool isFavorite(std::string_view name);
+  void setFavorite(std::string_view name, bool favorite);
+  // Applies the favorite after the one applied last, gives its name (nothing without favorites)
+  std::optional<std::string> applyNextFavorite();
   // Overwrites a saved preset with the same name
   geode::Result<> save(Preset const &preset);
   geode::Result<> remove(std::string_view name);

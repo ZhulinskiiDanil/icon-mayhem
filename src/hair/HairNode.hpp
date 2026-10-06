@@ -1,6 +1,7 @@
 #pragma once
 
 #include "HairConfig.hpp"
+#include "HairShared.hpp"
 #include "HairSim.hpp"
 
 #include <Geode/Geode.hpp>
@@ -44,6 +45,8 @@ public:
                           cocos2d::CCSprite *secondary, cocos2d::CCNode *simSpace);
 
   void setShouldShow(std::function<bool()> fn) { m_shouldShow = std::move(fn); }
+  // The game mode the icon is in, the rig hides in the modes turned off in the settings
+  void setGameMode(std::function<GameMode()> fn) { m_gameModeFn = std::move(fn); }
   void setGravityDir(std::function<cocos2d::CCPoint()> fn) { m_gravityDir = std::move(fn); }
   // +1 when moving right in sim space, -1 when moving left
   void setFacing(std::function<float()> fn) { m_facingFn = std::move(fn); }
@@ -58,10 +61,24 @@ public:
   void setDebugDraw(bool enabled) { m_debugDraw = enabled; }
   // The player died: death reactions keep playing after the hair is hidden
   void setIsDead(std::function<bool()> fn) { m_isDeadFn = std::move(fn); }
+  // In a level: the headphones glow to the level music (a slow idle glow otherwise)
+  void setMusicDriven(bool enabled) { m_musicDriven = enabled; }
+  // In a level: the look can change with the game mode and for player 2 (see Looks.hpp).
+  // Previews always show the main look, the one being edited
+  void setUseLooks(bool enabled, bool playerTwo)
+  {
+    m_useLooks = enabled;
+    m_playerTwo = playerTwo;
+  }
 
   // Gameplay events for the reactions
   void celebrate();
   void checkpointReached();
+  // An orb or a pad launched the icon, `up` is the direction it flies in (sim space)
+  void boosted(cocos2d::CCPoint const &up);
+  // The player this rig belongs to, for the hooks that only know the player
+  void setPlayer(cocos2d::CCNode *player) { m_player = player; }
+  cocos2d::CCNode *player() const { return m_player; }
 
   void visit() override;
   void onEnter() override;
@@ -93,6 +110,7 @@ private:
     float width;  // icon units, at the root
     float curl;   // degrees per segment
     float depth;  // 0 = back layer (darker), 1 = front layer
+    bool streak = false; // colored with the streak color
   };
 
   bool init(cocos2d::CCSprite *head, cocos2d::CCSprite *primary, cocos2d::CCSprite *secondary, cocos2d::CCNode *simSpace);
@@ -100,6 +118,8 @@ private:
   void reloadConfig();
   void generateLocks();
   void addFrontLocks(std::mt19937 &rng);
+  // Picks the locks that get the streak color
+  void markStreaks();
 
   // ! --- Extras (Extras.cpp) --- !
 
@@ -162,12 +182,30 @@ private:
   void drawSticker(cocos2d::CCDrawNode *node);
   void drawHat(cocos2d::CCDrawNode *node);
 
+  // ! --- Charms (Charms.cpp): headphones, glasses, earrings, the bell --- !
+
+  bool charmsActive() const;
+  void updateCharms(float dt);
+  void drawHeadphones(cocos2d::CCDrawNode *node);
+  void drawGlasses(cocos2d::CCDrawNode *node);
+  void drawEarrings(cocos2d::CCDrawNode *node);
+  void drawCollarAndBell(cocos2d::CCDrawNode *node);
+
   // ! --- Wings (Wings.cpp) and the pet (Pet.cpp) --- !
 
   void updateWings(float dt, bool tookOff);
   void drawWings(cocos2d::CCDrawNode *node);
+  enum class PetMood
+  {
+    Normal,
+    Happy, // a checkpoint or a level complete
+    Sad,   // the icon died, until the respawn
+  };
   cocos2d::CCPoint petTarget(cocos2d::CCPoint const &headCenter) const;
   void updatePet(float dt, cocos2d::CCPoint const &headCenter);
+  // After a death the hair isn't simulated, the pet just floats where it was
+  void updatePetAlone(float dt);
+  void petReact(PetMood mood, float duration);
   void drawPet(cocos2d::CCDrawNode *node);
   void drawBlush(cocos2d::CCDrawNode *node);
   void drawParticles(cocos2d::CCDrawNode *node);
@@ -207,6 +245,7 @@ private:
   cocos2d::CCNode *m_simSpace = nullptr;
 
   std::function<bool()> m_shouldShow;
+  std::function<GameMode()> m_gameModeFn;
   std::function<cocos2d::CCPoint()> m_gravityDir;
   std::function<float()> m_facingFn;
   std::function<bool()> m_onGround;
@@ -286,12 +325,26 @@ private:
   float m_zzzTimer = 0.f;
   float m_landPop = 0.f; // 1 right after a landing, fades fast: hats squash, the pet hops
 
+  std::array<hair::Pendulum, 2> m_earringSwing; // left, right
+  hair::Pendulum m_bellSwing;
+  float m_beat = 0.f; // 0..1, the music pulse for the headphones
+  bool m_musicDriven = false;
+  cocos2d::CCNode *m_player = nullptr;
+  bool m_useLooks = false;
+  bool m_playerTwo = false;
+  std::string m_lookName; // "" is the main look
+
   float m_wingAngle = 0.f; // degrees the wings are raised by a flap
   float m_wingSpeed = 0.f; // degrees / s
 
   cocos2d::CCPoint m_petPosition; // sim space
   cocos2d::CCPoint m_petVelocity;
   float m_petBlink = 3.f; // s until the next blink, negative while blinking
+  float m_petClock = 0.f; // s, keeps running while the hair is hidden
+  PetMood m_petMood = PetMood::Normal;
+  float m_petMoodTime = 0.f; // s left of a happy mood
+  unsigned m_petFrame = 0;   // last frame the pet was updated
+  bool m_diedActive = false; // the rig was showing when the icon died, so the pet and the reactions play
 
   std::function<bool()> m_isDeadFn;
   bool m_wasDead = false;

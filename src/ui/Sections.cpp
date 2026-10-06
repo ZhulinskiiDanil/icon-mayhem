@@ -12,10 +12,24 @@ using namespace geode::prelude;
 std::vector<CustomizerSection> const &customizerSections()
 {
   static std::vector<CustomizerSection> const list{
+      {"General",
+       {
+           "show-in-garage",
+           "modes-title",
+           "mode-cube",
+           "mode-ship",
+           "mode-ball",
+           "mode-ufo",
+           "mode-wave",
+           "mode-robot",
+           "mode-spider",
+           "mode-swing",
+           "mode-jetpack",
+           "@looks",
+       }},
       {"Hair",
        {
            "enabled",
-           "show-in-garage",
            "style",
            "spin-with-icon",
            "density",
@@ -34,6 +48,9 @@ std::vector<CustomizerSection> const &customizerSections()
            "tips-color",
            "tips-custom-color",
            "tips-start",
+           "streaks",
+           "streak-placement",
+           "streak-color",
        }},
       {"Front",
        {
@@ -137,6 +154,7 @@ std::vector<CustomizerSection> const &customizerSections()
            "pet-distance",
            "pet-color",
            "pet-custom-color",
+           "pet-moods",
            "hat-title",
            "hat",
            "hat-size",
@@ -144,6 +162,33 @@ std::vector<CustomizerSection> const &customizerSections()
            "hat-inset",
            "hat-color",
            "hat-custom-color",
+           "headphones-title",
+           "headphones",
+           "headphones-size",
+           "headphones-color",
+           "headphones-custom-color",
+           "headphones-light",
+           "headphones-beat",
+           "glasses-title",
+           "glasses",
+           "glasses-x",
+           "glasses-y",
+           "glasses-size",
+           "glasses-color",
+           "glasses-tint",
+           "glasses-tint-opacity",
+           "earrings-title",
+           "earrings",
+           "earring-size",
+           "earring-length",
+           "earring-height",
+           "earring-color",
+           "earring-custom-color",
+           "bell-title",
+           "bell",
+           "bell-size",
+           "bell-color",
+           "collar-color",
        }},
       {"Effects",
        {
@@ -166,6 +211,8 @@ std::vector<CustomizerSection> const &customizerSections()
            "reactions-title",
            "reactions",
            "cute-death",
+           "orb-reaction",
+           "orb-kick",
            "sparkles-title",
            "sparkles",
            "sparkle-rate",
@@ -207,8 +254,12 @@ std::vector<std::string_view> const &lookSettingKeys()
 {
   static std::vector<std::string_view> const keys = []
   {
-    // Turning the mod on and off isn't part of a look
-    static constexpr std::array kNotLook{std::string_view("enabled"), std::string_view("show-in-garage")};
+    // Turning the mod on and off, also per game mode, isn't part of a look
+    static constexpr std::array kNotLook{
+        std::string_view("enabled"), std::string_view("show-in-garage"), std::string_view("mode-cube"),
+        std::string_view("mode-ship"), std::string_view("mode-ball"), std::string_view("mode-ufo"),
+        std::string_view("mode-wave"), std::string_view("mode-robot"), std::string_view("mode-spider"),
+        std::string_view("mode-swing"), std::string_view("mode-jetpack")};
 
     std::vector<std::string_view> list;
     for (auto const &section : customizerSections())
@@ -216,6 +267,9 @@ std::vector<std::string_view> const &lookSettingKeys()
       for (std::string_view key : section.keys)
       {
         if (std::find(kNotLook.begin(), kNotLook.end(), key) != kNotLook.end())
+          continue;
+        // Special rows like "@looks" have no setting
+        if (!Mod::get()->getSetting(key))
           continue;
         if (typeinfo_pointer_cast<TitleSettingV3>(Mod::get()->getSetting(key)))
           continue;

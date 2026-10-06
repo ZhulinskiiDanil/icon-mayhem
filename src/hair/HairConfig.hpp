@@ -2,6 +2,8 @@
 
 #include <Geode/Geode.hpp>
 
+#include <array>
+
 // ! --- Hair config --- !
 
 enum class HairColorSource
@@ -80,6 +82,8 @@ enum class PetStyle
   Cat,
   Ghost,
   Bird,
+  Bunny,
+  Slime,
 };
 
 enum class HatStyle
@@ -107,6 +111,53 @@ enum class WeatherStyle
   Stars,
 };
 
+enum class HeadphoneStyle
+{
+  None,
+  Plain,
+  CatEars,
+};
+
+enum class GlassesStyle
+{
+  None,
+  Round,
+  Hearts,
+  Stars,
+};
+
+enum class EarringStyle
+{
+  None,
+  Drops,
+  Hearts,
+  Stars,
+  Pearls,
+};
+
+enum class StreakPlacement
+{
+  Bangs,
+  FaceLocks,
+  Front,
+  Back,
+  Scattered,
+};
+
+enum class GameMode
+{
+  Cube,
+  Ship,
+  Ball,
+  Ufo,
+  Wave,
+  Robot,
+  Spider,
+  Swing,
+  Jetpack,
+  Count,
+};
+
 enum class HairStyle
 {
   Flowing,
@@ -118,6 +169,7 @@ struct HairConfig
 {
   bool enabled = true;
   bool showInGarage = true;
+  std::array<bool, static_cast<size_t>(GameMode::Count)> modes; // the whole rig is hidden in the modes turned off
   HairStyle style = HairStyle::Flowing;
   bool spinWithIcon = true;
   int lockCount = 24;
@@ -257,6 +309,7 @@ struct HairConfig
   float petDistance = 12.f; // icon units behind the head
   HairColorSource petColorSource = HairColorSource::Custom;
   cocos2d::ccColor3B petColor = {245, 215, 181};
+  bool petMoods = true; // sleeps, cheers and is sad with the icon
 
   // Hat on the hairstyle
   HatStyle hat = HatStyle::None;
@@ -273,6 +326,43 @@ struct HairConfig
   float stickerY = -6.f;
   float stickerSize = 1.f;
   cocos2d::ccColor3B stickerColor = {255, 111, 145};
+
+  // Headphones over the head, the lights glow to the music
+  HeadphoneStyle headphones = HeadphoneStyle::None;
+  float headphonesSize = 1.f;
+  HairColorSource headphonesColorSource = HairColorSource::Custom;
+  cocos2d::ccColor3B headphonesColor = {245, 240, 255};
+  cocos2d::ccColor3B headphonesLight = {255, 143, 177};
+  bool headphonesBeat = true;
+
+  // Glasses, placed like the blush
+  GlassesStyle glasses = GlassesStyle::None;
+  float glassesX = 6.5f; // icon units from the middle of the face
+  float glassesY = 0.f;
+  float glassesSize = 1.f;
+  cocos2d::ccColor3B glassesColor = {43, 33, 64};
+  cocos2d::ccColor3B glassesTint = {190, 230, 255};
+  float glassesTintOpacity = .35f;
+
+  // Earrings and a cat bell swinging on pendulums
+  EarringStyle earrings = EarringStyle::None;
+  float earringSize = 1.f;
+  float earringLength = 2.5f; // icon units of chain
+  float earringHeight = -4.f; // icon units from the middle of the head side
+  HairColorSource earringColorSource = HairColorSource::Custom;
+  cocos2d::ccColor3B earringColor = {255, 210, 74};
+  bool bell = false;
+  float bellSize = 1.f;
+  cocos2d::ccColor3B bellColor = {255, 210, 74};
+  cocos2d::ccColor3B collarColor = {217, 48, 62};
+
+  // Colored locks in the hair
+  int streaks = 0;
+  StreakPlacement streakPlacement = StreakPlacement::Bangs;
+  cocos2d::ccColor3B streakColor = {255, 143, 177};
+
+  bool orbReaction = false; // orbs and pads throw the hair up with sparkles
+  float orbKick = 1.f;
 
   bool reactions = false; // sweat drop on death, hearts on level complete, sparkles on checkpoints
   bool cuteDeath = false; // the hair bursts into petals and hearts on death
@@ -301,7 +391,10 @@ struct HairConfig
   cocos2d::ccColor3B tipsColor = {232, 123, 168};
   float tipsStart = .6f; // along the locks
 
-  static HairConfig load();
+  bool showsIn(GameMode mode) const { return modes[static_cast<size_t>(mode)]; }
+
+  // The mod settings, or a look saved in a preset (its settings JSON) on top of them
+  static HairConfig load(matjson::Value const *look = nullptr);
 
   // Bumped whenever any mod setting changes, nodes compare it to reload lazily
   static unsigned version();

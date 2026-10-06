@@ -113,6 +113,10 @@ namespace
       return PetStyle::Ghost;
     if (value == "Bird")
       return PetStyle::Bird;
+    if (value == "Bunny")
+      return PetStyle::Bunny;
+    if (value == "Slime")
+      return PetStyle::Slime;
     return PetStyle::None;
   }
 
@@ -151,6 +155,52 @@ namespace
     return WeatherStyle::Sakura;
   }
 
+  HeadphoneStyle parseHeadphones(std::string const &value)
+  {
+    if (value == "Plain")
+      return HeadphoneStyle::Plain;
+    if (value == "Cat ears")
+      return HeadphoneStyle::CatEars;
+    return HeadphoneStyle::None;
+  }
+
+  GlassesStyle parseGlasses(std::string const &value)
+  {
+    if (value == "Round")
+      return GlassesStyle::Round;
+    if (value == "Hearts")
+      return GlassesStyle::Hearts;
+    if (value == "Stars")
+      return GlassesStyle::Stars;
+    return GlassesStyle::None;
+  }
+
+  EarringStyle parseEarrings(std::string const &value)
+  {
+    if (value == "Drops")
+      return EarringStyle::Drops;
+    if (value == "Hearts")
+      return EarringStyle::Hearts;
+    if (value == "Stars")
+      return EarringStyle::Stars;
+    if (value == "Pearls")
+      return EarringStyle::Pearls;
+    return EarringStyle::None;
+  }
+
+  StreakPlacement parseStreaks(std::string const &value)
+  {
+    if (value == "Face locks")
+      return StreakPlacement::FaceLocks;
+    if (value == "Front")
+      return StreakPlacement::Front;
+    if (value == "Back")
+      return StreakPlacement::Back;
+    if (value == "Scattered")
+      return StreakPlacement::Scattered;
+    return StreakPlacement::Bangs;
+  }
+
   HairStyle parseStyle(std::string const &value)
   {
     if (value == "Long")
@@ -161,77 +211,120 @@ namespace
   }
 }
 
-HairConfig HairConfig::load()
+HairConfig HairConfig::load(matjson::Value const *look)
 {
   auto mod = Mod::get();
   HairConfig cfg;
 
+  // A look from a preset: its values win, settings it doesn't have come from the mod settings
+  auto lookValue = [&](std::string_view key) -> matjson::Value const *
+  {
+    if (!look)
+      return nullptr;
+    auto value = look->get(key);
+    return value ? &value.unwrap() : nullptr;
+  };
+  auto number = [&](std::string_view key)
+  {
+    if (auto value = lookValue(key); value && value->isNumber())
+      return static_cast<float>(value->asDouble().unwrapOr(0.0));
+    return static_cast<float>(mod->getSettingValue<double>(key));
+  };
+  auto integer = [&](std::string_view key)
+  {
+    if (auto value = lookValue(key); value && value->isNumber())
+      return static_cast<int>(value->asInt().unwrapOr(0));
+    return static_cast<int>(mod->getSettingValue<int64_t>(key));
+  };
+  auto flag = [&](std::string_view key)
+  {
+    if (auto value = lookValue(key); value && value->isBool())
+      return value->asBool().unwrapOr(false);
+    return mod->getSettingValue<bool>(key);
+  };
+  auto text = [&](std::string_view key)
+  {
+    if (auto value = lookValue(key); value && value->isString())
+      return value->asString().unwrapOr("");
+    return mod->getSettingValue<std::string>(key);
+  };
+  auto color = [&](std::string_view key)
+  {
+    if (auto value = lookValue(key); value && value->isString())
+    {
+      if (auto parsed = cc3bFromHexString(value->asString().unwrapOr(""), true))
+        return parsed.unwrap();
+    }
+    return mod->getSettingValue<ccColor3B>(key);
+  };
+
+  // The switches of the mod itself always come from the mod settings
+
   cfg.enabled = mod->getSettingValue<bool>("enabled");
   cfg.showInGarage = mod->getSettingValue<bool>("show-in-garage");
-  cfg.style = parseStyle(mod->getSettingValue<std::string>("style"));
-  cfg.spinWithIcon = mod->getSettingValue<bool>("spin-with-icon");
-  cfg.lockCount = static_cast<int>(mod->getSettingValue<int64_t>("density"));
-  cfg.length = static_cast<float>(mod->getSettingValue<double>("hair-length"));
-  cfg.segments = static_cast<int>(mod->getSettingValue<int64_t>("segments"));
-  cfg.lockWidth = static_cast<float>(mod->getSettingValue<double>("lock-width"));
-  cfg.hairTopGap = static_cast<float>(mod->getSettingValue<double>("hair-top-gap"));
-  cfg.volume = static_cast<float>(mod->getSettingValue<double>("volume"));
 
-  auto number = [&](std::string_view key)
-  { return static_cast<float>(mod->getSettingValue<double>(key)); };
+  static constexpr std::array<char const *, static_cast<size_t>(GameMode::Count)> kModeKeys{
+      "mode-cube", "mode-ship", "mode-ball", "mode-ufo", "mode-wave",
+      "mode-robot", "mode-spider", "mode-swing", "mode-jetpack"};
+  for (size_t i = 0; i < kModeKeys.size(); ++i)
+    cfg.modes[i] = mod->getSettingValue<bool>(kModeKeys[i]);
 
-  cfg.faceLocks = mod->getSettingValue<bool>("face-locks");
-  cfg.faceLockLeft = mod->getSettingValue<bool>("face-lock-left");
-  cfg.faceLockRight = mod->getSettingValue<bool>("face-lock-right");
+  cfg.style = parseStyle(text("style"));
+  cfg.spinWithIcon = flag("spin-with-icon");
+  cfg.lockCount = integer("density");
+  cfg.length = number("hair-length");
+  cfg.segments = integer("segments");
+  cfg.lockWidth = number("lock-width");
+  cfg.hairTopGap = number("hair-top-gap");
+  cfg.volume = number("volume");
+
+
+  cfg.faceLocks = flag("face-locks");
+  cfg.faceLockLeft = flag("face-lock-left");
+  cfg.faceLockRight = flag("face-lock-right");
   cfg.faceLockLength = number("face-lock-length");
   cfg.faceLockWidth = number("face-lock-width");
-  cfg.braidFaceLocks = mod->getSettingValue<bool>("braid-face-locks");
+  cfg.braidFaceLocks = flag("braid-face-locks");
   cfg.faceLockInsetX = number("face-lock-inset-x");
   cfg.faceLockInsetY = number("face-lock-inset-y");
-  cfg.faceLockColorSource = parseColorSource(mod->getSettingValue<std::string>("face-lock-color"));
-  cfg.faceLockColor = mod->getSettingValue<ccColor3B>("face-lock-custom-color");
+  cfg.faceLockColorSource = parseColorSource(text("face-lock-color"));
+  cfg.faceLockColor = color("face-lock-custom-color");
 
-  cfg.bangs = mod->getSettingValue<bool>("bangs");
+  cfg.bangs = flag("bangs");
   cfg.bangsLength = number("bangs-length");
-  cfg.bangsCount = static_cast<int>(mod->getSettingValue<int64_t>("bangs-density"));
+  cfg.bangsCount = integer("bangs-density");
   cfg.bangsSpread = number("bangs-spread");
   cfg.bangsArcSize = number("bangs-arc-size");
   cfg.bangsArcSoftness = number("bangs-arc-softness");
   cfg.bangsInsetX = number("bangs-inset-x");
   cfg.bangsInsetY = number("bangs-inset-y");
-  cfg.bangsColorSource = parseColorSource(mod->getSettingValue<std::string>("bangs-color"));
-  cfg.bangsColor = mod->getSettingValue<ccColor3B>("bangs-custom-color");
+  cfg.bangsColorSource = parseColorSource(text("bangs-color"));
+  cfg.bangsColor = color("bangs-custom-color");
 
-  cfg.tails = parseTails(mod->getSettingValue<std::string>("ponytail"));
+  cfg.tails = parseTails(text("ponytail"));
   cfg.tailPosition = number("ponytail-position");
   cfg.tailLength = number("ponytail-length");
   cfg.tailThickness = number("ponytail-thickness");
-  cfg.tailColorSource = parseColorSource(mod->getSettingValue<std::string>("ponytail-color"));
-  cfg.tailColor = mod->getSettingValue<ccColor3B>("ponytail-custom-color");
-  cfg.braidTails = mod->getSettingValue<bool>("braid-tails");
-  cfg.tie = parseTie(mod->getSettingValue<std::string>("ponytail-tie"));
-  cfg.tieColorSource = parseColorSource(mod->getSettingValue<std::string>("tie-color"));
-  cfg.tieColor = mod->getSettingValue<ccColor3B>("tie-custom-color");
+  cfg.tailColorSource = parseColorSource(text("ponytail-color"));
+  cfg.tailColor = color("ponytail-custom-color");
+  cfg.braidTails = flag("braid-tails");
+  cfg.tie = parseTie(text("ponytail-tie"));
+  cfg.tieColorSource = parseColorSource(text("tie-color"));
+  cfg.tieColor = color("tie-custom-color");
 
-  cfg.ahoge = static_cast<int>(mod->getSettingValue<int64_t>("ahoge"));
+  cfg.ahoge = integer("ahoge");
   cfg.ahogeLength = number("ahoge-length");
   cfg.ahogeCurl = number("ahoge-curl");
 
-  cfg.headBow = mod->getSettingValue<bool>("head-bow");
+  cfg.headBow = flag("head-bow");
   cfg.bowPosition = number("bow-position");
   cfg.bowSize = number("bow-size");
   cfg.bowRibbonLength = number("bow-ribbon-length");
-  cfg.bowColorSource = parseColorSource(mod->getSettingValue<std::string>("bow-color"));
-  cfg.bowColor = mod->getSettingValue<ccColor3B>("bow-custom-color");
+  cfg.bowColorSource = parseColorSource(text("bow-color"));
+  cfg.bowColor = color("bow-custom-color");
 
-  auto text = [&](std::string_view key)
-  { return mod->getSettingValue<std::string>(key); };
-  auto color = [&](std::string_view key)
-  { return mod->getSettingValue<ccColor3B>(key); };
-  auto flag = [&](std::string_view key)
-  { return mod->getSettingValue<bool>(key); };
 
-  cfg.clipCount = static_cast<int>(mod->getSettingValue<int64_t>("clip-count"));
+  cfg.clipCount = integer("clip-count");
   cfg.clipStyle = parseClip(text("clip-style"));
   cfg.clipRight = text("clip-side") != "Left";
   cfg.clipSize = number("clip-size");
@@ -305,6 +398,40 @@ HairConfig HairConfig::load()
   cfg.petDistance = number("pet-distance");
   cfg.petColorSource = parseColorSource(text("pet-color"));
   cfg.petColor = color("pet-custom-color");
+  cfg.petMoods = flag("pet-moods");
+
+  cfg.headphones = parseHeadphones(text("headphones"));
+  cfg.headphonesSize = number("headphones-size");
+  cfg.headphonesColorSource = parseColorSource(text("headphones-color"));
+  cfg.headphonesColor = color("headphones-custom-color");
+  cfg.headphonesLight = color("headphones-light");
+  cfg.headphonesBeat = flag("headphones-beat");
+
+  cfg.glasses = parseGlasses(text("glasses"));
+  cfg.glassesX = number("glasses-x");
+  cfg.glassesY = number("glasses-y");
+  cfg.glassesSize = number("glasses-size");
+  cfg.glassesColor = color("glasses-color");
+  cfg.glassesTint = color("glasses-tint");
+  cfg.glassesTintOpacity = number("glasses-tint-opacity");
+
+  cfg.earrings = parseEarrings(text("earrings"));
+  cfg.earringSize = number("earring-size");
+  cfg.earringLength = number("earring-length");
+  cfg.earringHeight = number("earring-height");
+  cfg.earringColorSource = parseColorSource(text("earring-color"));
+  cfg.earringColor = color("earring-custom-color");
+  cfg.bell = flag("bell");
+  cfg.bellSize = number("bell-size");
+  cfg.bellColor = color("bell-color");
+  cfg.collarColor = color("collar-color");
+
+  cfg.streaks = integer("streaks");
+  cfg.streakPlacement = parseStreaks(text("streak-placement"));
+  cfg.streakColor = color("streak-color");
+
+  cfg.orbReaction = flag("orb-reaction");
+  cfg.orbKick = number("orb-kick");
 
   cfg.hat = parseHat(text("hat"));
   cfg.hatSize = number("hat-size");
@@ -332,25 +459,26 @@ HairConfig HairConfig::load()
   cfg.tipsColor = color("tips-custom-color");
   cfg.tipsStart = number("tips-start");
 
-  cfg.hitboxMultiplier = static_cast<float>(mod->getSettingValue<double>("hitbox-multiplier"));
-  cfg.windMultiplier = static_cast<float>(mod->getSettingValue<double>("wind-multiplier"));
-  cfg.calmJumps = mod->getSettingValue<bool>("calm-jumps");
-  cfg.gusts = static_cast<float>(mod->getSettingValue<double>("wind-gusts"));
-  cfg.gustSpeed = static_cast<float>(mod->getSettingValue<double>("wind-gust-speed"));
-  cfg.flutter = static_cast<float>(mod->getSettingValue<double>("wind-flutter"));
-  cfg.breeze = static_cast<float>(mod->getSettingValue<double>("breeze"));
-  cfg.gravity = static_cast<float>(mod->getSettingValue<double>("gravity"));
-  cfg.damping = static_cast<float>(mod->getSettingValue<double>("damping"));
-  cfg.friction = static_cast<float>(mod->getSettingValue<double>("hair-friction"));
-  cfg.colorSource = parseColorSource(mod->getSettingValue<std::string>("color-source"));
-  cfg.customColor = mod->getSettingValue<ccColor3B>("custom-color");
-  cfg.outline = mod->getSettingValue<bool>("outline");
+  cfg.hitboxMultiplier = number("hitbox-multiplier");
+  cfg.windMultiplier = number("wind-multiplier");
+  cfg.calmJumps = flag("calm-jumps");
+  cfg.gusts = number("wind-gusts");
+  cfg.gustSpeed = number("wind-gust-speed");
+  cfg.flutter = number("wind-flutter");
+  cfg.breeze = number("breeze");
+  cfg.gravity = number("gravity");
+  cfg.damping = number("damping");
+  cfg.friction = number("hair-friction");
+  cfg.colorSource = parseColorSource(text("color-source"));
+  cfg.customColor = color("custom-color");
+  cfg.outline = flag("outline");
 
   cfg.lockCount = std::clamp(cfg.lockCount, 1, 256);
   cfg.segments = std::clamp(cfg.segments, 3, 16);
   cfg.bangsCount = std::clamp(cfg.bangsCount, 1, 32);
   cfg.ahoge = std::clamp(cfg.ahoge, 0, 2);
   cfg.clipCount = std::clamp(cfg.clipCount, 0, 3);
+  cfg.streaks = std::clamp(cfg.streaks, 0, 8);
 
   return cfg;
 }

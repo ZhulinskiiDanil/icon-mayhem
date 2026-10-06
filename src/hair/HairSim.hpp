@@ -77,6 +77,8 @@ public:
   void setup(int strandCount, int segments);
   void reset(std::vector<HairStrandTarget> const &targets, cocos2d::CCPoint const &headCenter);
   void step(float dt, std::vector<HairStrandTarget> const &targets, HairSimParams const &params);
+  // Throws every strand: `velocity` for all of them plus `puff` away from `center`, more towards the tips
+  void kick(cocos2d::CCPoint const &velocity, cocos2d::CCPoint const &center, float puff);
 
   std::vector<std::vector<cocos2d::CCPoint>> const &strands() const { return m_pos; }
   int segments() const { return m_segments; }

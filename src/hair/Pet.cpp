@@ -9,8 +9,11 @@ using namespace geode::prelude;
 using namespace hair;
 
 // ! --- Pet --- !
-// A tiny cat, ghost or bird floating behind and above the icon on a lazy spring. It bobs, looks
-// where you go, blinks now and then and hops when you land. Sizes are in icon units.
+// A tiny cat, ghost, bird, bunny or slime floating behind and above the icon on a lazy spring.
+// It bobs, looks where you go, blinks now and then and hops when you land. With moods it falls
+// asleep with the icon, cheers on checkpoints and level completes and is sad after a death.
+// It's drawn by the effects node in the sim space, so it stays when the player is hidden.
+// Sizes are in icon units.
 
 namespace
 {
@@ -24,6 +27,10 @@ namespace
   constexpr ccColor3B kPetBlush = {255, 143, 163};
   constexpr ccColor3B kInnerEar = {244, 167, 185};
   constexpr ccColor3B kBeak = {255, 179, 71};
+  constexpr ccColor3B kTear = {120, 200, 255};
+  constexpr float kPetSleepSink = 4.f; // icon units lower while asleep
+  constexpr float kPetHop = 90.f;      // icon units / s up when it cheers
+  constexpr float kPetZEvery = 2.2f;   // s between the little "z"s of a sleeping pet
 }
 
 CCPoint HairNode::petTarget(CCPoint const &headCenter) const
@@ -34,8 +41,10 @@ CCPoint HairNode::petTarget(CCPoint const &headCenter) const
   CCPoint worldBack;
   this->gravityAxes(worldUpFrame, worldBack);
   CCPoint const back = normalized(worldBack, perpendicular(worldUp));
-  float const bob = std::sin(m_time * 2.5f) * kPetBob;
-  return headCenter + worldUp * ((kHeadRadius + kPetHeight + bob) * m_simScale) +
+  // Sleeps a bit lower with a slower, smaller bob
+  float const sleepy = m_config.petMoods ? m_sleepy : 0.f;
+  float const bob = std::sin(m_petClock * (2.5f - 1.3f * sleepy)) * kPetBob * (1.f - .6f * sleepy);
+  return headCenter + worldUp * ((kHeadRadius + kPetHeight + bob - kPetSleepSink * sleepy) * m_simScale) +
          back * ((kHeadRadius + m_config.petDistance) * m_simScale);
 }
 
@@ -57,10 +66,63 @@ void HairNode::updatePet(float dt, CCPoint const &headCenter)
     m_petPosition = m_petPosition + m_petVelocity * dt;
   }
 
-  // Blink every few seconds
+  // Back alive: no more tears
+  if (m_petMood == PetMood::Sad)
+    m_petMood = PetMood::Normal;
+  m_petClock += dt;
+  m_petMoodTime -= dt;
+  if (m_petMood == PetMood::Happy && m_petMoodTime <= 0.f)
+    m_petMood = PetMood::Normal;
   m_petBlink -= dt;
   if (m_petBlink < -kPetBlink)
     m_petBlink = 2.f + 3.f * std::uniform_real_distribution<float>(0.f, 1.f)(m_random);
+  m_petFrame = CCDirector::sharedDirector()->getTotalFrames();
+}
+
+void HairNode::updatePetAlone(float dt)
+{
+  m_petFrame = CCDirector::sharedDirector()->getTotalFrames();
+  if (dt <= 0.f)
+    return;
+
+  // No head to follow: settles where it is and sinks a little, sad
+  m_petVelocity = m_petVelocity * std::exp(-kPetDamping * dt);
+  CCPoint const worldUp = m_gravityDir ? m_gravityDir() * -1.f : CCPoint{0.f, 1.f};
+  m_petVelocity = m_petVelocity - worldUp * (6.f * m_simScale * dt);
+  m_petPosition = m_petPosition + m_petVelocity * dt;
+  m_petClock += dt;
+  m_petBlink -= dt;
+  if (m_petBlink < -kPetBlink)
+    m_petBlink = 2.f + 3.f * std::uniform_real_distribution<float>(0.f, 1.f)(m_random);
+}
+
+void HairNode::petReact(PetMood mood, float duration)
+{
+  if (m_config.pet == PetStyle::None || !m_config.petMoods)
+    return;
+
+  m_petMood = mood;
+  m_petMoodTime = duration;
+  if (mood != PetMood::Happy)
+    return;
+
+  // A hop and a few little hearts
+  CCPoint const worldUp = m_gravityDir ? m_gravityDir() * -1.f : CCPoint{0.f, 1.f};
+  m_petVelocity = m_petVelocity + worldUp * (kPetHop * m_simScale);
+  std::uniform_real_distribution<float> random(0.f, 1.f);
+  for (int i = 0; i < 3; ++i)
+  {
+    Particle heart;
+    heart.kind = ParticleKind::Heart;
+    heart.position = m_petPosition + rotated(worldUp, radians(-50.f + 50.f * static_cast<float>(i))) * (kPetBody * m_simScale);
+    heart.velocity = (worldUp * (20.f + 10.f * random(m_random)) + perpendicular(worldUp) * (static_cast<float>(i - 1) * 12.f)) * m_simScale;
+    heart.life = 1.f + .3f * random(m_random);
+    heart.size = .6f;
+    heart.phase = random(m_random) * 2.f * kPi;
+    heart.tinted = true;
+    heart.color = premultiplied(kPetBlush, 1.f);
+    m_particles.push_back(heart);
+  }
 }
 
 void HairNode::drawPet(CCDrawNode *node)
@@ -101,7 +163,7 @@ void HairNode::drawPet(CCDrawNode *node)
       for (int i = 1; i <= 6; ++i)
       {
         float const t = static_cast<float>(i);
-        CCPoint const point = center - right * (face * (r * .8f + t * r * .3f)) + up * (std::sin(m_time * 3.f + t * .6f) * r * .25f + t * r * .12f);
+        CCPoint const point = center - right * (face * (r * .8f + t * r * .3f)) + up * (std::sin(m_petClock * 3.f + t * .6f) * r * .25f + t * r * .12f);
         node->drawSegment(previous, point, pass == 0 ? r * .22f + outline : r * .22f, pass == 0 ? outlineColor : color);
         previous = point;
       }
@@ -147,31 +209,113 @@ void HairNode::drawPet(CCDrawNode *node)
                                    center - right * (face * r * 1.6f) + up * (r * .1f)};
     node->drawPolygon(tail.data(), 3, shaded(color, .85f), outline, outlineColor);
     body(color);
-    CCPoint const wing = rotated(right * -face, radians(std::sin(m_time * 12.f) * 25.f));
+    CCPoint const wing = rotated(right * -face, radians(std::sin(m_petClock * 12.f) * 25.f));
     fillEllipse(node, center - right * (face * r * .1f) - up * (r * .05f), wing, r * .55f, r * .3f, shaded(color, .85f), outline * .8f, outlineColor);
     std::array<CCPoint, 3> beak = {center + right * (face * r * .85f) + up * (r * .18f), center + right * (face * r * .85f) - up * (r * .12f),
                                    center + right * (face * r * 1.35f) + up * (r * .03f)};
     node->drawPolygon(beak.data(), 3, premultiplied(kBeak, alpha), outline * .8f, outlineColor);
     break;
   }
+  case PetStyle::Bunny:
+  {
+    // Long ears that sway and lag behind when it moves (and droop when it's sad or sleepy), a cotton tail
+    CCPoint const velocity = applyVec(m_petVelocity, simToNode);
+    float const lean = std::clamp(velocity.dot(right) / (60.f * scale + .001f), -1.f, 1.f) * 25.f;
+    float const droop = m_config.petMoods ? std::max(m_sleepy, m_petMood == PetMood::Sad ? 1.f : 0.f) * 40.f : 0.f;
+    CCPoint const tail = center - right * (face * r * .95f) - up * (r * .35f);
+    if (outline > 0.f)
+      fillCircle(node, tail, r * .32f + outline, outlineColor);
+    fillCircle(node, tail, r * .32f, mixedWhite(color, .6f));
+    for (float side : {-1.f, 1.f})
+    {
+      CCPoint const dir = rotated(up, radians(-side * (12.f + droop) + lean + std::sin(m_petClock * 2.2f + side) * 6.f));
+      CCPoint const ear = center + up * (r * .6f) + right * (side * r * .32f) + dir * (r * .75f);
+      fillEllipse(node, ear, dir, r * .8f, r * .26f, color, outline, outlineColor);
+      fillEllipse(node, ear + dir * (r * .05f), dir, r * .55f, r * .12f, premultiplied(kInnerEar, alpha));
+    }
+    body(color);
+    break;
+  }
+  case PetStyle::Slime:
+  {
+    // A wobbly drop of jelly: stretches when it rises, squashes when it falls
+    CCPoint const velocity = applyVec(m_petVelocity, simToNode);
+    float const stretch = std::clamp(velocity.dot(up) / (80.f * scale + .001f), -.25f, .25f) + std::sin(m_petClock * 4.f) * .05f;
+    float const tall = r * (.85f + stretch);
+    float const wide = r * (1.1f - stretch * .6f);
+    CCPoint const middle = center - up * (r * .1f);
+    auto const jelly = faded(color, .88f);
+    fillCircle(node, middle + up * (tall * .92f) + right * (face * wide * .12f), r * .18f + outline, outlineColor);
+    fillEllipse(node, middle, up, tall, wide, jelly, outline, outlineColor);
+    fillCircle(node, middle + up * (tall * .92f) + right * (face * wide * .12f), r * .18f, jelly);
+    fillEllipse(node, middle + up * (tall * .45f) - right * (wide * .45f), rotated(up, .5f), tall * .22f, wide * .12f,
+                ccColor4F{.6f * alpha, .6f * alpha, .6f * alpha, .6f * alpha});
+    break;
+  }
   case PetStyle::None:
     break;
   }
 
-  // Face: eyes looking where you go (lines while blinking) and blush
+  // Face: eyes looking where you go and blush. Closed while blinking or asleep, ^^ when happy,
+  // sad brows and a tear after a death
+  bool const moods = m_config.petMoods;
+  bool const asleep = moods && m_sleepy > .6f;
+  bool const happy = moods && m_petMood == PetMood::Happy;
+  bool const sad = moods && m_petMood == PetMood::Sad;
   bool const blinking = m_petBlink < 0.f;
   bool const bird = m_config.pet == PetStyle::Bird;
+  auto const eyeColor = premultiplied(kEye, alpha);
+  float const line = r * .06f;
   std::array<float, 2> eyes = {face * r * .45f, face * r * .02f};
   for (size_t i = 0; i < (bird ? 1u : 2u); ++i)
   {
     CCPoint const eye = center + right * eyes[i] + up * (r * .1f);
-    if (blinking)
-      node->drawSegment(eye - right * (r * .12f), eye + right * (r * .12f), r * .05f, premultiplied(kEye, alpha));
+    if (happy)
+    {
+      node->drawSegment(eye - right * (r * .13f) - up * (r * .04f), eye + up * (r * .08f), line, eyeColor);
+      node->drawSegment(eye + up * (r * .08f), eye + right * (r * .13f) - up * (r * .04f), line, eyeColor);
+    }
+    else if (asleep)
+    {
+      node->drawSegment(eye - right * (r * .13f), eye - up * (r * .06f), line, eyeColor);
+      node->drawSegment(eye - up * (r * .06f), eye + right * (r * .13f), line, eyeColor);
+    }
+    else if (blinking)
+      node->drawSegment(eye - right * (r * .12f), eye + right * (r * .12f), r * .05f, eyeColor);
     else
     {
-      fillCircle(node, eye, r * .14f, premultiplied(kEye, alpha));
+      fillCircle(node, eye, r * .14f, eyeColor);
       fillCircle(node, eye + up * (r * .05f) + right * (r * .04f), r * .05f, {alpha, alpha, alpha, alpha});
     }
+    if (sad)
+    {
+      // Brows raised on the inner ends
+      CCPoint const inner = right * (i == 0 ? -face : face);
+      node->drawSegment(eye + up * (r * .32f) + inner * (r * .12f), eye + up * (r * .24f) - inner * (r * .12f), r * .045f, eyeColor);
+    }
     fillCircle(node, eye - up * (r * .25f) + right * (face * r * .05f), r * .1f, premultiplied(kPetBlush, alpha * .6f));
+  }
+
+  if (sad)
+  {
+    // A tear rolling down from the front eye, again and again
+    float const t = std::fmod(m_petClock, 1.2f) / 1.2f;
+    CCPoint const tear = center + right * eyes[0] - up * (r * (.2f + .5f * t));
+    auto const blue = premultiplied(kTear, alpha * (1.f - t * .6f));
+    fillCircle(node, tear, r * .1f, blue);
+    std::array<CCPoint, 3> tip = {tear - right * (r * .095f), tear + right * (r * .095f), tear + up * (r * .2f)};
+    node->drawPolygon(tip.data(), 3, blue, 0.f, blue);
+  }
+
+  if (asleep)
+  {
+    // A tiny "z" floating up
+    float const t = std::fmod(m_petClock, kPetZEvery) / kPetZEvery;
+    CCPoint const z = center + up * (r * (1.3f + 1.6f * t)) + right * (face * r * (-.3f + .4f * t));
+    float const half = r * (.22f + .18f * t);
+    auto const zColor = premultiplied(kEye, alpha * (1.f - t));
+    node->drawSegment(z - right * half + up * half, z + right * half + up * half, r * .06f, zColor);
+    node->drawSegment(z + right * half + up * half, z - right * half - up * half, r * .06f, zColor);
+    node->drawSegment(z - right * half - up * half, z + right * half - up * half, r * .06f, zColor);
   }
 }
