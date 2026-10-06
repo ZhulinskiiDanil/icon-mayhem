@@ -1,22 +1,19 @@
 #include "HairNode.hpp"
+#include "HairShared.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <numbers>
 #include <random>
 
 using namespace geode::prelude;
+using namespace hair;
 
 // ! --- Constants --- !
 
 namespace
 {
-  constexpr float kPi = std::numbers::pi_v<float>;
-
-  constexpr float kBaseGravity = 900.f; // units / s^2 for gravity = 1
   constexpr float kTeleportDistance = 160.f;
-  constexpr float kHeadRadius = 15.f;     // hair units, half of the cube
   constexpr float kRootDepth = .72f;      // roots sit inside the head so the icon hides them
   constexpr float kColliderScale = 1.1f;  // round heads: hair rests a bit above them
   constexpr float kBoxScale = 1.32f;      // cube heads: hair rests this far out on the faces...
@@ -30,7 +27,6 @@ namespace
   constexpr float kCapExponent = 3.f;  // squircle exponent of the base on cubes, 2 is a circle
   constexpr int kCapPoints = 24;
   constexpr float kCapEdgeFade = .15f;    // part of the base arc on each end that sinks into the head
-  constexpr float kSpringScale = 13.f;    // style spring vs gravity, see buildTargets()
   constexpr float kTurnSpeed = 12.f;      // radians / s the hairstyle rotates after a gravity flip
   constexpr float kFacingSpeed = 6.f;     // facing units / s when turning around
   constexpr float kWindStrength = 120.f;  // units / s^2, a light breeze in previews
@@ -44,6 +40,15 @@ namespace
   constexpr float kCurlReference = 9.f;    // style curl that gives kCombAlong as is
   constexpr float kFullCombSpeed = 250.f;  // units / s of horizontal speed that comb the hair fully
   constexpr float kMotionResponse = 4.f;   // how fast the combing follows the speed, 1 / s
+
+  // Gusty wind, see HairNode::updateGust()
+  constexpr float kGustFrequency = .7f;    // noise cells / s at gust speed 1
+  constexpr float kFlutterAccel = 1400.f;  // units / s^2 at flutter 1 and full air flow
+
+  // Calm jumps, see HairSimParams::calm
+  constexpr float kCalmStrength = .5f;     // per 1/60 s at full spin
+  constexpr float kFullCalmSpin = 6.f;     // radians / s, a cube jump turns about 7.5
+  constexpr float kCalmFade = .4f;         // s, stays on a bit after the spin so the landing doesn't shake
 
   // Hair in front of the face, see buildFrontTarget()
   constexpr float kFaceLockRootX = .78f;      // across the face, relative to the head half size
@@ -76,10 +81,6 @@ namespace
   constexpr int kCurveSubdiv = 3;      // drawn points per simulated segment
   constexpr int kCurveSubdivDense = 2; // fewer for dense hair, the thin locks don't need it
   constexpr int kDenseLockCount = 64;
-  constexpr float kTipTaper = .92f;    // how much thinner the tip is than the root
-  constexpr float kOutlineWidth = .6f; // icon units
-  constexpr float kOutlineTaper = .6f; // outline thins towards the tip too, no blobs on the ends
-  constexpr float kBackShade = .72f;   // brightness of the deepest lock
 
   // ! --- Styles --- !
 
@@ -117,29 +118,6 @@ namespace
 
   // ! --- Math --- !
 
-  CCPoint applyVec(CCPoint const &v, CCAffineTransform const &t)
-  {
-    return {t.a * v.x + t.c * v.y, t.b * v.x + t.d * v.y};
-  }
-
-  CCPoint normalized(CCPoint const &v, CCPoint const &fallback)
-  {
-    float const len = v.getLength();
-    return len > .0001f ? v / len : fallback;
-  }
-
-  float radians(float degrees)
-  {
-    return degrees * kPi / 180.f;
-  }
-
-  CCPoint rotated(CCPoint const &v, float radians)
-  {
-    float const c = std::cos(radians);
-    float const s = std::sin(radians);
-    return {v.x * c - v.y * s, v.x * s + v.y * c};
-  }
-
   // Signed angle from `from` to `to`. Nearly opposite directions turn through `via`
   // so the hair goes over the top of the head instead of through it
   float turnAngle(CCPoint const &from, CCPoint const &to, CCPoint const &via)
@@ -150,57 +128,6 @@ namespace
     return delta;
   }
 
-  float approach(float value, float target, float maxDelta)
-  {
-    return value + std::clamp(target - value, -maxDelta, maxDelta);
-  }
-
-  CCPoint catmullRom(CCPoint const &p0, CCPoint const &p1, CCPoint const &p2, CCPoint const &p3, float t)
-  {
-    float const t2 = t * t;
-    float const t3 = t2 * t;
-    return (p1 * 2.f + (p2 - p0) * t + (p0 * 2.f - p1 * 5.f + p2 * 4.f - p3) * t2 + (p1 * 3.f - p0 - p2 * 3.f + p3) * t3) * .5f;
-  }
-
-  // Smooth curve through the simulated points, already moved into the hair node space
-  void buildCurve(std::vector<CCPoint> const &pts, CCAffineTransform const &toHair, int subdiv, std::vector<CCPoint> &out)
-  {
-    int const n = static_cast<int>(pts.size());
-    auto at = [&](int i)
-    {
-      if (i < 0)
-        return pts[0] * 2.f - pts[1];
-      if (i >= n)
-        return pts[n - 1] * 2.f - pts[n - 2];
-      return pts[i];
-    };
-
-    out.clear();
-    for (int i = 0; i + 1 < n; ++i)
-    {
-      for (int j = 0; j < subdiv; ++j)
-      {
-        float const t = static_cast<float>(j) / static_cast<float>(subdiv);
-        out.push_back(CCPointApplyAffineTransform(catmullRom(at(i - 1), at(i), at(i + 1), at(i + 2), t), toHair));
-      }
-    }
-    out.push_back(CCPointApplyAffineTransform(pts[n - 1], toHair));
-  }
-
-  ccColor4F premultiplied(ccColor3B const &color, float alpha)
-  {
-    return {
-        color.r / 255.f * alpha,
-        color.g / 255.f * alpha,
-        color.b / 255.f * alpha,
-        alpha,
-    };
-  }
-
-  ccColor4F shaded(ccColor4F const &color, float shade)
-  {
-    return {color.r * shade, color.g * shade, color.b * shade, color.a};
-  }
 }
 
 // ! --- Creation --- !
@@ -239,6 +166,12 @@ HairNode *HairNode::attach(CCSprite *head, CCNode *behind, CCSprite *primary, CC
   node->m_front = CCDrawNode::create();
   node->m_front->setID("hair-front"_spr);
   parent->addChild(node->m_front, behind->getZOrder() + 1);
+
+  // Particles live next to the player, over it
+  node->m_effects = HairEffectsNode::create();
+  node->m_effects->setID("hair-effects"_spr);
+  node->m_effects->m_owner = node;
+  simSpace->addChild(node->m_effects, 1000);
 
   return node;
 }
@@ -304,14 +237,24 @@ void HairNode::generateLocks()
   m_capFrom = frontAngle;
   m_capTo = backAngle;
 
+  // Cap gap: no hair around the top of the head, it comes out from under a cap on the sides.
+  // The locks spread over what is left of the arc, in front of the gap and behind it
+  float const gap = m_config.hairTopGap;
+  float const frontPart = std::max(0.f, -gap - frontAngle);
+  float const backPart = std::max(0.f, backAngle - gap);
+  int const backCount = m_config.enabled && frontPart + backPart > 0.f ? count : 0;
+
   m_locks.clear();
-  for (int i = 0; i < count; ++i)
+  for (int i = 0; i < backCount; ++i)
   {
     float u = (static_cast<float>(i) + .5f) / static_cast<float>(count);
     u = std::clamp(u + (random(rng) - .5f) * .7f / static_cast<float>(count), 0.f, 1.f);
 
     Lock lock;
-    lock.angle = frontAngle + (backAngle - frontAngle) * u;
+    float const along = u * (frontPart + backPart);
+    lock.angle = along < frontPart ? frontAngle + along : gap + (along - frontPart);
+    // The length profile follows the place on the whole arc, as without a gap
+    u = (lock.angle - frontAngle) / (backAngle - frontAngle);
 
     float lengthFactor;
     if (symmetric)
@@ -332,9 +275,17 @@ void HairNode::generateLocks()
   std::sort(m_locks.begin(), m_locks.end(), [](Lock const &a, Lock const &b)
             { return a.depth < b.depth; });
 
+  m_tailsStart = m_locks.size();
+  this->addExtraLocks(rng); // tails, then ahoge, sets m_ahogeStart
+  this->addEarAndScarfLocks(); // sets m_earsStart and m_scarfStart
+
   m_frontStart = m_locks.size();
   m_bangsStart = m_locks.size();
-  this->addFrontLocks(rng);
+  if (m_config.enabled)
+    this->addFrontLocks(rng);
+
+  m_ribbonsStart = m_locks.size();
+  this->addRibbonLocks();
 }
 
 void HairNode::addFrontLocks(std::mt19937 &rng)
@@ -389,9 +340,51 @@ float HairNode::headUnit() const
 
 bool HairNode::isActive() const
 {
-  if (!m_config.enabled || (m_isGarage && !m_config.showInGarage))
+  if (!(m_config.enabled || this->extrasActive() || this->decorActive()) || (m_isGarage && !m_config.showInGarage))
     return false;
   return !m_shouldShow || m_shouldShow();
+}
+
+// ! --- Scene --- !
+
+void HairNode::onEnter()
+{
+  CCDrawNode::onEnter();
+  if (m_effects && !m_effects->getParent() && m_simSpace)
+  {
+    m_effects->m_owner = this;
+    m_simSpace->addChild(m_effects, 1000);
+  }
+}
+
+void HairNode::onExit()
+{
+  // The effects node lives in another parent: take it along so it never points at a dead node
+  if (m_effects)
+  {
+    m_effects->m_owner = nullptr;
+    m_effects->removeFromParent();
+  }
+  CCDrawNode::onExit();
+}
+
+HairEffectsNode *HairEffectsNode::create()
+{
+  auto node = new HairEffectsNode();
+  if (node->init())
+  {
+    node->autorelease();
+    return node;
+  }
+  delete node;
+  return nullptr;
+}
+
+void HairEffectsNode::visit()
+{
+  if (m_owner)
+    m_owner->visitEffects(this);
+  CCDrawNode::visit();
 }
 
 // ! --- Frame --- !
@@ -420,6 +413,8 @@ void HairNode::visit()
       m_needsReset = true;
       return;
     }
+    m_wasDead = false;
+    m_aliveFrame = frame;
 
     this->simulate(director->getDeltaTime());
     this->redraw();
@@ -454,6 +449,8 @@ void HairNode::updateMotion(float dt, CCPoint const &headCenter, bool snap)
 {
   CCPoint const velocity = dt > 0.f ? (headCenter - m_lastHeadCenter) / dt : CCPoint{};
   m_lastHeadCenter = headCenter;
+  m_lastHeadVelocity = snap ? CCPoint{} : m_headVelocity;
+  m_headVelocity = snap ? CCPoint{} : velocity;
   if (snap)
   {
     m_motion = 0.f;
@@ -463,8 +460,19 @@ void HairNode::updateMotion(float dt, CCPoint const &headCenter, bool snap)
   // Only the speed along the ground counts, jumping up and down doesn't comb the hair
   CCPoint const down = m_gravityDir ? m_gravityDir() : CCPoint{0.f, -1.f};
   float const speed = std::abs(velocity.cross(down));
-  float const target = std::clamp(speed / (kFullCombSpeed * m_simScale) * m_config.windMultiplier, 0.f, 1.f);
+  // The air flow combing the hair: the movement scaled by the wind, plus the breeze, all gusty
+  float const flow = speed / (kFullCombSpeed * m_simScale) * m_config.windMultiplier + m_config.breeze;
+  float const target = std::clamp(flow * m_gust, 0.f, 1.f);
   m_motion = approach(m_motion, target, kMotionResponse * dt);
+}
+
+void HairNode::updateGust(float dt)
+{
+  // Real wind never blows the same: two layers of smooth noise, slow swells and quicker gusts
+  m_time += dt;
+  float const t = m_time * kGustFrequency * m_config.gustSpeed;
+  float const noise = .65f * hairNoise(t) + .35f * hairNoise(t * 2.3f + 17.f);
+  m_gust = std::max(0.f, 1.f + m_config.gusts * noise * 1.5f);
 }
 
 void HairNode::gravityAxes(CCPoint &up, CCPoint &back) const
@@ -510,9 +518,14 @@ void HairNode::buildTargets(CCPoint const &headCenter, CCPoint const &up, CCPoin
     auto const &lock = m_locks[s];
     auto &target = m_targets[s];
 
-    if (lock.kind != LockKind::Back)
+    if (lock.kind == LockKind::FaceLock || lock.kind == LockKind::Bang)
     {
       this->buildFrontTarget(lock, target, headCenter, up, across);
+      continue;
+    }
+    if (lock.kind != LockKind::Back)
+    {
+      this->buildExtraTarget(lock, target, headCenter, up, across);
       continue;
     }
 
@@ -643,19 +656,55 @@ void HairNode::simulate(float dt)
 
   // Keep the gravity frame up to date in both modes, switching the setting then doesn't jump
   this->updateFrame(dt, m_needsReset);
+  this->updateGust(dt);
   this->updateMotion(dt, headCenter, m_needsReset);
+
+  this->updateBow(dt);
+
+  m_isBox = m_boxHead && m_boxHead();
+  m_headAxisX = normalized(applyVec({1.f, 0.f}, headToSim), {1.f, 0.f});
+  m_headAxisY = normalized(applyVec({0.f, 1.f}, headToSim), {0.f, 1.f});
+
+  this->iconAxes(headToSim, m_iconUp, m_iconBack);
+  this->updateEars(dt);
 
   CCPoint up;
   CCPoint back;
   if (m_config.spinWithIcon)
-    this->iconAxes(headToSim, up, back);
+  {
+    up = m_iconUp;
+    back = m_iconBack;
+  }
   else
     this->gravityAxes(up, back);
   this->buildTargets(headCenter, up, back);
 
+  // Landings make the blush pop and the hearts burst
+  CCPoint const across = normalized(back, {-up.y, up.x});
+  bool const onGround = m_onGround && m_onGround();
+  if (onGround && !m_wasOnGround && !m_needsReset)
+    this->onLanded(headCenter, up, across);
+  this->updateWings(dt, !onGround && m_wasOnGround && !m_needsReset);
+  m_wasOnGround = onGround;
+  this->updatePet(dt, headCenter);
+  this->updateDecor(dt, headCenter, up, across);
+
+  // How fast the hairstyle frame turns: a spinning cube in a jump, a gravity flip
+  float spinSpeed = 0.f;
+  if (!m_needsReset && dt > 0.f)
+    spinSpeed = std::atan2(m_lastUp.cross(up), m_lastUp.dot(up)) / dt;
+  m_lastUp = up;
+
   HairSimParams params;
   params.damping = m_config.damping;
-  params.windMultiplier = m_config.windMultiplier;
+  params.friction = m_config.friction;
+  params.windMultiplier = m_config.windMultiplier * m_gust;
+  params.spinSpeed = spinSpeed;
+
+  // Follows the spin right away, fades out slowly after it so the hair settles after the landing
+  float const calmTarget = m_config.calmJumps ? kCalmStrength * std::clamp(std::abs(spinSpeed) / kFullCalmSpin, 0.f, 1.f) : 0.f;
+  m_calm = m_needsReset ? 0.f : std::max(calmTarget, m_calm - kCalmStrength * dt / kCalmFade);
+  params.calm = m_calm;
   params.teleportDistance = kTeleportDistance * std::max(m_simScale, 1.f);
   params.headCenter = headCenter;
   // Everything the hair lies on scales with the hitbox setting, the roots and the floor don't
@@ -683,6 +732,12 @@ void HairNode::simulate(float dt)
   this->gravityAxes(worldUp, worldBack);
   params.windDir = worldBack * -1.f;
   params.windPress = m_motion;
+
+  // The breeze blows from the front like the air of the movement, flutter follows the whole flow
+  params.breeze = worldBack * (m_config.breeze * m_gust * kFullCombSpeed * m_simScale);
+  params.flutter = m_config.flutter * m_motion * kFlutterAccel * m_simScale;
+  params.flutterDir = normalized(worldBack, {-1.f, 0.f});
+  params.time = m_time;
   params.tightRadius = hitbox * kPressedRoundScale;
   params.tightHalfSize = hitbox * kPressedScale;
   params.tightExponent = kPressedExponent;
@@ -696,7 +751,6 @@ void HairNode::simulate(float dt)
 
   if (m_idleWind)
   {
-    m_time += dt;
     float const gust = std::sin(m_time * 1.3f) + .5f * std::sin(m_time * 3.1f + 1.f);
     params.wind = CCPoint{gust * kWindStrength * m_config.windMultiplier * m_simScale, 0.f};
   }
@@ -723,8 +777,22 @@ ccColor4F HairNode::hairColor() const
   return this->sourceColor(m_config.colorSource, m_config.customColor);
 }
 
-ccColor4F HairNode::lockColor(LockKind kind) const
+ccColor4F HairNode::lockColor(Lock const &lock) const
 {
+  auto const kind = lock.kind;
+  // Bow ribbons: the head bow has its own color, the bows on the tails use the tie color
+  if (kind == LockKind::Ribbon)
+  {
+    if (lock.group == 0)
+      return m_config.bowColorSource == HairColorSource::Hair ? this->hairColor() : this->sourceColor(m_config.bowColorSource, m_config.bowColor);
+    return m_config.tieColorSource == HairColorSource::Hair ? this->hairColor() : this->sourceColor(m_config.tieColorSource, m_config.tieColor);
+  }
+  if (kind == LockKind::Ear && m_config.earColorSource != HairColorSource::Hair)
+    return this->sourceColor(m_config.earColorSource, m_config.earColor);
+  if (kind == LockKind::ScarfEnd)
+    return m_config.scarfColorSource == HairColorSource::Hair ? this->hairColor() : this->sourceColor(m_config.scarfColorSource, m_config.scarfColor);
+  if (kind == LockKind::Tail && m_config.tailColorSource != HairColorSource::Hair)
+    return this->sourceColor(m_config.tailColorSource, m_config.tailColor);
   if (kind == LockKind::FaceLock && m_config.faceLockColorSource != HairColorSource::Hair)
     return this->sourceColor(m_config.faceLockColorSource, m_config.faceLockColor);
   if (kind == LockKind::Bang && m_config.bangsColorSource != HairColorSource::Hair)
@@ -752,6 +820,22 @@ ccColor4F HairNode::sourceColor(HairColorSource source, ccColor3B const &custom)
 
 void HairNode::drawCap(CCAffineTransform const &simToHair, ccColor4F const &color, float outline, ccColor4F const &outlineColor)
 {
+  // With a cap gap the base is two pieces, in front of the gap and behind it
+  float const gap = m_config.hairTopGap;
+  if (gap <= 0.f)
+  {
+    this->drawCapArc(simToHair, m_capFrom, m_capTo, color, outline, outlineColor);
+    return;
+  }
+  if (-gap > m_capFrom)
+    this->drawCapArc(simToHair, m_capFrom, -gap, color, outline, outlineColor);
+  if (gap < m_capTo)
+    this->drawCapArc(simToHair, gap, m_capTo, color, outline, outlineColor);
+}
+
+void HairNode::drawCapArc(CCAffineTransform const &simToHair, float from, float to, ccColor4F const &color, float outline,
+                          ccColor4F const &outlineColor)
+{
   // Base of the hairstyle along the collider surface, fills the gaps between the locks
   // (a parting on top, the corners of a cube) so no background shows through the hair
   std::array<CCPoint, kCapPoints + 1> verts;
@@ -762,7 +846,7 @@ void HairNode::drawCap(CCAffineTransform const &simToHair, ccColor4F const &colo
   for (int i = 0; i < kCapPoints; ++i)
   {
     float const t = static_cast<float>(i) / static_cast<float>(kCapPoints - 1);
-    float const angle = radians(m_capFrom + (m_capTo - m_capFrom) * t);
+    float const angle = radians(from + (to - from) * t);
     CCPoint const dir = normalized(m_frameUp * std::cos(angle) + m_frameBack * std::sin(angle), m_frameUp);
     // The ends sink into the head, otherwise they'd stick out as ledges when the locks move away
     float const edge = std::clamp(std::min(t, 1.f - t) / kCapEdgeFade, 0.f, 1.f);
@@ -790,13 +874,41 @@ void HairNode::drawCap(CCAffineTransform const &simToHair, ccColor4F const &colo
 
 void HairNode::redraw()
 {
-  this->drawLocks(this, 0, m_frontStart, true);
+  // Behind the icon: the hairstyle with its base, the tails with their ties, the ahoge, the ears,
+  // the ends of the scarf
+  this->drawLocks(this, 0, m_tailsStart, true);
+  if (m_config.braidTails)
+    this->drawBraids(this, m_tailsStart, m_ahogeStart);
+  else
+    this->drawLocks(this, m_tailsStart, m_ahogeStart, false);
+  this->drawTies(this);
+  this->drawLocks(this, m_ahogeStart, m_earsStart, false);
+  this->drawLocks(this, m_earsStart, m_scarfStart, false);
+  this->drawEarInners(this);
+  this->drawLocks(this, m_scarfStart, m_frontStart, false);
+  this->drawWings(this);
   if (!m_front)
     return;
 
-  // Each group gets its own outline so the bangs clearly lie over the face locks
-  this->drawLocks(m_front, m_frontStart, m_bangsStart, false);
-  this->drawLocks(m_front, m_bangsStart, m_locks.size(), false);
+  // In front of it: the blush on the cheeks, the scarf band, then the hair over them. Each group
+  // gets its own outline so the bangs clearly lie over the face locks; the clips, bows and the
+  // hearts go over everything
+  this->drawBlush(m_front);
+  this->drawSticker(m_front);
+  this->drawScarfBand(m_front);
+  if (m_config.braidFaceLocks)
+    this->drawBraids(m_front, m_frontStart, m_bangsStart);
+  else
+    this->drawLocks(m_front, m_frontStart, m_bangsStart, false);
+  this->drawLocks(m_front, m_bangsStart, m_ribbonsStart, false);
+  this->drawHeadband(m_front);
+  this->drawFlowers(m_front);
+  this->drawHat(m_front);
+  this->drawClips(m_front);
+  this->drawLocks(m_front, m_ribbonsStart, m_locks.size(), false);
+  this->drawBows(m_front);
+  this->drawHalo(m_front);
+  this->drawPet(m_front);
 
   if (m_debugDraw)
     this->drawDebug();
@@ -827,7 +939,7 @@ void HairNode::drawLocks(CCDrawNode *node, size_t from, size_t to, bool withCap)
     {
       auto const &lock = m_locks[s];
       float const rootRadius = lock.width * .5f * hairScale;
-      auto const color = shaded(this->lockColor(lock.kind), kBackShade + (1.f - kBackShade) * lock.depth);
+      auto const color = shaded(this->lockColor(lock), kBackShade + (1.f - kBackShade) * lock.depth);
 
       buildCurve(strands[s], simToNode, subdiv, m_curve);
       int const last = static_cast<int>(m_curve.size()) - 1;
@@ -835,12 +947,12 @@ void HairNode::drawLocks(CCDrawNode *node, size_t from, size_t to, bool withCap)
       for (int k = 1; k <= last; ++k)
       {
         float const along = static_cast<float>(k) / static_cast<float>(last);
-        float const radius = rootRadius * (1.f - kTipTaper * along);
+        float const radius = rootRadius * this->lockWidthAt(lock, along);
 
         if (pass == 0)
           node->drawSegment(m_curve[k - 1], m_curve[k], radius + outline * (1.f - kOutlineTaper * along), outlineColor);
         else
-          node->drawSegment(m_curve[k - 1], m_curve[k], radius, color);
+          node->drawSegment(m_curve[k - 1], m_curve[k], radius, this->lockColorAt(lock, color, along));
       }
     }
   }
@@ -884,16 +996,39 @@ void HairNode::drawDebug()
   // Roots of every lock
   for (size_t s = 0; s < m_locks.size() && s < m_targets.size(); ++s)
   {
-    auto const color = m_locks[s].kind == LockKind::Back       ? kDebugRoots
-                       : m_locks[s].kind == LockKind::FaceLock ? kDebugFaceLocks
-                                                               : kDebugBangs;
-    m_front->drawDot(toFront(m_targets[s].root), m_locks[s].kind == LockKind::Back ? dot * .6f : dot, color);
+    auto const kind = m_locks[s].kind;
+    auto const color = kind == LockKind::FaceLock ? kDebugFaceLocks
+                       : kind == LockKind::Bang   ? kDebugBangs
+                                                  : kDebugRoots;
+    m_front->drawDot(toFront(m_targets[s].root), kind == LockKind::Back ? dot * .6f : dot, color);
+  }
+
+  // Clip anchors and the scarf knot
+  for (int i = 0; i < m_config.clipCount; ++i)
+  {
+    CCPoint position;
+    CCPoint direction;
+    if (this->clipPlacement(i, position, direction))
+      m_front->drawDot(toFront(position), dot * 1.3f, kDebugBangs);
+  }
+  if (m_config.scarf)
+    m_front->drawDot(toFront(this->scarfKnot(center)), dot * 1.3f, kDebugRoots);
+  if (m_config.halo)
+    m_front->drawDot(toFront(this->haloTarget(center)), dot * 1.3f, kDebugRoots);
+  if (m_config.pet != PetStyle::None)
+    m_front->drawDot(toFront(this->petTarget(center)), dot * 1.3f, kDebugRoots);
+
+  // Bow knots
+  CCPoint const across = normalized(m_frameBack, {-m_frameUp.y, m_frameUp.x});
+  for (int group = 0; group < 3; ++group)
+  {
+    if (this->bowExists(group))
+      m_front->drawDot(toFront(this->bowAnchor(group, center, m_frameUp, across)), dot * 1.3f, kDebugBangs);
   }
 
   // The whole bangs hairline, so the arc settings are visible even with a few locks
   if (m_config.bangs)
   {
-    CCPoint const across = normalized(m_frameBack, {-m_frameUp.y, m_frameUp.x});
     for (int i = 0; i <= kDebugArcPoints; ++i)
     {
       float const side = static_cast<float>(i) / static_cast<float>(kDebugArcPoints) * 2.f - 1.f;

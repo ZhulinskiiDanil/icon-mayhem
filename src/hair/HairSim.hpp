@@ -22,8 +22,21 @@ struct HairStrandTarget
 
 struct HairSimParams
 {
-  float damping = .06f;
+  float damping = .06f;  // air drag, per 1/60 s
+  float friction = .3f;  // per 1/60 s, internal friction: damps the motion of a segment relative to its parent
   float windMultiplier = 1.f; // 0: the air moves with the head, the hair doesn't trail behind
+
+  // Calm spins: while the head spins the hair is pulled towards turning with it as one piece,
+  // instead of whipping around the head and shaking after the landing
+  float spinSpeed = 0.f; // radians / s the head turns, counterclockwise is positive
+  float calm = 0.f;      // per 1/60 s, how strongly the hair is pulled towards turning with the head
+
+  // Gusty air: a breeze blowing even standing still, and flutter, small random flicks that make
+  // every lock move on its own, stronger towards the tips
+  cocos2d::CCPoint breeze = {0.f, 0.f};    // units / s, velocity of the air on top of the movement
+  float flutter = 0.f;                     // units / s^2
+  cocos2d::CCPoint flutterDir = {-1.f, 0.f}; // direction the air flows to
+  float time = 0.f;                        // s, drives the flutter noise
   cocos2d::CCPoint gravity = {0.f, -900.f}; // units / s^2
   cocos2d::CCPoint wind = {0.f, 0.f};       // units / s^2
   float teleportDistance = 160.f;
@@ -54,6 +67,9 @@ struct HairSimParams
   cocos2d::CCPoint floorDown = {0.f, -1.f};
   float floorDistance = 0.f; // floor below the head center, 0 disables it
 };
+
+// Smooth noise in -1..1, the same input always gives the same output
+float hairNoise(float x);
 
 class HairSim
 {

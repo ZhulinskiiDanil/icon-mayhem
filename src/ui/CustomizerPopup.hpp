@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SettingRow.hpp"
+#include "../presets/Presets.hpp"
 
 #include <Geode/Geode.hpp>
 #include <Geode/ui/Popup.hpp>
@@ -28,6 +29,13 @@ private:
   void onTab(cocos2d::CCObject *sender);
   void onMode(cocos2d::CCObject *sender);
   void onJump(cocos2d::CCObject *sender);
+  void onSurprise(cocos2d::CCObject *sender);
+  void onUndo(cocos2d::CCObject *sender);
+  void onColors(cocos2d::CCObject *sender);
+  void onMatch(cocos2d::CCObject *sender);
+  // Applies a look from a button, the change lands on the undo stack like any other
+  void applyLook(Preset const &preset);
+  void trackUndo(float dt);
   void onRun(cocos2d::CCObject *sender);
   void onReset(cocos2d::CCObject *sender);
   void onHitboxes(cocos2d::CCObject *sender);
@@ -41,6 +49,13 @@ private:
   ButtonSprite *m_runSprite = nullptr;
   cocos2d::CCNode *m_legend = nullptr;
   bool m_showHitboxes = false;
+
+  // Undo: every burst of changes pushes the look from before it
+  std::vector<Preset> m_undo;
+  Preset m_stable;            // the look after the last burst settled
+  unsigned m_seenVersion = 0; // settings version last looked at
+  float m_quiet = 0.f;        // s since the last change
+  bool m_changing = false;    // a burst is going on
   size_t m_mode = 0;
   bool m_running = false;
   float m_runDistance = 0.f;

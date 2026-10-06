@@ -125,13 +125,18 @@ void PresetsPopup::refreshList()
 {
   m_list->m_contentLayer->removeAllChildren();
 
+  // Shipped looks first, then the player's own
+  auto const builtIn = presets::builtIn();
+  for (auto const &preset : builtIn)
+    m_list->m_contentLayer->addChild(this->createRow(preset));
+
   auto const saved = presets::list();
   for (auto const &preset : saved)
     m_list->m_contentLayer->addChild(this->createRow(preset));
 
   m_list->m_contentLayer->updateLayout();
   m_list->scrollToTop();
-  m_emptyLabel->setVisible(saved.empty());
+  m_emptyLabel->setVisible(builtIn.empty() && saved.empty());
 }
 
 CCNode *PresetsPopup::createRow(Preset const &preset)
@@ -167,6 +172,16 @@ CCNode *PresetsPopup::createRow(Preset const &preset)
             { this->copy(preset); });
   addButton(textButton("File", 40, "GJ_button_02.png", 20.f), right - 68.f, [this, preset](auto)
             { this->exportFile(preset); });
+
+  if (preset.builtIn)
+  {
+    // Shipped with the mod: a mark instead of the delete button
+    auto mark = CCLabelBMFont::create("Built-in", "goldFont.fnt");
+    mark->setScale(.3f);
+    mark->setPosition({right - 22.f, centerY});
+    row->addChild(mark);
+    return row;
+  }
 
   auto deleteSprite = CCSprite::createWithSpriteFrameName("GJ_deleteIcon_001.png");
   deleteSprite->setScale(.6f);

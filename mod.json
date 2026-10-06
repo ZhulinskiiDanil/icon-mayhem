@@ -8,9 +8,9 @@
 	},
 	"id": "zhulis.icon-mayhem",
 	"name": "Icon Mayhem",
-	"version": "v1.2.0",
+	"version": "v1.3.0",
 	"developer": "Zhulis",
-	"description": "Crazy customization for your icons, starting with physics-based hair",
+	"description": "Cute and crazy icon customizations: physics-based hair, accessories, wings, a pet and effects",
 	"repository": "https://github.com/ZhulinskiiDanil/icon-mayhem",
 	"tags": ["customization"],
 	"dependencies": {
@@ -19,6 +19,9 @@
 	"resources": {
 		"sprites": [
 			"resources/*.png"
+		],
+		"files": [
+			"resources/presets/*.json"
 		]
 	},
 	"settings": {
@@ -97,6 +100,17 @@
 				"slider": true
 			}
 		},
+		"hair-top-gap": {
+			"name": "Cap gap",
+			"description": "Leaves the top of the head without hair, in degrees, for icons wearing a cap or a hat: the hair comes out from under it on the sides",
+			"type": "float",
+			"default": 0,
+			"min": 0,
+			"max": 80,
+			"control": {
+				"slider": true
+			}
+		},
 		"face-locks-title": {
 			"type": "title",
 			"name": "Face locks"
@@ -140,6 +154,12 @@
 			"control": {
 				"slider": true
 			}
+		},
+		"braid-face-locks": {
+			"name": "Braid face locks",
+			"description": "The face locks become braids",
+			"type": "bool",
+			"default": false
 		},
 		"face-lock-inset-x": {
 			"name": "Face lock inset X",
@@ -275,6 +295,635 @@
 			"type": "color",
 			"default": "#3a2a80"
 		},
+		"clips-title": {
+			"type": "title",
+			"name": "Hair clips"
+		},
+		"clip-count": {
+			"name": "Clips",
+			"description": "Clips pinned on the bangs, or on the face lock, or on the head",
+			"type": "int",
+			"default": 0,
+			"min": 0,
+			"max": 3,
+			"control": {
+				"slider": true,
+				"slider-step": 1
+			}
+		},
+		"clip-style": {
+			"name": "Clip style",
+			"description": "Shape of the clips",
+			"type": "string",
+			"default": "Star",
+			"one-of": ["Star", "Heart", "X pin", "Bar"]
+		},
+		"clip-side": {
+			"name": "Clip side",
+			"description": "Which side of the face the clips are on",
+			"type": "string",
+			"default": "Right",
+			"one-of": ["Left", "Right"]
+		},
+		"clip-size": {
+			"name": "Clip size",
+			"description": "Size of the clips",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"clip-color": {
+			"name": "Clip color",
+			"description": "An icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Primary", "Secondary", "Custom"]
+		},
+		"clip-custom-color": {
+			"name": "Clip custom color",
+			"type": "color",
+			"default": "#FFD84A"
+		},
+		"tails-title": {
+			"type": "title",
+			"name": "Ponytails"
+		},
+		"ponytail": {
+			"name": "Tails",
+			"description": "A ponytail tied at the back of the head, or twin tails on both sides",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Ponytail", "Twin tails"]
+		},
+		"ponytail-position": {
+			"name": "Tie position",
+			"description": "Where the tails are tied, in degrees from the top of the head: around 90 is the side of the head, more is lower",
+			"type": "float",
+			"default": 95,
+			"min": 20,
+			"max": 160,
+			"control": {
+				"slider": true
+			}
+		},
+		"ponytail-length": {
+			"name": "Tail length",
+			"description": "Length of the tails in icon units (the cube is about 30)",
+			"type": "float",
+			"default": 30,
+			"min": 8,
+			"max": 80,
+			"control": {
+				"slider": true
+			}
+		},
+		"ponytail-thickness": {
+			"name": "Tail thickness",
+			"description": "How thick the tails are at the tie, in icon units",
+			"type": "float",
+			"default": 6,
+			"min": 2,
+			"max": 14,
+			"control": {
+				"slider": true
+			}
+		},
+		"braid-tails": {
+			"name": "Braid the tails",
+			"description": "The tails become braids",
+			"type": "bool",
+			"default": false
+		},
+		"ponytail-color": {
+			"name": "Tail color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Hair",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"ponytail-custom-color": {
+			"name": "Tail custom color",
+			"type": "color",
+			"default": "#3a2a80"
+		},
+		"ponytail-tie": {
+			"name": "Tie",
+			"description": "What holds the tails together",
+			"type": "string",
+			"default": "Scrunchie",
+			"one-of": ["Scrunchie", "Bow", "None"]
+		},
+		"tie-color": {
+			"name": "Tie color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"tie-custom-color": {
+			"name": "Tie custom color",
+			"type": "color",
+			"default": "#E0405A"
+		},
+		"ahoge-title": {
+			"type": "title",
+			"name": "Ahoge"
+		},
+		"ahoge": {
+			"name": "Ahoge",
+			"description": "Springy strands sticking up from the top of the head",
+			"type": "int",
+			"default": 0,
+			"min": 0,
+			"max": 2,
+			"control": {
+				"slider": true,
+				"slider-step": 1
+			}
+		},
+		"ahoge-length": {
+			"name": "Ahoge length",
+			"description": "Length of the ahoge in icon units",
+			"type": "float",
+			"default": 12,
+			"min": 4,
+			"max": 30,
+			"control": {
+				"slider": true
+			}
+		},
+		"ahoge-curl": {
+			"name": "Ahoge curl",
+			"description": "How much the ahoge curls over, 0 sticks straight up",
+			"type": "float",
+			"default": 0.6,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"bow-title": {
+			"type": "title",
+			"name": "Bow"
+		},
+		"head-bow": {
+			"name": "Bow on the head",
+			"description": "A bow with ribbon tails on the head",
+			"type": "bool",
+			"default": false
+		},
+		"bow-position": {
+			"name": "Bow position",
+			"description": "Where the bow sits, in degrees from the top of the head: negative is the front, positive the back",
+			"type": "float",
+			"default": -35,
+			"min": -120,
+			"max": 120,
+			"control": {
+				"slider": true
+			}
+		},
+		"bow-size": {
+			"name": "Bow size",
+			"description": "Size of the bows, also the ones tying the tails",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2.5,
+			"control": {
+				"slider": true
+			}
+		},
+		"bow-ribbon-length": {
+			"name": "Ribbon length",
+			"description": "Length of the ribbon tails hanging from the bows, 0 hides them",
+			"type": "float",
+			"default": 10,
+			"min": 0,
+			"max": 30,
+			"control": {
+				"slider": true
+			}
+		},
+		"bow-color": {
+			"name": "Bow color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"bow-custom-color": {
+			"name": "Bow custom color",
+			"type": "color",
+			"default": "#E0405A"
+		},
+		"scarf-title": {
+			"type": "title",
+			"name": "Scarf"
+		},
+		"scarf": {
+			"name": "Scarf",
+			"description": "A scarf around the bottom of the head with its ends fluttering behind",
+			"type": "bool",
+			"default": false
+		},
+		"scarf-height": {
+			"name": "Scarf height",
+			"description": "How high the scarf sits, in icon units up from the bottom edge",
+			"type": "float",
+			"default": 3,
+			"min": -5,
+			"max": 15,
+			"control": {
+				"slider": true
+			}
+		},
+		"scarf-width": {
+			"name": "Scarf width",
+			"description": "How thick the scarf is, in icon units",
+			"type": "float",
+			"default": 6,
+			"min": 3,
+			"max": 12,
+			"control": {
+				"slider": true
+			}
+		},
+		"scarf-length": {
+			"name": "Scarf ends",
+			"description": "Length of the ends in icon units, 0 hides them",
+			"type": "float",
+			"default": 16,
+			"min": 0,
+			"max": 40,
+			"control": {
+				"slider": true
+			}
+		},
+		"scarf-color": {
+			"name": "Scarf color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"scarf-custom-color": {
+			"name": "Scarf custom color",
+			"type": "color",
+			"default": "#D9303E"
+		},
+		"ears-title": {
+			"type": "title",
+			"name": "Ears"
+		},
+		"ears": {
+			"name": "Ears",
+			"description": "Soft ears on top of the head that twitch now and then",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Cat", "Bunny", "Fox"]
+		},
+		"ear-size": {
+			"name": "Ear size",
+			"description": "Size of the ears",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"ear-spread": {
+			"name": "Ear spread",
+			"description": "How far apart the ears are, in degrees from the top of the head",
+			"type": "float",
+			"default": 38,
+			"min": 10,
+			"max": 80,
+			"control": {
+				"slider": true
+			}
+		},
+		"ear-twitch": {
+			"name": "Ear twitch",
+			"description": "How often the ears twitch, 0 never",
+			"type": "float",
+			"default": 0.5,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"ear-color": {
+			"name": "Ear color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Hair",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"ear-custom-color": {
+			"name": "Ear custom color",
+			"type": "color",
+			"default": "#3A2A80"
+		},
+		"ear-inner-color": {
+			"name": "Inner ear color",
+			"type": "color",
+			"default": "#F4A7B9",
+			"description": "Color inside the ears"
+		},
+		"headband-title": {
+			"type": "title",
+			"name": "Headband"
+		},
+		"headband": {
+			"name": "Headband",
+			"description": "A band over the top of the head",
+			"type": "bool",
+			"default": false
+		},
+		"headband-inset": {
+			"name": "Headband position",
+			"description": "How far down from the edge of the head the band sits, in icon units",
+			"type": "float",
+			"default": 1.5,
+			"min": 0,
+			"max": 8,
+			"control": {
+				"slider": true
+			}
+		},
+		"headband-width": {
+			"name": "Headband width",
+			"description": "How thick the band is, in icon units",
+			"type": "float",
+			"default": 2.5,
+			"min": 1.5,
+			"max": 5,
+			"control": {
+				"slider": true
+			}
+		},
+		"headband-color": {
+			"name": "Headband color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"headband-custom-color": {
+			"name": "Headband custom color",
+			"type": "color",
+			"default": "#E0405A"
+		},
+		"headband-deco": {
+			"name": "Headband decoration",
+			"description": "A bow or little ears on the band",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Bow", "Cat ears", "Bunny ears"]
+		},
+		"flowers-title": {
+			"type": "title",
+			"name": "Flowers"
+		},
+		"flowers": {
+			"name": "Flowers",
+			"description": "A sakura or daisy in the hair, or a flower crown",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Sakura", "Daisy", "Crown"]
+		},
+		"flower-position": {
+			"name": "Flower position",
+			"description": "Where the flower sits, in degrees from the top of the head: negative is the front",
+			"type": "float",
+			"default": 40,
+			"min": -120,
+			"max": 120,
+			"control": {
+				"slider": true
+			}
+		},
+		"flower-size": {
+			"name": "Flower size",
+			"description": "Size of the flowers",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"flower-color": {
+			"name": "Flower color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"flower-custom-color": {
+			"name": "Flower custom color",
+			"type": "color",
+			"default": "#FFB7C5"
+		},
+		"halo-title": {
+			"type": "title",
+			"name": "Halo"
+		},
+		"halo": {
+			"name": "Halo",
+			"description": "A glowing ring floating above the head",
+			"type": "bool",
+			"default": false
+		},
+		"halo-height": {
+			"name": "Halo height",
+			"description": "How high above the head it floats, in icon units",
+			"type": "float",
+			"default": 7,
+			"min": 2,
+			"max": 20,
+			"control": {
+				"slider": true
+			}
+		},
+		"halo-size": {
+			"name": "Halo size",
+			"description": "Size of the halo",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"halo-color": {
+			"name": "Halo color",
+			"type": "color",
+			"default": "#FFE680"
+		},
+		"halo-glow": {
+			"name": "Halo glow",
+			"description": "A soft glow around the halo",
+			"type": "bool",
+			"default": true
+		},
+		"wings-title": {
+			"type": "title",
+			"name": "Wings"
+		},
+		"wings": {
+			"name": "Wings",
+			"description": "Little wings on the sides of the head that flap on jumps",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Angel", "Fairy", "Bat"]
+		},
+		"wing-size": {
+			"name": "Wing size",
+			"description": "Size of the wings",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"wing-flap": {
+			"name": "Wing flap",
+			"description": "How strongly they flap on jumps",
+			"type": "float",
+			"default": 0.6,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"wing-color": {
+			"name": "Wing color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"wing-custom-color": {
+			"name": "Wing custom color",
+			"type": "color",
+			"default": "#FFFFFF"
+		},
+		"pet-title": {
+			"type": "title",
+			"name": "Pet"
+		},
+		"pet": {
+			"name": "Pet",
+			"description": "A tiny friend floating behind you",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Cat", "Ghost", "Bird"]
+		},
+		"pet-size": {
+			"name": "Pet size",
+			"description": "Size of the pet",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"pet-distance": {
+			"name": "Pet distance",
+			"description": "How far behind it floats, in icon units",
+			"type": "float",
+			"default": 12,
+			"min": 0,
+			"max": 30,
+			"control": {
+				"slider": true
+			}
+		},
+		"pet-color": {
+			"name": "Pet color",
+			"description": "An icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Primary", "Secondary", "Custom"]
+		},
+		"pet-custom-color": {
+			"name": "Pet custom color",
+			"type": "color",
+			"default": "#F5D7B5"
+		},
+		"hat-title": {
+			"type": "title",
+			"name": "Hat"
+		},
+		"hat": {
+			"name": "Hat",
+			"description": "A cute hat on top of the hairstyle",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Beret", "Beanie", "Witch hat"]
+		},
+		"hat-size": {
+			"name": "Hat size",
+			"description": "Size of the hat",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"hat-tilt": {
+			"name": "Hat tilt",
+			"description": "Degrees the hat leans to the side",
+			"type": "float",
+			"default": 8,
+			"min": -30,
+			"max": 30,
+			"control": {
+				"slider": true
+			}
+		},
+		"hat-inset": {
+			"name": "Hat position",
+			"description": "How far down onto the head the hat sits, in icon units",
+			"type": "float",
+			"default": 2,
+			"min": -5,
+			"max": 10,
+			"control": {
+				"slider": true
+			}
+		},
+		"hat-color": {
+			"name": "Hat color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"hat-custom-color": {
+			"name": "Hat custom color",
+			"type": "color",
+			"default": "#D9303E"
+		},
 		"physics-title": {
 			"type": "title",
 			"name": "Physics"
@@ -301,17 +950,6 @@
 				"slider": true
 			}
 		},
-		"wind-multiplier": {
-			"name": "Wind multiplier",
-			"description": "How much the air affects the hair while moving: it trails behind, gets combed back and pressed to the head. 0 makes the hair look like you're standing still",
-			"type": "float",
-			"default": 1,
-			"min": 0,
-			"max": 3,
-			"control": {
-				"slider": true
-			}
-		},
 		"gravity": {
 			"name": "Gravity",
 			"description": "How heavy the hair is",
@@ -330,6 +968,82 @@
 			"default": 0.06,
 			"min": 0,
 			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"hair-friction": {
+			"name": "Friction",
+			"description": "Internal friction of the hair: settles swinging and whipping without changing how the wind blows it. Higher looks heavier and calmer",
+			"type": "float",
+			"default": 0.3,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"calm-jumps": {
+			"name": "Calm jumps",
+			"description": "While the icon spins in a jump the hair turns with it as one piece, instead of whipping around and shaking after the landing",
+			"type": "bool",
+			"default": true
+		},
+		"wind-title": {
+			"type": "title",
+			"name": "Wind"
+		},
+		"wind-multiplier": {
+			"name": "Wind multiplier",
+			"description": "How much the air affects the hair while moving: it trails behind, gets combed back and pressed to the head. 0 makes the hair look like you're standing still",
+			"type": "float",
+			"default": 1,
+			"min": 0,
+			"max": 3,
+			"control": {
+				"slider": true
+			}
+		},
+		"wind-gusts": {
+			"name": "Gusts",
+			"description": "How much the wind strength changes over time, 0 is a steady wind",
+			"type": "float",
+			"default": 0.4,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"wind-gust-speed": {
+			"name": "Gust speed",
+			"description": "How quickly the gusts come and go",
+			"type": "float",
+			"default": 1,
+			"min": 0.1,
+			"max": 3,
+			"control": {
+				"slider": true
+			}
+		},
+		"wind-flutter": {
+			"name": "Flutter",
+			"description": "Small random flicks in the wind that make every lock move on its own",
+			"type": "float",
+			"default": 0.3,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"breeze": {
+			"name": "Breeze",
+			"description": "Wind blowing even when standing still, 1 blows like running",
+			"type": "float",
+			"default": 0,
+			"min": 0,
+			"max": 2,
 			"control": {
 				"slider": true
 			}
@@ -355,6 +1069,313 @@
 			"description": "Draw a black outline like the icon has",
 			"type": "bool",
 			"default": true
+		},
+		"hair-shine": {
+			"name": "Hair shine",
+			"description": "A glossy ring of light across the hair, like in anime",
+			"type": "bool",
+			"default": false
+		},
+		"shine-position": {
+			"name": "Shine position",
+			"description": "Where along the locks the shine sits, 0 is the roots",
+			"type": "float",
+			"default": 0.25,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"shine-strength": {
+			"name": "Shine strength",
+			"description": "How bright the shine is",
+			"type": "float",
+			"default": 0.5,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"dyed-tips": {
+			"name": "Dyed tips",
+			"description": "The locks fade into a second color towards the tips",
+			"type": "bool",
+			"default": false
+		},
+		"tips-color": {
+			"name": "Tips color",
+			"description": "An icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Primary", "Secondary", "Custom"]
+		},
+		"tips-custom-color": {
+			"name": "Tips custom color",
+			"type": "color",
+			"default": "#E87BA8"
+		},
+		"tips-start": {
+			"name": "Tips start",
+			"description": "Where along the locks the color starts to change",
+			"type": "float",
+			"default": 0.6,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"blush-title": {
+			"type": "title",
+			"name": "Blush"
+		},
+		"blush": {
+			"name": "Blush",
+			"description": "Soft pink cheeks",
+			"type": "bool",
+			"default": false
+		},
+		"blush-color": {
+			"name": "Blush color",
+			"type": "color",
+			"default": "#FF8FA3"
+		},
+		"blush-opacity": {
+			"name": "Blush opacity",
+			"description": "How visible the blush is",
+			"type": "float",
+			"default": 0.45,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"blush-size": {
+			"name": "Blush size",
+			"description": "Size of the blush",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"blush-spread": {
+			"name": "Blush spread",
+			"description": "How far the cheeks are from the middle of the face, in icon units",
+			"type": "float",
+			"default": 9,
+			"min": 0,
+			"max": 14,
+			"control": {
+				"slider": true
+			}
+		},
+		"blush-height": {
+			"name": "Blush height",
+			"description": "Height of the cheeks from the middle of the face, in icon units",
+			"type": "float",
+			"default": -5,
+			"min": -14,
+			"max": 8,
+			"control": {
+				"slider": true
+			}
+		},
+		"blush-lines": {
+			"name": "Blush lines",
+			"description": "Little anime lines over the blush",
+			"type": "bool",
+			"default": true
+		},
+		"blush-pop": {
+			"name": "Blush on landing",
+			"description": "The blush gets brighter for a moment after a landing",
+			"type": "bool",
+			"default": true
+		},
+		"sticker-title": {
+			"type": "title",
+			"name": "Face sticker"
+		},
+		"sticker": {
+			"name": "Sticker",
+			"description": "A little sticker on the face",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Band-aid", "Heart", "Star", "Freckles"]
+		},
+		"sticker-side": {
+			"name": "Sticker side",
+			"description": "Which cheek",
+			"type": "string",
+			"default": "Right",
+			"one-of": ["Left", "Right"]
+		},
+		"sticker-x": {
+			"name": "Sticker x",
+			"description": "How far from the middle of the face, in icon units",
+			"type": "float",
+			"default": 8,
+			"min": 0,
+			"max": 14,
+			"control": {
+				"slider": true
+			}
+		},
+		"sticker-y": {
+			"name": "Sticker y",
+			"description": "Height from the middle of the face, in icon units",
+			"type": "float",
+			"default": -6,
+			"min": -14,
+			"max": 10,
+			"control": {
+				"slider": true
+			}
+		},
+		"sticker-size": {
+			"name": "Sticker size",
+			"description": "Size of the sticker",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"sticker-color": {
+			"name": "Sticker color",
+			"type": "color",
+			"default": "#FF6F91",
+			"description": "Color of the heart and the star"
+		},
+		"reactions-title": {
+			"type": "title",
+			"name": "Reactions"
+		},
+		"reactions": {
+			"name": "Reactions",
+			"description": "A sweat drop when you die, hearts when you beat a level, sparkles on checkpoints",
+			"type": "bool",
+			"default": false
+		},
+		"cute-death": {
+			"name": "Cute death",
+			"description": "On death the hair bursts into petals and hearts",
+			"type": "bool",
+			"default": false
+		},
+		"sparkles-title": {
+			"type": "title",
+			"name": "Hearts and sparkles"
+		},
+		"sparkles": {
+			"name": "Hearts and sparkles",
+			"description": "Little hearts or sparkles floating up around the icon",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Hearts", "Sparkles", "Both"]
+		},
+		"sparkle-rate": {
+			"name": "Amount",
+			"description": "How often they appear, 0 only on landings",
+			"type": "float",
+			"default": 0.4,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"sparkle-on-landing": {
+			"name": "Burst on landing",
+			"description": "A few of them pop out after every landing",
+			"type": "bool",
+			"default": true
+		},
+		"sparkle-size": {
+			"name": "Size",
+			"description": "Size of the hearts and sparkles",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"sparkle-color": {
+			"name": "Color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"sparkle-custom-color": {
+			"name": "Custom color",
+			"type": "color",
+			"default": "#FF6FAE"
+		},
+		"petals-title": {
+			"type": "title",
+			"name": "Weather"
+		},
+		"petals": {
+			"name": "Show weather",
+			"description": "Petals, snowflakes, leaves or stars falling and swirling around the icon, more while moving",
+			"type": "bool",
+			"default": false
+		},
+		"petal-style": {
+			"name": "Weather",
+			"description": "Sakura petals, snowflakes, autumn leaves or little stars",
+			"type": "string",
+			"default": "Sakura",
+			"one-of": ["Sakura", "Snow", "Leaves", "Stars"]
+		},
+		"petal-amount": {
+			"name": "Amount",
+			"description": "How many of them fall",
+			"type": "float",
+			"default": 0.5,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"petal-color": {
+			"name": "Color",
+			"description": "Tints the sakura petals and the stars",
+			"type": "color",
+			"default": "#FFC0CB"
+		},
+		"sleepy-title": {
+			"type": "title",
+			"name": "Sleepy"
+		},
+		"sleepy": {
+			"name": "Sleepy",
+			"description": "After standing still for a while little \"Z\"s float up and the ahoge and ears droop",
+			"type": "bool",
+			"default": false
+		},
+		"sleepy-delay": {
+			"name": "Falls asleep after",
+			"description": "Seconds of standing still",
+			"type": "float",
+			"default": 6,
+			"min": 2,
+			"max": 30,
+			"control": {
+				"slider": true
+			}
 		}
 	}
 }

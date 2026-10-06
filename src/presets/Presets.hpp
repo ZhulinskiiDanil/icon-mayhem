@@ -15,6 +15,7 @@ struct Preset
 {
   std::string name;
   matjson::Value settings = matjson::Value::object(); // setting key -> value
+  bool builtIn = false; // shipped with the mod, can't be deleted
 };
 
 namespace presets
@@ -27,6 +28,12 @@ namespace presets
   Preset capture(std::string name);
   // Settings missing from the preset (older version) go back to their defaults
   void apply(Preset const &preset);
+  // A random cute look on top of the current one, physics and the cap gap stay as they are
+  Preset surprise();
+  // The current look with a random palette: the hair color and an accent for the accessories
+  Preset surpriseColors();
+  // The current look with every part of the hair (face locks, bangs, tails, ears) colored like the hair
+  Preset matchColors();
 
   matjson::Value toJson(Preset const &preset);
   geode::Result<Preset> fromJson(matjson::Value const &json);
@@ -35,6 +42,8 @@ namespace presets
 
   // Saved presets sorted by name
   std::vector<Preset> list();
+  // Presets shipped with the mod (resources/presets/preset-*.json), sorted by name
+  std::vector<Preset> builtIn();
   bool exists(std::string_view name);
   // Overwrites a saved preset with the same name
   geode::Result<> save(Preset const &preset);

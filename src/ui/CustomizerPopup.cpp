@@ -1,10 +1,12 @@
 #include "CustomizerPopup.hpp"
 
+#include "../hair/HairConfig.hpp"
 #include "../hooks/SimplePlayerHair.hpp"
 #include "PresetsPopup.hpp"
 #include "Sections.hpp"
 
 #include <Geode/ui/NineSlice.hpp>
+#include <Geode/ui/Notification.hpp>
 #include <Geode/ui/Scrollbar.hpp>
 
 #include <array>
@@ -35,6 +37,10 @@ namespace
   constexpr CCPoint kListOrigin = {180.f, 38.f};
   constexpr CCSize kListSize = {240.f, 170.f};
   constexpr float kTabsY = 228.f;
+
+  // Undo
+  constexpr size_t kUndoSteps = 30;
+  constexpr float kUndoQuiet = .6f; // s without changes that end a burst
 
   // Hitbox helpers, remembered between openings
   constexpr char const *kHitboxesSave = "customizer-hitboxes";
@@ -145,6 +151,10 @@ bool CustomizerPopup::initCustomizer()
 
   this->showSection(0);
   this->scheduleUpdate();
+
+  // Undo starts from the look the popup opened with
+  m_stable = presets::capture("Undo");
+  m_seenVersion = HairConfig::version();
   return true;
 }
 
@@ -177,10 +187,12 @@ void CustomizerPopup::buildPreview()
   for (size_t i = 0; i < kLegend.size(); ++i)
   {
     auto label = CCLabelBMFont::create(kLegend[i].name, "bigFont.fnt");
-    label->setScale(.28f);
+    label->setScale(.25f);
     label->setColor(kLegend[i].color);
-    label->setAnchorPoint({0.f, 1.f});
-    label->setPosition({6.f, kPreviewSize.height - 5.f - static_cast<float>(i) * 9.f});
+    label->setAnchorPoint({0.f, .5f});
+    // Three on the first line, two on the second, under the ground line
+    float const x = i < 3 ? 6.f + static_cast<float>(i) * 46.f : 6.f + static_cast<float>(i - 3) * 60.f;
+    label->setPosition({x, i < 3 ? 82.f : 73.f});
     m_legend->addChild(label);
   }
   panel->addChild(m_legend);
@@ -219,6 +231,24 @@ void CustomizerPopup::buildPreview()
   m_modeLabel->setPosition({kPreviewSize.width / 2.f, 58.f});
   panel->addChild(m_modeLabel);
 
+  // A random cute look in one tap, top right of the preview
+  // Quick actions on the top of the preview: undo, a random look, random colors, matching colors
+  auto quick = [&](char const *text, char const *id, SEL_MenuHandler handler, float x, float y, char const *texture)
+  {
+    auto button = CCMenuItemSpriteExtra::create(textButton(text, 56, texture), this, handler);
+    button->setScale(.7f);
+    button->setID(id);
+    button->setPosition({x, y});
+    menu->addChild(button);
+  };
+  float const left = 38.f;
+  float const right = kPreviewSize.width - 38.f;
+  float const top = kPreviewSize.height - 13.f;
+  quick("Undo", "undo-button", menu_selector(CustomizerPopup::onUndo), left, top, "GJ_button_04.png");
+  quick("Surprise", "surprise-button", menu_selector(CustomizerPopup::onSurprise), right, top, "GJ_button_02.png");
+  quick("Colors", "colors-button", menu_selector(CustomizerPopup::onColors), left, top - 20.f, "GJ_button_02.png");
+  quick("Match", "match-button", menu_selector(CustomizerPopup::onMatch), right, top - 20.f, "GJ_button_04.png");
+
   auto jump = CCMenuItemSpriteExtra::create(textButton("Jump", 50), this, menu_selector(CustomizerPopup::onJump));
   jump->setPosition({kPreviewSize.width / 2.f - 34.f, 24.f});
   menu->addChild(jump);
@@ -255,6 +285,8 @@ void CustomizerPopup::updatePreviewIcon()
 
 void CustomizerPopup::update(float dt)
 {
+  this->trackUndo(dt);
+
   auto const type = kModes[m_mode].type;
 
   if (m_running)
@@ -315,7 +347,7 @@ void CustomizerPopup::buildTabs()
   auto const &list = customizerSections();
   for (size_t i = 0; i < list.size(); ++i)
   {
-    auto sprite = textButton(list[i].name, 60, i == m_section ? "GJ_button_01.png" : "GJ_button_04.png");
+    auto sprite = textButton(list[i].name, 44, i == m_section ? "GJ_button_01.png" : "GJ_button_04.png");
     auto tab = CCMenuItemSpriteExtra::create(sprite, this, menu_selector(CustomizerPopup::onTab));
     tab->setTag(static_cast<int>(i));
     m_tabMenu->addChild(tab);
@@ -367,6 +399,80 @@ void CustomizerPopup::onMode(CCObject *sender)
   int const dir = static_cast<CCNode *>(sender)->getTag();
   m_mode = static_cast<size_t>((static_cast<int>(m_mode) + dir + count) % count);
   this->updatePreviewIcon();
+}
+
+// ! --- Undo and quick looks --- !
+
+void CustomizerPopup::trackUndo(float dt)
+{
+  // Any change (a slider drag, a preset, Surprise, Reset) starts a burst; the look from before it
+  // goes on the stack once, and after a short quiet moment the new look becomes the stable one
+  unsigned const version = HairConfig::version();
+  if (version != m_seenVersion)
+  {
+    m_seenVersion = version;
+    m_quiet = 0.f;
+    if (!m_changing)
+    {
+      m_undo.push_back(m_stable);
+      if (m_undo.size() > kUndoSteps)
+        m_undo.erase(m_undo.begin());
+      m_changing = true;
+    }
+    return;
+  }
+
+  if (m_changing)
+  {
+    m_quiet += dt;
+    if (m_quiet > kUndoQuiet)
+    {
+      m_stable = presets::capture("Undo");
+      m_changing = false;
+    }
+  }
+}
+
+void CustomizerPopup::onUndo(CCObject *)
+{
+  if (m_undo.empty())
+  {
+    Notification::create("Nothing to undo", NotificationIcon::Info)->show();
+    return;
+  }
+
+  Preset const previous = m_undo.back();
+  m_undo.pop_back();
+  presets::apply(previous);
+
+  // Going back is not a new change
+  m_stable = previous;
+  m_seenVersion = HairConfig::version();
+  m_changing = false;
+  for (auto row : m_rows)
+    row->refresh();
+}
+
+void CustomizerPopup::applyLook(Preset const &preset)
+{
+  presets::apply(preset);
+  for (auto row : m_rows)
+    row->refresh();
+}
+
+void CustomizerPopup::onSurprise(CCObject *)
+{
+  this->applyLook(presets::surprise());
+}
+
+void CustomizerPopup::onColors(CCObject *)
+{
+  this->applyLook(presets::surpriseColors());
+}
+
+void CustomizerPopup::onMatch(CCObject *)
+{
+  this->applyLook(presets::matchColors());
 }
 
 void CustomizerPopup::onJump(CCObject *)

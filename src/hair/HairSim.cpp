@@ -23,11 +23,35 @@ namespace
     return a + (b - a) * t;
   }
 
+  // Flutter, see HairSimParams::flutter
+  constexpr float kFlutterFrequency = 3.f; // noise cells / s
+  constexpr float kFlutterAlongLock = .35f; // noise cells between neighbouring segments
+  constexpr float kFlutterPerLock = 7.13f;  // noise offset between locks, so they move on their own
+
+  float noiseHash(int i)
+  {
+    auto x = static_cast<uint32_t>(i) * 374761393u + 668265263u;
+    x = (x ^ (x >> 13)) * 1274126177u;
+    x ^= x >> 16;
+    return static_cast<float>(x) / 4294967295.f * 2.f - 1.f;
+  }
+
   // Converts a "per 1/60 s" factor into a factor for a step of `h` seconds
   float perStep(float perFrame, float h)
   {
     return 1.f - std::pow(1.f - std::clamp(perFrame, 0.f, .999f), h * 60.f);
   }
+}
+
+// ! --- Noise --- !
+
+float hairNoise(float x)
+{
+  float const cell = std::floor(x);
+  float const t = x - cell;
+  float const smooth = t * t * (3.f - 2.f * t);
+  int const i = static_cast<int>(cell);
+  return noiseHash(i) + (noiseHash(i + 1) - noiseHash(i)) * smooth;
 }
 
 // ! --- Params --- !
@@ -137,12 +161,20 @@ void HairSim::substep(float h, float alpha, CCPoint const &headStep, std::vector
                       HairSimParams const &params)
 {
   float const keep = 1.f - perStep(params.damping, h);
+  float const friction = perStep(params.friction, h);
 
   // Damping is air drag: it pulls the hair towards the speed of the air around it. With full wind
   // the air stands still and the hair trails behind, without wind it moves along with the head
-  CCPoint const airStep = headStep * (1.f - params.windMultiplier);
+  CCPoint const airStep = headStep * (1.f - params.windMultiplier) + params.breeze * h;
+
+  float const spinStep = params.spinSpeed * h;
+  float const calm = params.calm > 0.f ? perStep(params.calm, h) : 0.f;
   CCPoint const accel = (params.gravity + params.wind) * (h * h);
   CCPoint const head = lerp(m_frameHead, params.headCenter, alpha);
+
+  float const flutter = params.flutter * h * h;
+  CCPoint const flutterAcross = {-params.flutterDir.y, params.flutterDir.x};
+  float const flutterTime = params.time * kFlutterFrequency;
 
   for (size_t s = 0; s < m_pos.size(); ++s)
   {
@@ -152,15 +184,41 @@ void HairSim::substep(float h, float alpha, CCPoint const &headStep, std::vector
     float const segLen = target.segmentLength;
 
     // Pinned root
+    CCPoint const lastRoot = pos[0];
     pos[0] = lerp(m_frameRoots[s], target.root, alpha);
     prev[0] = pos[0];
+
+    // Internal friction works from the root out: every segment is pulled towards the speed of its parent.
+    // Swinging and whipping die out, a strand moving as a whole (trailing in the wind) stays as is
+    CCPoint parentVelocity = pos[0] - lastRoot;
 
     // Verlet integration
     for (int k = 1; k <= m_segments; ++k)
     {
-      CCPoint const velocity = airStep + (pos[k] - prev[k] - airStep) * keep;
+      CCPoint velocity = airStep + (pos[k] - prev[k] - airStep) * keep;
+
+      // Where this point would go if the hair were glued to the spinning head
+      if (calm > 0.f)
+      {
+        CCPoint const offset = pos[k] - head;
+        CCPoint const rigid = headStep + CCPoint{-offset.y, offset.x} * spinStep;
+        velocity = velocity + (rigid - velocity) * calm;
+      }
+
+      velocity = velocity + (parentVelocity - velocity) * friction;
+      parentVelocity = velocity;
+
+      // Mostly across the air flow like a flag, a bit along it, stronger towards the tip
+      CCPoint gust = accel;
+      if (flutter > 0.f)
+      {
+        float const key = flutterTime + static_cast<float>(s) * kFlutterPerLock + static_cast<float>(k) * kFlutterAlongLock;
+        float const tip = static_cast<float>(k) / static_cast<float>(m_segments);
+        gust = gust + (flutterAcross * hairNoise(key) + params.flutterDir * (.5f * hairNoise(key + 101.f))) * (flutter * tip);
+      }
+
       prev[k] = pos[k];
-      pos[k] = pos[k] + velocity + accel;
+      pos[k] = pos[k] + velocity + gust;
     }
 
     for (int k = 1; k <= m_segments; ++k)

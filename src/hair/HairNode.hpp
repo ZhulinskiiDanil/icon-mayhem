@@ -4,6 +4,7 @@
 #include "HairSim.hpp"
 
 #include <Geode/Geode.hpp>
+#include <array>
 #include <functional>
 #include <random>
 
@@ -16,7 +17,23 @@
 // The hairstyle is either glued to the top of the icon and spins with it, or oriented
 // by gravity and movement direction so it always stays on top of the head.
 // Face locks and bangs lie in front of the face, they share the simulation but are drawn
-// by a second draw node above the icon.
+// by a second draw node above the icon. Extras (ponytails, braids, ahoge, bows, scarf, ears) live
+// in Extras.cpp, decorations (clips, blush, stickers, headband, flowers, halo, hats) in Decor.cpp,
+// particles (hearts, sparkles, weather, the sleepy Zzz, reactions) in Effects.cpp, wings in
+// Wings.cpp and the pet in Pet.cpp.
+
+class HairNode;
+
+// Draws the particles in the sim space next to the player, so they stay visible when the player
+// is hidden (after a death) and don't move with it
+class HairEffectsNode : public cocos2d::CCDrawNode
+{
+public:
+  static HairEffectsNode *create();
+  void visit() override;
+
+  HairNode *m_owner = nullptr; // cleared when the hair node leaves the scene
+};
 
 class HairNode : public cocos2d::CCDrawNode
 {
@@ -39,8 +56,18 @@ public:
   void resetSim() { m_needsReset = true; }
   // Draws the collider, the floor and where the locks grow over the icon, for tuning in the customizer
   void setDebugDraw(bool enabled) { m_debugDraw = enabled; }
+  // The player died: death reactions keep playing after the hair is hidden
+  void setIsDead(std::function<bool()> fn) { m_isDeadFn = std::move(fn); }
+
+  // Gameplay events for the reactions
+  void celebrate();
+  void checkpointReached();
 
   void visit() override;
+  void onEnter() override;
+  void onExit() override;
+  // Called by the effects node every frame: updates the particles if nobody did, draws them
+  void visitEffects(cocos2d::CCDrawNode *node);
 
 private:
   enum class LockKind
@@ -48,13 +75,19 @@ private:
     Back,     // the hairstyle behind the head
     FaceLock, // framing the face, in front of it
     Bang,     // over the top of the face
+    Tail,     // ponytail / twin tails, a bundle of locks tied together
+    Ahoge,    // springy strand sticking up from the top
+    Ribbon,   // ribbon tail hanging from a bow
+    Ear,      // soft ear on top of the head
+    ScarfEnd, // end of the scarf fluttering behind
   };
 
   // One lock of the hairstyle, generated once per config
   struct Lock
   {
     LockKind kind = LockKind::Back;
-    float side = 0.f; // front locks: -1..1 across the face
+    float side = 0.f; // front locks: -1..1 across the face; extras: angle offset or side
+    int group = 0;    // extras: which tail / bow the lock belongs to
     float angle;  // degrees from "up" towards the back where the lock grows
     float length; // icon units
     float width;  // icon units, at the root
@@ -67,10 +100,84 @@ private:
   void reloadConfig();
   void generateLocks();
   void addFrontLocks(std::mt19937 &rng);
+
+  // ! --- Extras (Extras.cpp) --- !
+
+  bool extrasActive() const;
+  void addExtraLocks(std::mt19937 &rng);
+  void addRibbonLocks();
+  void addEarAndScarfLocks();
+  void buildExtraTarget(Lock const &lock, HairStrandTarget &target, cocos2d::CCPoint const &headCenter,
+                        cocos2d::CCPoint const &up, cocos2d::CCPoint const &across);
+  // Distance from the head center to the visible edge of the icon along a unit direction
+  float headEdge(cocos2d::CCPoint const &dir) const;
+  // Where a tail is tied, on the edge of the head
+  cocos2d::CCPoint tailRoot(int group, cocos2d::CCPoint const &headCenter, cocos2d::CCPoint const &up,
+                            cocos2d::CCPoint const &across, cocos2d::CCPoint *outward = nullptr) const;
+  // Bows: 0 is the one on the head, 1 and 2 tie the tails
+  bool bowExists(int group) const;
+  cocos2d::CCPoint bowAnchor(int group, cocos2d::CCPoint const &headCenter, cocos2d::CCPoint const &up,
+                             cocos2d::CCPoint const &across, cocos2d::CCPoint *outward = nullptr) const;
+  void updateBow(float dt);
+  // How wide a lock is along its length, relative to its root width
+  float lockWidthAt(Lock const &lock, float along) const;
+  void drawTies(cocos2d::CCDrawNode *node);
+  // Locks [from, to) drawn as braids instead of plain locks
+  void drawBraids(cocos2d::CCDrawNode *node, size_t from, size_t to);
+  void drawBows(cocos2d::CCDrawNode *node);
+  // Scarf: where the knot is (back of the neck) and the band across the bottom of the head
+  cocos2d::CCPoint scarfKnot(cocos2d::CCPoint const &headCenter) const;
+  void drawScarfBand(cocos2d::CCDrawNode *node);
+  void drawEarInners(cocos2d::CCDrawNode *node);
+  void updateEars(float dt);
+
+  // ! --- Decorations and effects (Decor.cpp) --- !
+
+  bool decorActive() const;
+  void updateDecor(float dt, cocos2d::CCPoint const &headCenter, cocos2d::CCPoint const &up, cocos2d::CCPoint const &across);
+  void onLanded(cocos2d::CCPoint const &headCenter, cocos2d::CCPoint const &up, cocos2d::CCPoint const &across);
+  enum class ParticleKind
+  {
+    Heart,
+    Sparkle,
+    Petal,
+    Snow,
+    Leaf,
+    Star,
+    Zzz,
+    Drop,
+  };
+  void updateParticles(float dt);
+  void onDeath();
+  void burst(ParticleKind kind, int count, cocos2d::CCPoint const &headCenter);
+  void spawnParticle(ParticleKind kind, cocos2d::CCPoint const &headCenter, bool burst);
+  // Where clip `index` sits and which way it points, in sim space
+  bool clipPlacement(int index, cocos2d::CCPoint &position, cocos2d::CCPoint &direction) const;
+  void drawClips(cocos2d::CCDrawNode *node);
+  void drawHeadband(cocos2d::CCDrawNode *node);
+  void drawFlowers(cocos2d::CCDrawNode *node);
+  void updateHalo(float dt, cocos2d::CCPoint const &headCenter);
+  cocos2d::CCPoint haloTarget(cocos2d::CCPoint const &headCenter) const;
+  void drawHalo(cocos2d::CCDrawNode *node);
+  void drawSticker(cocos2d::CCDrawNode *node);
+  void drawHat(cocos2d::CCDrawNode *node);
+
+  // ! --- Wings (Wings.cpp) and the pet (Pet.cpp) --- !
+
+  void updateWings(float dt, bool tookOff);
+  void drawWings(cocos2d::CCDrawNode *node);
+  cocos2d::CCPoint petTarget(cocos2d::CCPoint const &headCenter) const;
+  void updatePet(float dt, cocos2d::CCPoint const &headCenter);
+  void drawPet(cocos2d::CCDrawNode *node);
+  void drawBlush(cocos2d::CCDrawNode *node);
+  void drawParticles(cocos2d::CCDrawNode *node);
+  // Fill color of a lock at a point along it: dyed tips and the shine are mixed in here
+  cocos2d::ccColor4F lockColorAt(Lock const &lock, cocos2d::ccColor4F const &base, float along) const;
   float headUnit() const; // head-local units per hair unit
   bool isActive() const;
   void updateFrame(float dt, bool snap);
   void updateMotion(float dt, cocos2d::CCPoint const &headCenter, bool snap);
+  void updateGust(float dt);
   void gravityAxes(cocos2d::CCPoint &up, cocos2d::CCPoint &back) const;
   void iconAxes(cocos2d::CCAffineTransform const &headToSim, cocos2d::CCPoint &up, cocos2d::CCPoint &back) const;
   void buildTargets(cocos2d::CCPoint const &headCenter, cocos2d::CCPoint const &up, cocos2d::CCPoint const &back);
@@ -84,11 +191,14 @@ private:
   void redraw();
   void drawCap(cocos2d::CCAffineTransform const &simToHair, cocos2d::ccColor4F const &color, float outline,
                cocos2d::ccColor4F const &outlineColor);
+  // One piece of the base, between two angles (degrees from "up" towards the back)
+  void drawCapArc(cocos2d::CCAffineTransform const &simToHair, float from, float to, cocos2d::ccColor4F const &color,
+                  float outline, cocos2d::ccColor4F const &outlineColor);
   // Strands [from, to) into `node`, all outlines first so overlapping locks merge into one shape
   void drawLocks(cocos2d::CCDrawNode *node, size_t from, size_t to, bool withCap);
   void drawDebug();
   cocos2d::ccColor4F hairColor() const;
-  cocos2d::ccColor4F lockColor(LockKind kind) const;
+  cocos2d::ccColor4F lockColor(Lock const &lock) const;
   cocos2d::ccColor4F sourceColor(HairColorSource source, cocos2d::ccColor3B const &custom) const;
 
   cocos2d::CCSprite *m_head = nullptr;
@@ -105,8 +215,15 @@ private:
   HairConfig m_config;
   unsigned m_configVersion = 0;
   std::vector<Lock> m_locks; // back hairstyle sorted back to front, then the face locks and bangs
-  size_t m_frontStart = 0;   // index of the first front lock, the face locks come first...
-  size_t m_bangsStart = 0;   // ...then the bangs over them
+  // Lock ranges, each drawn with its own outline: hairstyle, tails, ahoge (behind the icon),
+  // face locks, bangs, bow ribbons (in front of it)
+  size_t m_tailsStart = 0;
+  size_t m_ahogeStart = 0;
+  size_t m_earsStart = 0;
+  size_t m_scarfStart = 0;
+  size_t m_frontStart = 0;
+  size_t m_bangsStart = 0;
+  size_t m_ribbonsStart = 0;
   geode::Ref<cocos2d::CCDrawNode> m_front; // draws the front locks above the icon
   HairSim m_sim;
   std::vector<HairStrandTarget> m_targets;
@@ -123,7 +240,68 @@ private:
   float m_upAngle = 0.f;  // radians, smoothed "away from gravity" direction
   float m_facing = 1.f;   // smoothed, -1..1
   float m_motion = 0.f;   // smoothed, 0 standing still .. 1 moving fast enough to comb the hair back
+  cocos2d::CCPoint m_lastUp = {0.f, 1.f}; // hairstyle frame of the last frame, gives the spin speed
+  float m_calm = 0.f;                      // current calm jumps strength, see HairSimParams::calm
+  float m_gust = 1.f;                      // current wind strength factor, changes over time
   cocos2d::CCPoint m_lastHeadCenter;
+  cocos2d::CCPoint m_headVelocity;     // sim units / s
+  cocos2d::CCPoint m_lastHeadVelocity; // of the previous frame, gives the acceleration
+  cocos2d::CCPoint m_headAxisX = {1.f, 0.f}; // icon axes in sim space, for the edge of a cube
+  cocos2d::CCPoint m_headAxisY = {0.f, 1.f};
+  bool m_isBox = false;
+  float m_bowWobble = 0.f;      // degrees the bows swing
+  float m_bowWobbleSpeed = 0.f; // degrees / s
+
+  // The icon's own frame (not the hairstyle frame): the face is the texture, so the blush and the
+  // scarf follow the sprite even when the hair stays upright
+  cocos2d::CCPoint m_iconUp = {0.f, 1.f};
+  cocos2d::CCPoint m_iconBack = {-1.f, 0.f};
+
+  // Ears: a quick twitch now and then, one state per ear
+  std::array<float, 2> m_earTwitch = {0.f, 0.f};      // degrees
+  std::array<float, 2> m_earTwitchSpeed = {0.f, 0.f}; // degrees / s
+  std::array<float, 2> m_earTimer = {1.f, 2.5f};      // s until the next twitch
+
+  // Effects
+  struct Particle
+  {
+    cocos2d::CCPoint position; // sim space
+    cocos2d::CCPoint velocity; // sim units / s
+    float age = 0.f;
+    float life = 1.f;
+    float size = 1.f;
+    float phase = 0.f;
+    float rotation = 0.f; // radians
+    float spin = 0.f;     // radians / s
+    ParticleKind kind = ParticleKind::Heart;
+    bool tinted = false; // uses `color` instead of the setting's color
+    cocos2d::ccColor4F color = {1.f, 1.f, 1.f, 1.f};
+  };
+  std::vector<Particle> m_particles;
+  float m_sparkleTimer = 0.f;
+  float m_blushPop = 0.f; // 1 right after a landing, fades to 0
+  float m_petalTimer = 0.f;
+  float m_idleTime = 0.f; // s standing still
+  float m_sleepy = 0.f;   // 0 awake .. 1 asleep
+  float m_zzzTimer = 0.f;
+  float m_landPop = 0.f; // 1 right after a landing, fades fast: hats squash, the pet hops
+
+  float m_wingAngle = 0.f; // degrees the wings are raised by a flap
+  float m_wingSpeed = 0.f; // degrees / s
+
+  cocos2d::CCPoint m_petPosition; // sim space
+  cocos2d::CCPoint m_petVelocity;
+  float m_petBlink = 3.f; // s until the next blink, negative while blinking
+
+  std::function<bool()> m_isDeadFn;
+  bool m_wasDead = false;
+  unsigned m_aliveFrame = 0;     // last frame the hair was simulated
+  unsigned m_particlesFrame = 0; // last frame the particles were updated
+  geode::Ref<HairEffectsNode> m_effects;
+  cocos2d::CCPoint m_haloPosition; // sim space, lags behind the head on a spring
+  cocos2d::CCPoint m_haloVelocity;
+  bool m_wasOnGround = false;
+  std::minstd_rand m_random{20240611};
   unsigned m_lastFrame = 0;
   float m_time = 0.f;
   bool m_needsReset = true;

@@ -49,10 +49,13 @@ namespace
                         { return player->m_isUpsideDown ? CCPoint{0.f, 1.f} : CCPoint{0.f, -1.f}; });
     hair->setFacing([player]
                     { return player->m_isGoingLeft ? -1.f : 1.f; });
+    hair->setIsDead([player]
+                    { return player->m_isDead; });
     return hair;
   }
 
-  void attachHair(PlayerObject *player)
+  // Attaches the hair for every mode of the player, adds the nodes to `nodes` for the reactions
+  void attachHair(PlayerObject *player, std::vector<Ref<HairNode>> &nodes)
   {
     if (!player)
       return;
@@ -66,6 +69,7 @@ namespace
                               { return usesIconSprite(player); });
     if (iconHair)
     {
+      nodes.push_back(iconHair);
       iconHair->setOnGround([player]
                             { return iconStandsOnGround(player); });
       iconHair->setBoxHead([player]
@@ -74,16 +78,18 @@ namespace
 
     if (auto robot = player->m_robotSprite)
     {
-      setupHair(HairNode::attach(headOf(robot), robot, primary, secondary, simSpace),
-                player, [player]
-                { return player->m_isRobot; });
+      if (auto hair = setupHair(HairNode::attach(headOf(robot), robot, primary, secondary, simSpace),
+                                player, [player]
+                                { return player->m_isRobot; }))
+        nodes.push_back(hair);
     }
 
     if (auto spider = player->m_spiderSprite)
     {
-      setupHair(HairNode::attach(headOf(spider), spider, primary, secondary, simSpace),
-                player, [player]
-                { return player->m_isSpider; });
+      if (auto hair = setupHair(HairNode::attach(headOf(spider), spider, primary, secondary, simSpace),
+                                player, [player]
+                                { return player->m_isSpider; }))
+        nodes.push_back(hair);
     }
   }
 }
@@ -92,14 +98,42 @@ namespace
 
 class $modify(HairPlayLayer, PlayLayer)
 {
+  struct Fields
+  {
+    std::vector<Ref<HairNode>> m_hair;
+  };
+
   bool init(GJGameLevel *level, bool useReplay, bool dontCreateObjects)
   {
     if (!PlayLayer::init(level, useReplay, dontCreateObjects))
       return false;
 
-    attachHair(m_player1);
-    attachHair(m_player2);
+    attachHair(m_player1, m_fields->m_hair);
+    attachHair(m_player2, m_fields->m_hair);
 
     return true;
+  }
+
+  // ! --- Reactions --- !
+
+  void levelComplete()
+  {
+    PlayLayer::levelComplete();
+    for (auto &hair : m_fields->m_hair)
+      hair->celebrate();
+  }
+
+  void storeCheckpoint(CheckpointObject *checkpoint)
+  {
+    PlayLayer::storeCheckpoint(checkpoint);
+    for (auto &hair : m_fields->m_hair)
+      hair->checkpointReached();
+  }
+
+  void checkpointActivated(CheckpointGameObject *checkpoint)
+  {
+    PlayLayer::checkpointActivated(checkpoint);
+    for (auto &hair : m_fields->m_hair)
+      hair->checkpointReached();
   }
 };

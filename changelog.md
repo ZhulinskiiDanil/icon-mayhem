@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.3.0
+
+- Hair under a cap: "Cap gap" leaves the top of the head bare so the hair comes out from under a cap
+- Extras tab: ponytail or twin tails with a scrunchie or a bow, ahoge, a bow on the head with fluttering ribbons
+- Ears (cat, bunny, fox) that twitch and fold back in the wind, a scarf with fluttering ends
+- Hair shine, dyed tips and hair clips on the bangs
+- Effects tab: blush on the cheeks, hearts and sparkles
+- Braids for the tails and face locks, a headband with a bow or ears, flowers and a flower crown, a halo
+- Sakura petals, a sleepy icon with floating "Z"s, a Surprise button for a random cute look
+- Wings that flap on jumps, a pet floating behind you, cute hats, face stickers
+- Weather: snowflakes, autumn leaves and stars besides the sakura petals
+- Reactions to death, level complete and checkpoints, a cute death burst
+- Customizer: Undo, random Colors, Match hair colors
+- Built-in presets: Kepochka, Kitty, Sakura, Angel, Fairy, Twin Tails, Ponytail, Short and Ahoge
+- Physics tab with gusty wind (gusts, flutter, breeze), friction and calm jumps
+
 ## v1.2.0
 
 - Presets: save your look under a name and load it in one tap
