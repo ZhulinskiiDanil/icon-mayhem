@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.1
+
+- Globed: sharing looks and emotes waits for Globed 2.2.3. Globed 2.2.2 was released without the API other mods use, so nothing was sent. Icon Mayhem keeps asking and starts sharing as soon as Globed answers
+- Globed: the look goes to everybody in the level when it changes or somebody joins, the log tells what was sent and received
+- Player 2 in dual: the hair is attached on a timer of the level, it could miss the moment player 2 appears
+
 ## v1.5.0
 
 - Trail: a long ribbon tied at the back of the head, or little hearts, stars or sparkles left behind

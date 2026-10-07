@@ -10,7 +10,7 @@ A [Geode](https://geode-sdk.org) mod for Geometry Dash with cute and crazy custo
 - **Accessories**: ears, bows, hair clips, a scarf, a headband, flowers, a halo, wings, hats, headphones, glasses, earrings, a cat bell and a little pet with moods
 - **Effects**: blush, face stickers, hearts and sparkles, weather (sakura, snow, leaves, stars), a ribbon trail, a sleepy icon, reactions to deaths, checkpoints, level completes, orbs and pads
 - **Customizer** with a live icon preview, opened from the pause menu: search, hitbox helpers, undo, random looks and colors
-- **Everywhere**: a look per icon and per game mode, your profile and the main menu, emotes, and other players' looks on Globed
+- **Everywhere**: a look per icon and per game mode, your profile and the main menu, emotes, and other players' looks on Globed (from Globed 2.2.3)
 - **Presets**: built-in looks, your own saved looks, sharing through the clipboard or files, favorites switched from the pause menu, looks per game mode and for player 2
 
 See [about.md](about.md) for the full description and every setting, and [changelog.md](changelog.md) for what changed.

@@ -48,6 +48,7 @@ namespace looks
   // Looks of other players on Globed, by their player id. configFor() reads them as "@remote:<id>",
   // a player without a look (no mod) wears nothing
   std::string remoteName(int player);
+  bool hasRemote(int player);
   void setRemote(int player, matjson::Value look);
   void clearRemotes();
 }

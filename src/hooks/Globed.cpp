@@ -30,9 +30,54 @@ namespace
   // Rigs of the other players in the current level, by their player id
   std::unordered_map<int, std::vector<WeakRef<HairNode>>> s_remoteRigs;
 
+  // Globed's API table, asked for directly. The soft-link wrappers remember the first failure for
+  // good, and Globed may not answer yet when this mod loads: ask again until it does
+  globed::RootApiTable *globedTable()
+  {
+    static globed::RootApiTable *table = nullptr;
+    static int attempts = 0;
+    if (table || !Loader::get()->isModLoaded("dankmeme.globed2"))
+      return table;
+
+    using GetTable = geode::Result<globed::RootApiTable *> (*)();
+    GetTable getTable = nullptr;
+    geode::Dispatch<GetTable *>("dankmeme.globed2/getRootTable").send(&getTable);
+    ++attempts;
+    if (!getTable)
+    {
+      if (attempts <= 3)
+        log::warn("Globed: its API didn't answer (attempt {})", attempts);
+      return nullptr;
+    }
+    auto result = getTable();
+    if (!result)
+    {
+      log::warn("Globed: its API failed: {}", result.unwrapErr());
+      return nullptr;
+    }
+    table = result.unwrap();
+    log::info("Globed: API reached (attempt {})", attempts);
+    return table;
+  }
+
+  bool s_registered = false;
+
+  // Our events go into the dictionary Globed sends when it joins a level, so before that
+  void registerEvents()
+  {
+    auto table = globedTable();
+    if (s_registered || !table || !table->net)
+      return;
+    s_registered = true;
+    table->net->registerEvent(kLookEvent, globed::EventServer::Game);
+    table->net->registerEvent(kEmoteEvent, globed::EventServer::Game);
+    log::info("Globed: looks and emotes are shared with other players");
+  }
+
   bool globedActive()
   {
-    return globed::api::available() && globed::api::game::isActive();
+    auto table = globedTable();
+    return table && table->game && table->game->isActive();
   }
 
   void send(char const *event, std::string const &payload, std::vector<int32_t> targets = {})
@@ -40,7 +85,8 @@ namespace
     globed::EventOptions options;
     options.server = globed::EventServer::Game;
     options.targetPlayers = std::move(targets);
-    globed::api::net::sendEvent(event, std::vector<uint8_t>(payload.begin(), payload.end()), options);
+    if (auto table = globedTable(); table && table->net)
+      table->net->sendEvent(event, std::vector<uint8_t>(payload.begin(), payload.end()), options);
   }
 
   // The look player 1 wears now: the main look with its preset on top, without the defaults.
@@ -87,8 +133,14 @@ namespace
 
       if (name == kLookEvent)
       {
-        if (auto look = matjson::parse(payload); look && look.unwrap().isObject())
-          looks::setRemote(sender, std::move(look).unwrap());
+        auto look = matjson::parse(payload);
+        if (!look || !look.unwrap().isObject())
+        {
+          log::warn("Globed: a look from player {} is not valid JSON ({} bytes)", sender, payload.size());
+          continue;
+        }
+        log::info("Globed: got the look of player {} ({} bytes)", sender, payload.size());
+        looks::setRemote(sender, std::move(look).unwrap());
       }
       else if (name == kEmoteEvent && payload.size() == 1)
       {
@@ -108,14 +160,16 @@ $on_mod(Loaded)
   globed::api::waitForGlobed([]
                              {
                                if (!globed::api::isAtLeast("v2.2.0"))
+                               {
+                                 log::warn("Globed: version 2.2.0 or newer is needed to share looks");
                                  return;
-                               globed::api::net::registerEvent(kLookEvent, globed::EventServer::Game);
-                               globed::api::net::registerEvent(kEmoteEvent, globed::EventServer::Game);
+                               }
                                (void)globed::api::net::listenGlobal<globed::msg::EventsMessage>([](globed::msg::EventsMessage &message)
                                                                                                {
                                                                                                  onEvents(message);
                                                                                                  return false;
                                                                                                });
+                               registerEvents();
                              });
 }
 
@@ -134,67 +188,115 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
   {
     std::vector<Ref<HairNode>> m_remoteHair;
     std::set<int> m_attached; // player id * 2 + second icon
-    std::set<int> m_greeted;  // players that got our look
+    std::set<int> m_seen;     // players we already sent our look for
     std::string m_sentLook;
-    float m_scanTimer = 0.f;
+    bool m_wasActive = false;
+    size_t m_lastCount = 0;
   };
 
   bool init(GJGameLevel *level, bool useReplay, bool dontCreateObjects)
   {
     s_remoteRigs.clear();
     looks::clearRemotes();
-    return PlayLayer::init(level, useReplay, dontCreateObjects);
+    if (!PlayLayer::init(level, useReplay, dontCreateObjects))
+      return false;
+
+    // Late, but before Globed joins this level's session
+    registerEvents();
+    if (globedTable())
+      this->schedule(schedule_selector(GlobedHairPlayLayer::scanPlayers), kScanEvery);
+    else if (Loader::get()->isModLoaded("dankmeme.globed2"))
+      log::warn("Globed: its API isn't available, other players stay plain");
+    return true;
   }
 
-  void postUpdate(float dt)
+  void scanPlayers(float)
   {
-    PlayLayer::postUpdate(dt);
-
     auto fields = m_fields.self();
-    fields->m_scanTimer -= dt;
-    if (fields->m_scanTimer > 0.f || !globedActive())
-      return;
-    fields->m_scanTimer = kScanEvery;
-
-    // Our look changed: everybody gets the new one
-    auto const &look = currentLookPayload();
-    if (look != fields->m_sentLook)
+    bool const active = globedActive();
+    if (active != fields->m_wasActive)
     {
-      fields->m_sentLook = look;
-      fields->m_greeted.clear();
+      fields->m_wasActive = active;
+      log::info("Globed: {} in this level", active ? "connected" : "not connected");
+    }
+    if (!active)
+      return;
+
+    auto table = globedTable();
+    auto const ids = table->game->getPlayerIds();
+    if (ids.size() != fields->m_lastCount)
+    {
+      fields->m_lastCount = ids.size();
+      log::info("Globed: {} players in the session", ids.size());
     }
 
     // Globed can list us too (its own copy of our icon): our icon already has its rigs
     int const self = GJAccountManager::get()->m_accountID;
-    for (int id : globed::api::game::getPlayerIds())
+    bool newPlayer = false;
+    for (int id : ids)
     {
       if (id == self)
         continue;
-      auto remote = globed::api::game::getPlayer(id);
-      if (!remote || globed::api::player::getAccountId(remote) == self)
+      auto remote = table->game->getPlayer(id);
+      if (!remote)
         continue;
-
-      // New players get our look
-      if (fields->m_greeted.insert(id).second)
-        send(kLookEvent, look, {id});
+      int const account = table->player->getAccountId(remote);
+      if (account == self)
+        continue;
+      newPlayer |= fields->m_seen.insert(id).second;
 
       for (bool second : {false, true})
       {
-        auto visual = second ? globed::api::player::getSecond(remote) : globed::api::player::getFirst(remote);
-        if (!visual || fields->m_attached.contains(id * 2 + (second ? 1 : 0)))
+        int const key = id * 2 + (second ? 1 : 0);
+        auto visual = second ? table->player->getSecond(remote) : table->player->getFirst(remote);
+        if (!visual || fields->m_attached.contains(key))
           continue;
 
+        // The sender of a look is an account id, Globed lists player ids: wear whichever has a look
         std::vector<Ref<HairNode>> rigs;
-        if (!attachLevelHair(static_cast<PlayerObject *>(visual), second, rigs, [id]
-                             { return looks::remoteName(id); }))
+        if (!attachLevelHair(static_cast<PlayerObject *>(visual), second, rigs, [id, account]
+                             { return looks::hasRemote(account) ? looks::remoteName(account) : looks::remoteName(id); }))
+        {
+          log::warn("Globed: can't dress player {} (account {}), its icon isn't in the level yet", id, account);
           continue;
-        fields->m_attached.insert(id * 2 + (second ? 1 : 0));
+        }
+        fields->m_attached.insert(key);
+        log::info("Globed: dressed player {} (account {}, {} icon, {} rigs)", id, account, second ? "second" : "first", rigs.size());
         for (auto &rig : rigs)
         {
           s_remoteRigs[id].emplace_back(rig.data());
+          if (account != id)
+            s_remoteRigs[account].emplace_back(rig.data());
           fields->m_remoteHair.push_back(rig);
         }
       }
     }
+
+    // Our look goes to everybody in the level when it changes and when somebody new shows up
+    auto const &look = currentLookPayload();
+    if (fields->m_seen.empty())
+      return;
+    if (look != fields->m_sentLook || newPlayer)
+    {
+      fields->m_sentLook = look;
+      send(kLookEvent, look);
+      log::info("Globed: sent our look to {} players ({} bytes)", fields->m_seen.size(), look.size());
+    }
+  }
+};
+
+// ! --- Menu --- !
+// The API is asked for again once the game is up, so the events are registered before any level
+
+#include <Geode/modify/MenuLayer.hpp>
+
+class $modify(GlobedHairMenuLayer, MenuLayer)
+{
+  bool init()
+  {
+    if (!MenuLayer::init())
+      return false;
+    registerEvents();
+    return true;
   }
 };

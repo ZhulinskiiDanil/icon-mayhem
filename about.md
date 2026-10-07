@@ -53,7 +53,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Looks per mode**: wear another preset in each game mode, for example a witch hat on the ship, separately for player 1 and player 2 in dual
 - **A look per icon**: give each icon its own preset, change your icon in the garage and the look follows
 - **Garage preview** with a light breeze, so you can see your look before playing, and your look on your **profile** and in the **main menu**
-- **Globed**: players in the same level see each other's looks and emotes (both need Icon Mayhem)
+- **Globed**: players in the same level see each other's looks and emotes (both need Icon Mayhem). Needs Globed 2.2.3 or newer: 2.2.2 doesn't let other mods talk to it
 - **Quality** setting for slower phones and computers
 
 ## Settings

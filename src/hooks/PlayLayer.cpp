@@ -153,18 +153,20 @@ class $modify(HairPlayLayer, PlayLayer)
 
     attachLevelHair(m_player1, false, m_fields->m_hair);
     m_fields->m_player2Attached = attachLevelHair(m_player2, true, m_fields->m_hair);
+    if (!m_fields->m_player2Attached)
+      this->schedule(schedule_selector(HairPlayLayer::attachPlayerTwo));
 
     return true;
   }
 
   // Player 2 joins the scene on the first dual portal, its hair is attached then
-  void postUpdate(float dt)
+  void attachPlayerTwo(float)
   {
-    PlayLayer::postUpdate(dt);
-
     auto fields = m_fields.self();
     if (!fields->m_player2Attached && m_player2 && m_player2->getParent())
       fields->m_player2Attached = attachLevelHair(m_player2, true, fields->m_hair);
+    if (fields->m_player2Attached)
+      this->unschedule(schedule_selector(HairPlayLayer::attachPlayerTwo));
   }
 
   // ! --- Reactions --- !

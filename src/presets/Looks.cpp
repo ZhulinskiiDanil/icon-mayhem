@@ -278,6 +278,11 @@ std::string looks::remoteName(int player)
   return fmt::format("{}{}", kRemotePrefix, player);
 }
 
+bool looks::hasRemote(int player)
+{
+  return remoteLooks().contains(remoteName(player));
+}
+
 void looks::setRemote(int player, matjson::Value look)
 {
   remoteLooks()[remoteName(player)] = std::move(look);
