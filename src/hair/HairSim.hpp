@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Geode/Geode.hpp>
+#include <algorithm>
 #include <vector>
 
 // ! --- Hair simulation --- !
@@ -79,6 +80,8 @@ public:
   void step(float dt, std::vector<HairStrandTarget> const &targets, HairSimParams const &params);
   // Throws every strand: `velocity` for all of them plus `puff` away from `center`, more towards the tips
   void kick(cocos2d::CCPoint const &velocity, cocos2d::CCPoint const &center, float puff);
+  // Simulation steps per second, fewer are cheaper (the performance mode)
+  void setStepRate(float hz) { m_fixedStep = 1.f / std::max(hz, 30.f); }
 
   std::vector<std::vector<cocos2d::CCPoint>> const &strands() const { return m_pos; }
   int segments() const { return m_segments; }
@@ -88,6 +91,7 @@ private:
                HairSimParams const &params);
 
   int m_segments = 0;
+  float m_fixedStep = 1.f / 240.f;
   float m_accumulator = 0.f;
   bool m_initialized = false;
 

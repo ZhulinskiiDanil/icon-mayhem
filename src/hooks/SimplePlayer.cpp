@@ -1,4 +1,5 @@
 #include "SimplePlayerHair.hpp"
+#include "../presets/Looks.hpp"
 
 #include <Geode/Geode.hpp>
 #include <Geode/modify/SimplePlayer.hpp>
@@ -53,8 +54,9 @@ class $modify(HairSimplePlayer, SimplePlayer)
   struct Fields
   {
     IconType m_iconType = IconType::Cube;
+    int m_iconId = -1;
     bool m_hairEnabled = false;
-    bool m_garage = false;
+    PreviewPlace m_place = PreviewPlace::Customizer;
     SimplePlayerHair m_hair;
   };
 
@@ -64,6 +66,7 @@ class $modify(HairSimplePlayer, SimplePlayer)
 
     auto fields = m_fields.self();
     fields->m_iconType = type;
+    fields->m_iconId = id;
 
     // Robot and spider sprites are created lazily on the first switch to them
     if (fields->m_hairEnabled)
@@ -82,9 +85,17 @@ class $modify(HairSimplePlayer, SimplePlayer)
     if (!hair)
       return nullptr;
 
-    hair->setGarage(m_fields->m_garage);
-    // A light breeze keeps the garage alive, the customizer preview stays calm to show the real drape
-    hair->setIdleWind(m_fields->m_garage);
+    auto const place = m_fields->m_place;
+    hair->setGarage(place == PreviewPlace::Garage);
+    hair->setMenu(place == PreviewPlace::Menu);
+    // A light breeze keeps the garage and menus alive, the customizer preview stays calm to show the real drape
+    hair->setIdleWind(place != PreviewPlace::Customizer);
+    // Outside the customizer the icon wears its own look, like in a level
+    if (place != PreviewPlace::Customizer)
+    {
+      hair->setLook([this]
+                    { return looks::lookFor(false, gameModeOf(m_fields->m_iconType), m_fields->m_iconId); });
+    }
     hair->setShouldShow([this, showFor = std::move(showFor)]
                         { return showFor(m_fields->m_iconType); });
     hair->setGameMode([this]
@@ -109,13 +120,13 @@ class $modify(HairSimplePlayer, SimplePlayer)
     }
   }
 
-  void attachHair(bool garage)
+  void attachHair(PreviewPlace place)
   {
     auto fields = m_fields.self();
     if (fields->m_hairEnabled)
       return;
     fields->m_hairEnabled = true;
-    fields->m_garage = garage;
+    fields->m_place = place;
 
     fields->m_hair.icon = this->makeHair(m_firstLayer, m_firstLayer, showsHeadSprite);
     if (auto hair = fields->m_hair.icon)
@@ -129,10 +140,10 @@ class $modify(HairSimplePlayer, SimplePlayer)
 
 // ! --- API --- !
 
-void attachSimplePlayerHair(SimplePlayer *player, bool garage)
+void attachSimplePlayerHair(SimplePlayer *player, PreviewPlace place)
 {
   if (player)
-    static_cast<HairSimplePlayer *>(player)->attachHair(garage);
+    static_cast<HairSimplePlayer *>(player)->attachHair(place);
 }
 
 SimplePlayerHair getSimplePlayerHair(SimplePlayer *player)

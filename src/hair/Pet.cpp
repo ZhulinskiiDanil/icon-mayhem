@@ -31,6 +31,8 @@ namespace
   constexpr float kPetSleepSink = 4.f; // icon units lower while asleep
   constexpr float kPetHop = 90.f;      // icon units / s up when it cheers
   constexpr float kPetZEvery = 2.2f;   // s between the little "z"s of a sleeping pet
+  constexpr float kPetTiltTime = 1.2f;  // s of the puzzled head tilt
+  constexpr float kPetTiltAngle = 18.f; // degrees
 }
 
 CCPoint HairNode::petTarget(CCPoint const &headCenter) const
@@ -70,6 +72,7 @@ void HairNode::updatePet(float dt, CCPoint const &headCenter)
   if (m_petMood == PetMood::Sad)
     m_petMood = PetMood::Normal;
   m_petClock += dt;
+  m_petTilt = std::max(0.f, m_petTilt - dt);
   m_petMoodTime -= dt;
   if (m_petMood == PetMood::Happy && m_petMoodTime <= 0.f)
     m_petMood = PetMood::Normal;
@@ -94,6 +97,18 @@ void HairNode::updatePetAlone(float dt)
   m_petBlink -= dt;
   if (m_petBlink < -kPetBlink)
     m_petBlink = 2.f + 3.f * std::uniform_real_distribution<float>(0.f, 1.f)(m_random);
+}
+
+void HairNode::emote(Emote emote)
+{
+  m_emote = emote;
+  m_emoteAge = 0.f;
+
+  // The pet answers: hearts make it happy, a question makes it tilt its head
+  if (emote == Emote::Heart)
+    this->petReact(PetMood::Happy, 1.5f);
+  else if (emote == Emote::Question && m_config.pet != PetStyle::None && m_config.petMoods)
+    m_petTilt = kPetTiltTime;
 }
 
 void HairNode::petReact(PetMood mood, float duration)
@@ -139,7 +154,10 @@ void HairNode::drawPet(CCDrawNode *node)
 
   auto color = this->sourceColor(m_config.petColorSource, m_config.petColor);
   CCPoint const center = CCPointApplyAffineTransform(m_petPosition, simToNode);
-  CCPoint const up = normalized(applyVec(m_gravityDir ? m_gravityDir() * -1.f : CCPoint{0.f, 1.f}, simToNode), {0.f, 1.f});
+  // Tilts its head when puzzled
+  float const tilt = m_petTilt > 0.f ? std::sin(kPi * std::min(1.f, (kPetTiltTime - m_petTilt) * 3.f)) * kPetTiltAngle : 0.f;
+  CCPoint const up = rotated(normalized(applyVec(m_gravityDir ? m_gravityDir() * -1.f : CCPoint{0.f, 1.f}, simToNode), {0.f, 1.f}),
+                             radians(tilt));
   CCPoint const right = perpendicular(up) * -1.f;
   float const face = m_facing >= 0.f ? 1.f : -1.f; // looks where you go
   float const r = kPetBody * m_config.petSize * scale;

@@ -15,6 +15,8 @@ std::vector<CustomizerSection> const &customizerSections()
       {"General",
        {
            "show-in-garage",
+           "show-in-menus",
+           "quality",
            "modes-title",
            "mode-cube",
            "mode-ship",
@@ -26,6 +28,8 @@ std::vector<CustomizerSection> const &customizerSections()
            "mode-swing",
            "mode-jetpack",
            "@looks",
+           "emotes-title",
+           "@emote-keys",
        }},
       {"Hair",
        {
@@ -213,6 +217,12 @@ std::vector<CustomizerSection> const &customizerSections()
            "cute-death",
            "orb-reaction",
            "orb-kick",
+           "trail-title",
+           "trail",
+           "trail-length",
+           "trail-width",
+           "trail-color",
+           "trail-custom-color",
            "sparkles-title",
            "sparkles",
            "sparkle-rate",
@@ -256,7 +266,7 @@ std::vector<std::string_view> const &lookSettingKeys()
   {
     // Turning the mod on and off, also per game mode, isn't part of a look
     static constexpr std::array kNotLook{
-        std::string_view("enabled"), std::string_view("show-in-garage"), std::string_view("mode-cube"),
+        std::string_view("enabled"), std::string_view("show-in-garage"), std::string_view("show-in-menus"), std::string_view("quality"), std::string_view("mode-cube"),
         std::string_view("mode-ship"), std::string_view("mode-ball"), std::string_view("mode-ufo"),
         std::string_view("mode-wave"), std::string_view("mode-robot"), std::string_view("mode-spider"),
         std::string_view("mode-swing"), std::string_view("mode-jetpack")};

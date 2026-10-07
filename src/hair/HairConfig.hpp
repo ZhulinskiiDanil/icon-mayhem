@@ -144,6 +144,22 @@ enum class StreakPlacement
   Scattered,
 };
 
+enum class TrailStyle
+{
+  None,
+  Ribbon,
+  Hearts,
+  Stars,
+  Sparkles,
+};
+
+enum class Quality
+{
+  High,
+  Balanced,
+  Low,
+};
+
 enum class GameMode
 {
   Cube,
@@ -169,6 +185,11 @@ struct HairConfig
 {
   bool enabled = true;
   bool showInGarage = true;
+  bool showInMenus = true; // your icons on your profile and the menu
+  // Performance mode: caps applied after loading, so a look keeps its own values
+  Quality quality = Quality::High;
+  size_t maxParticles = 90;
+  float simRate = 240.f; // simulation steps per second
   std::array<bool, static_cast<size_t>(GameMode::Count)> modes; // the whole rig is hidden in the modes turned off
   HairStyle style = HairStyle::Flowing;
   bool spinWithIcon = true;
@@ -360,6 +381,13 @@ struct HairConfig
   int streaks = 0;
   StreakPlacement streakPlacement = StreakPlacement::Bangs;
   cocos2d::ccColor3B streakColor = {255, 143, 177};
+
+  // A ribbon tied at the back of the head, or little hearts / stars / sparkles left behind
+  TrailStyle trail = TrailStyle::None;
+  float trailLength = 50.f; // icon units of ribbon; for the particles how long they stay
+  float trailWidth = 2.5f;
+  HairColorSource trailColorSource = HairColorSource::Custom;
+  cocos2d::ccColor3B trailColor = {255, 143, 177};
 
   bool orbReaction = false; // orbs and pads throw the hair up with sparkles
   float orbKick = 1.f;

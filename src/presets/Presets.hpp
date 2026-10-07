@@ -36,6 +36,13 @@ namespace presets
   // The current look with every part of the hair (face locks, bangs, tails, ears) colored like the hair
   Preset matchColors();
 
+  // Default values of every look setting, and a look without the settings at their defaults
+  // (small enough to send to other players)
+  matjson::Value defaults();
+  matjson::Value compact(matjson::Value const &settings);
+  // The settings of a look on top of the defaults, so missing ones don't come from this player's settings
+  matjson::Value withDefaults(matjson::Value const &settings);
+
   matjson::Value toJson(Preset const &preset);
   geode::Result<Preset> fromJson(matjson::Value const &json);
   geode::Result<Preset> parse(std::string_view text);

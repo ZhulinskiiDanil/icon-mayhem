@@ -9,7 +9,6 @@ using namespace geode::prelude;
 
 namespace
 {
-  constexpr float kFixedStep = 1.f / 240.f;
   constexpr float kMaxFrameTime = 1.f / 20.f;
 
   // How quickly the windward side gets pressed fully, at 1 only hair right in front is pressed fully
@@ -104,7 +103,7 @@ void HairSim::kick(CCPoint const &velocity, CCPoint const &center, float puff)
       CCPoint const away = m_pos[s][k] - center;
       float const length = away.getLength();
       CCPoint const outward = length > .0001f ? away / length : CCPoint{};
-      m_prev[s][k] = m_prev[s][k] - (velocity + outward * puff) * (weight * kFixedStep);
+      m_prev[s][k] = m_prev[s][k] - (velocity + outward * puff) * (weight * m_fixedStep);
     }
   }
 }
@@ -156,15 +155,31 @@ void HairSim::step(float dt, std::vector<HairStrandTarget> const &targets, HairS
   m_frameHead = m_lastHead;
   m_accumulator += std::min(dt, kMaxFrameTime);
 
-  int const steps = static_cast<int>(m_accumulator / kFixedStep);
+  int const steps = static_cast<int>(m_accumulator / m_fixedStep);
   CCPoint const headStep = steps > 0 ? (params.headCenter - m_frameHead) / static_cast<float>(steps) : CCPoint{};
   for (int i = 0; i < steps; ++i)
   {
     // Roots move smoothly between last frame and this one across the substeps
     float const alpha = static_cast<float>(i + 1) / static_cast<float>(steps);
-    substep(kFixedStep, alpha, headStep, targets, params);
+    substep(m_fixedStep, alpha, headStep, targets, params);
   }
-  m_accumulator -= steps * kFixedStep;
+  m_accumulator -= steps * m_fixedStep;
+
+  // A frame shorter than a step (high FPS, or the performance mode) runs no substep: carry the
+  // strands along with their roots as they are, or they stay behind for a frame and the hair
+  // stutters and leaves a ghost while moving
+  if (steps == 0)
+  {
+    for (size_t s = 0; s < targets.size(); ++s)
+    {
+      CCPoint const carry = targets[s].root - m_lastRoots[s];
+      for (int k = 1; k <= m_segments; ++k)
+      {
+        m_pos[s][k] = m_pos[s][k] + carry;
+        m_prev[s][k] = m_prev[s][k] + carry;
+      }
+    }
+  }
 
   for (size_t s = 0; s < targets.size(); ++s)
   {

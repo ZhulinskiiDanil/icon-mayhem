@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.5.0
+
+- Trail: a long ribbon tied at the back of the head, or little hearts, stars or sparkles left behind
+- A look for each icon: change your icon in the garage and the look changes with it. A button next to the garage icon picks it
+- Your look on your own profile and on the profile button of the main menu ("Show in menus")
+- Emotes: keys (Alt+One to Alt+Four by default) show a heart, a note, "!" or "?" above your icon, the pet answers
+- Globed (experimental): players in the same level see each other's looks and emotes (both need the mod)
+- Quality setting: Balanced and Low draw less for slower phones and computers
+- Fixed: at high FPS the hair and everything hanging on it flickered and left a ghost behind while moving
+
 ## v1.4.0
 
 - Game modes: turn the whole customization off in some game modes, for example keep it on the cube only

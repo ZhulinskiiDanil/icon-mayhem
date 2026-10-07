@@ -143,6 +143,62 @@ void presets::apply(Preset const &preset)
   }
 }
 
+// ! --- Defaults --- !
+
+namespace
+{
+  matjson::Value defaultValue(std::shared_ptr<SettingV3> const &setting)
+  {
+    if (auto bool_ = typeinfo_pointer_cast<BoolSettingV3>(setting))
+      return bool_->getDefaultValue();
+    if (auto int_ = typeinfo_pointer_cast<IntSettingV3>(setting))
+      return int_->getDefaultValue();
+    if (auto float_ = typeinfo_pointer_cast<FloatSettingV3>(setting))
+      return float_->getDefaultValue();
+    if (auto string = typeinfo_pointer_cast<StringSettingV3>(setting))
+      return string->getDefaultValue();
+    if (auto color = typeinfo_pointer_cast<Color3BSettingV3>(setting))
+      return "#" + cc3bToHexString(color->getDefaultValue());
+    return nullptr;
+  }
+}
+
+matjson::Value presets::defaults()
+{
+  static matjson::Value const values = []
+  {
+    auto out = matjson::Value::object();
+    for (auto key : lookSettingKeys())
+    {
+      if (auto setting = Mod::get()->getSetting(key))
+        out[key] = defaultValue(setting);
+    }
+    return out;
+  }();
+  return values;
+}
+
+matjson::Value presets::compact(matjson::Value const &settings)
+{
+  auto const base = defaults();
+  auto out = matjson::Value::object();
+  for (auto const &[key, value] : settings)
+  {
+    auto fallback = base.get(key);
+    if (!fallback || fallback.unwrap() != value)
+      out[key] = value;
+  }
+  return out;
+}
+
+matjson::Value presets::withDefaults(matjson::Value const &settings)
+{
+  auto out = defaults();
+  for (auto const &[key, value] : settings)
+    out[key] = value;
+  return out;
+}
+
 // ! --- JSON --- !
 
 matjson::Value presets::toJson(Preset const &preset)

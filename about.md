@@ -38,6 +38,8 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Reactions**: a sweat drop when you die, hearts when you beat a level, sparkles on checkpoints
 - **Cute death**: the hair bursts into petals and hearts
 - **Orbs and pads** throw the hair up with a puff of sparkles
+- **Trail**: a long silky ribbon tied at the back of the head, or little hearts, stars or sparkles left behind as you go
+- **Emotes**: press a key and a heart, a note, "!" or "?" pops up in a bubble above your icon, your pet answers
 
 ## Customizer and presets
 
@@ -49,14 +51,20 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Your own presets**: save your look under a name and switch between looks in one tap. Share a preset through the clipboard or as a file, import presets from friends the same way
 - **Favorites**: star presets and switch between them with the star button in the pause menu
 - **Looks per mode**: wear another preset in each game mode, for example a witch hat on the ship, separately for player 1 and player 2 in dual
-- **Garage preview** with a light breeze, so you can see your look before playing
+- **A look per icon**: give each icon its own preset, change your icon in the garage and the look follows
+- **Garage preview** with a light breeze, so you can see your look before playing, and your look on your **profile** and in the **main menu**
+- **Globed**: players in the same level see each other's looks and emotes (both need Icon Mayhem)
+- **Quality** setting for slower phones and computers
 
 ## Settings
 
 | Setting | What it does |
 | --- | --- |
+| Show in menus | Your look on your own profile and on the profile button of the main menu |
+| Quality | High, Balanced or Low: fewer locks, particles and simulation steps for slower devices |
 | Game modes | Turn the whole customization (hair, accessories, pet, effects) on or off for each game mode |
-| Looks per mode | A preset for each game mode, for player 1 and player 2 separately. Player 2 also has a look for all modes |
+| Looks per mode and icon | A preset for each game mode (player 1 and player 2 separately) and for each icon |
+| Emotes | Keys for the heart, note, "!" and "?" bubbles (Alt+One to Alt+Four by default) |
 | Hairstyle | Shape of the hairstyle |
 | Density | Number of hair locks |
 | Length | Length of the longest locks |
@@ -104,6 +112,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 | Reactions | Sweat drop on death, hearts on level complete, sparkles on checkpoints |
 | Cute death | On death the hair bursts into petals and hearts |
 | Orbs and pads | Orbs and pads throw the hair up with sparkles, and how strongly |
+| Trail | A ribbon, hearts, stars or sparkles: length, ribbon width, color |
 | Volume | How strongly the hair keeps its shape near the roots. **Lower it if the hair is too stiff** |
 | Hitbox multiplier | Size of the invisible head the hair lies on. Bigger keeps the hair further from the icon |
 | Wind multiplier | How much the air affects the hair while moving. 0 makes it look like you're standing still |

@@ -18,7 +18,6 @@ using namespace hair;
 
 namespace
 {
-  constexpr size_t kMaxParticles = 90;
   constexpr float kBlushPopTime = .6f; // s the landing blush takes to fade
   constexpr float kLandPopTime = .35f; // s hats squash and the pet hops after a landing
 
@@ -36,6 +35,9 @@ namespace
   constexpr float kWeatherSway = 14.f;     // icon units / s sideways
   constexpr float kWeatherSpread = 24.f;   // icon units around the head where they appear
   constexpr float kPetalSize = 1.9f;
+  constexpr float kTrailPerSecond = 22.f; // at full speed
+  constexpr float kTrailFullSpeed = 250.f; // icon units / s
+  constexpr float kTrailSize = 1.6f;
   constexpr std::array<ccColor3B, 4> kAutumn = {{{232, 128, 58}, {217, 79, 48}, {242, 182, 64}, {184, 105, 46}}};
 
   // Sleepy
@@ -51,6 +53,15 @@ namespace
   constexpr ccColor3B kDropColor = {120, 200, 255};
   constexpr float kDropGravity = 70.f; // icon units / s^2
   constexpr int kCelebrateHearts = 10;
+  constexpr float kEmoteTime = 2.f;   // s
+  constexpr float kEmotePop = .25f;   // s to pop in
+  constexpr float kEmoteRadius = 6.f; // icon units
+  constexpr float kEmoteHeight = 9.f; // above the head
+  constexpr float kEmoteRise = 3.f;   // icon units / s
+  constexpr ccColor3B kEmoteHeart = {255, 92, 138};
+  constexpr ccColor3B kEmoteInk = {43, 33, 64};
+  constexpr ccColor3B kEmoteExclaim = {224, 64, 90};
+  constexpr ccColor3B kEmoteQuestion = {79, 163, 224};
   constexpr float kOrbKick = 180.f; // icon units / s the hair is thrown with at kick 1
   constexpr float kOrbPuff = 60.f;
   constexpr int kOrbSparkles = 6;
@@ -171,6 +182,15 @@ void HairNode::updateDecor(float dt, CCPoint const &headCenter, CCPoint const &u
       this->spawnParticle(ParticleKind::Heart, headCenter, false);
   }
 
+  // A trail of little hearts, stars or sparkles left behind, more of them the faster you go
+  if (m_config.trail != TrailStyle::None && m_config.trail != TrailStyle::Ribbon)
+  {
+    float const pace = std::clamp(speed / kTrailFullSpeed, 0.f, 1.f);
+    m_trailTimer += dt * kTrailPerSecond * pace;
+    for (; m_trailTimer >= 1.f; m_trailTimer -= 1.f)
+      this->spawnParticle(ParticleKind::Trail, headCenter, false);
+  }
+
   if (m_config.petals && m_config.petalAmount > 0.f)
   {
     auto const kind = m_config.weather == WeatherStyle::Snow     ? ParticleKind::Snow
@@ -217,6 +237,11 @@ void HairNode::updateParticles(float dt)
     }
     case ParticleKind::Zzz:
       particle.position = particle.position + particle.velocity * dt;
+      break;
+    case ParticleKind::Trail:
+      // Stays where it was left, drifting a little
+      particle.position = particle.position + particle.velocity * dt;
+      particle.velocity = particle.velocity * std::max(0.f, 1.f - 3.f * dt);
       break;
     case ParticleKind::Drop:
       particle.velocity = particle.velocity - worldUp * (kDropGravity * m_simScale * dt);
@@ -340,15 +365,15 @@ void HairNode::onDeath()
     this->burst(ParticleKind::Heart, kDeathHearts, center);
   }
 
-  if (m_particles.size() > kMaxParticles)
-    m_particles.erase(m_particles.begin(), m_particles.end() - kMaxParticles);
+  if (m_particles.size() > m_config.maxParticles)
+    m_particles.erase(m_particles.begin(), m_particles.end() - m_config.maxParticles);
 }
 
 // ! --- Spawning --- !
 
 void HairNode::spawnParticle(ParticleKind kind, CCPoint const &headCenter, bool burst)
 {
-  if (m_particles.size() >= kMaxParticles)
+  if (m_particles.size() >= m_config.maxParticles)
     return;
 
   std::uniform_real_distribution<float> random(0.f, 1.f);
@@ -380,6 +405,17 @@ void HairNode::spawnParticle(ParticleKind kind, CCPoint const &headCenter, bool 
     particle.velocity = (worldUp * rise + radial * push) * unit;
     particle.life = 1.f + .5f * random(m_random);
     particle.size = (.8f + .4f * random(m_random)) * m_config.sparkleSize;
+    break;
+  }
+  case ParticleKind::Trail:
+  {
+    // Around the middle of the head, they stay behind as it moves on
+    CCPoint const offset = rotated(worldUp, random(m_random) * 2.f * kPi) * (kHeadRadius * .5f * random(m_random) * unit);
+    particle.position = headCenter + offset;
+    particle.velocity = offset * 1.5f;
+    particle.life = .3f + m_config.trailLength / 100.f;
+    particle.size = .7f + .5f * random(m_random);
+    particle.rotation = (random(m_random) - .5f) * .8f;
     break;
   }
   case ParticleKind::Petal:
@@ -499,6 +535,21 @@ void HairNode::drawParticles(CCDrawNode *node)
     case ParticleKind::Drop:
       drawDrop(node, center, up, particle.size * kParticleSize * scale, premultiplied(kDropColor, alpha * fade), outline, faded(black, fade));
       break;
+    case ParticleKind::Trail:
+    {
+      // Shrinks away instead of fading
+      float const size = particle.size * kTrailSize * scale * (1.f - t);
+      auto const color = m_config.trailColorSource == HairColorSource::Hair
+                             ? this->hairColor()
+                             : this->sourceColor(m_config.trailColorSource, m_config.trailColor);
+      if (m_config.trail == TrailStyle::Hearts)
+        drawHeart(node, center, turned, size, color);
+      else if (m_config.trail == TrailStyle::Stars)
+        drawStar(node, center, turned, size * 1.2f, size * .55f, color);
+      else
+        drawSparkle(node, center, size * 1.3f, color);
+      break;
+    }
     }
   }
 }
@@ -535,6 +586,13 @@ void HairNode::visitEffects(CCDrawNode *node)
   if (m_particlesFrame != frame)
     this->updateParticles(dt);
 
+  if (m_emote)
+  {
+    m_emoteAge += dt;
+    if (m_emoteAge >= kEmoteTime || dead)
+      m_emote.reset();
+  }
+
   // The pet floats in the sim space too, so it stays with you after a death
   if (m_config.pet != PetStyle::None && (!dead || m_diedActive))
   {
@@ -544,4 +602,89 @@ void HairNode::visitEffects(CCDrawNode *node)
   }
 
   this->drawParticles(node);
+  this->drawEmote(node);
+}
+
+// ! --- Emotes --- !
+
+void HairNode::drawEmote(CCDrawNode *node)
+{
+  if (!m_emote)
+    return;
+
+  auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
+  auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
+  float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
+  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const outline = kOutlineWidth * scale;
+
+  // Pops in with a little overshoot, floats up slowly, fades out at the end
+  float const t = m_emoteAge;
+  float const pop = t < kEmotePop ? std::sin(t / kEmotePop * kPi * .75f) / std::sin(kPi * .75f) : 1.f;
+  float const fade = std::clamp((kEmoteTime - t) / .3f, 0.f, 1.f) * alpha;
+  if (pop <= 0.f || fade <= 0.f)
+    return;
+
+  CCPoint const worldUp = m_gravityDir ? m_gravityDir() * -1.f : CCPoint{0.f, 1.f};
+  CCPoint const up = normalized(applyVec(worldUp, simToNode), {0.f, 1.f});
+  CCPoint const right = perpendicular(up) * -1.f;
+  CCPoint const anchor = CCPointApplyAffineTransform(
+      m_frameParams.headCenter + worldUp * ((kHeadRadius + kEmoteHeight + t * kEmoteRise) * m_simScale), simToNode);
+  float const radius = kEmoteRadius * scale * pop;
+  CCPoint const center = anchor + right * (radius * .35f);
+
+  auto const white = ccColor4F{fade, fade, fade, fade};
+  auto const black = ccColor4F{0.f, 0.f, 0.f, fade};
+
+  // The bubble with its little tail pointing at the head
+  std::array<CCPoint, 3> tail = {center - up * (radius * .55f) - right * (radius * .55f), center - up * (radius * .25f) - right * (radius * .05f),
+                                 center - up * (radius * 1.25f) - right * (radius * .75f)};
+  std::array<CCPoint, 3> tailOutline = {tail[0] - right * outline, tail[1] + right * outline, tail[2] - up * outline - right * outline};
+  node->drawPolygon(tailOutline.data(), 3, black, 0.f, black);
+  fillCircle(node, center, radius + outline, black);
+  node->drawPolygon(tail.data(), 3, white, 0.f, white);
+  fillCircle(node, center, radius, white);
+
+  float const r = radius;
+  switch (*m_emote)
+  {
+  case Emote::Heart:
+    drawHeart(node, center - up * (r * .05f), up, r * .5f, premultiplied(kEmoteHeart, fade));
+    break;
+  case Emote::Note:
+  {
+    // A note: a tilted head, a stem and a flag
+    auto const ink = premultiplied(kEmoteInk, fade);
+    CCPoint const head = center - up * (r * .3f) - right * (r * .15f);
+    fillEllipse(node, head, rotated(right, .45f), r * .22f, r * .15f, ink);
+    CCPoint const stemTop = head + right * (r * .19f) + up * (r * .72f);
+    node->drawSegment(head + right * (r * .19f), stemTop, r * .06f, ink);
+    node->drawSegment(stemTop, stemTop + right * (r * .28f) - up * (r * .22f), r * .07f, ink);
+    break;
+  }
+  case Emote::Exclaim:
+  {
+    auto const red = premultiplied(kEmoteExclaim, fade);
+    node->drawSegment(center + up * (r * .45f), center - up * (r * .12f), r * .12f, red);
+    fillCircle(node, center - up * (r * .43f), r * .12f, red);
+    break;
+  }
+  case Emote::Question:
+  {
+    // A hook: three quarters of a circle, then down to the dot
+    auto const blue = premultiplied(kEmoteQuestion, fade);
+    CCPoint const middle = center + up * (r * .2f);
+    float const bend = r * .24f;
+    CCPoint previous = middle + rotated(up, radians(60.f)) * bend;
+    for (int i = 1; i <= 8; ++i)
+    {
+      CCPoint const point = middle + rotated(up, radians(60.f - 210.f * static_cast<float>(i) / 8.f)) * bend;
+      node->drawSegment(previous, point, r * .09f, blue);
+      previous = point;
+    }
+    node->drawSegment(previous, center - up * (r * .15f), r * .09f, blue);
+    fillCircle(node, center - up * (r * .42f), r * .11f, blue);
+    break;
+  }
+  }
 }

@@ -200,8 +200,9 @@ void HairNode::reloadConfig()
   int const oldSegments = m_config.segments;
   bool const firstLoad = m_locks.empty();
 
-  m_config = m_useLooks ? looks::configFor(m_lookName) : HairConfig::load();
+  m_config = m_lookFn ? looks::configFor(m_lookName) : HairConfig::load();
   m_configVersion = HairConfig::version();
+  m_sim.setStepRate(m_config.simRate);
   this->generateLocks();
 
   // Same amount of strands: keep simulating, the hair smoothly moves into its new shape.
@@ -210,6 +211,7 @@ void HairNode::reloadConfig()
     return;
 
   m_sim.setup(static_cast<int>(m_locks.size()), m_config.segments);
+  m_sim.setStepRate(m_config.simRate);
   m_targets.assign(m_locks.size(), HairStrandTarget{});
   for (auto &target : m_targets)
     target.restDirs.resize(m_config.segments);
@@ -401,7 +403,8 @@ float HairNode::headUnit() const
 
 bool HairNode::isActive() const
 {
-  if (!(m_config.enabled || this->extrasActive() || this->decorActive()) || (m_isGarage && !m_config.showInGarage))
+  if (!(m_config.enabled || this->extrasActive() || this->decorActive()) || (m_isGarage && !m_config.showInGarage) ||
+      (m_isMenu && !m_config.showInMenus))
     return false;
   if (m_gameModeFn && !m_config.showsIn(m_gameModeFn()))
     return false;
@@ -466,9 +469,9 @@ void HairNode::visit()
     m_lastFrame = frame;
 
     // Another game mode or player 2 can wear another look
-    if (m_useLooks)
+    if (m_lookFn)
     {
-      auto look = looks::lookFor(m_playerTwo, m_gameModeFn ? m_gameModeFn() : GameMode::Count);
+      auto look = m_lookFn();
       if (look != m_lookName)
       {
         m_lookName = std::move(look);
@@ -865,6 +868,8 @@ ccColor4F HairNode::lockColor(Lock const &lock) const
   }
   if (kind == LockKind::Ear && m_config.earColorSource != HairColorSource::Hair)
     return this->sourceColor(m_config.earColorSource, m_config.earColor);
+  if (kind == LockKind::Trail)
+    return m_config.trailColorSource == HairColorSource::Hair ? this->hairColor() : this->sourceColor(m_config.trailColorSource, m_config.trailColor);
   if (kind == LockKind::ScarfEnd)
     return m_config.scarfColorSource == HairColorSource::Hair ? this->hairColor() : this->sourceColor(m_config.scarfColorSource, m_config.scarfColor);
   if (kind == LockKind::Tail && m_config.tailColorSource != HairColorSource::Hair)
@@ -961,7 +966,8 @@ void HairNode::redraw()
   this->drawLocks(this, m_ahogeStart, m_earsStart, false);
   this->drawLocks(this, m_earsStart, m_scarfStart, false);
   this->drawEarInners(this);
-  this->drawLocks(this, m_scarfStart, m_frontStart, false);
+  this->drawLocks(this, m_scarfStart, m_trailStart, false);
+  this->drawRibbon(this);
   this->drawWings(this);
   if (!m_front)
     return;

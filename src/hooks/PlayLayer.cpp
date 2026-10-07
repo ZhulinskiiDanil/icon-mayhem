@@ -1,4 +1,7 @@
+#include "LevelHair.hpp"
+#include "Globed.hpp"
 #include "../hair/HairNode.hpp"
+#include "../presets/Looks.hpp"
 
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PlayLayer.hpp>
@@ -34,32 +37,13 @@ namespace
     return !player->m_isBall && !player->m_isDart && !player->m_isSwing;
   }
 
-  // The jetpack is the ship of platformer levels
-  GameMode gameModeOf(PlayerObject *player)
-  {
-    if (player->m_isShip)
-      return player->m_isPlatformer ? GameMode::Jetpack : GameMode::Ship;
-    if (player->m_isBird)
-      return GameMode::Ufo;
-    if (player->m_isBall)
-      return GameMode::Ball;
-    if (player->m_isDart)
-      return GameMode::Wave;
-    if (player->m_isRobot)
-      return GameMode::Robot;
-    if (player->m_isSpider)
-      return GameMode::Spider;
-    if (player->m_isSwing)
-      return GameMode::Swing;
-    return GameMode::Cube;
-  }
-
   CCSprite *headOf(GJRobotSprite *body)
   {
     return body->m_headSprite ? static_cast<CCSprite *>(body->m_headSprite) : body;
   }
 
-  HairNode *setupHair(HairNode *hair, PlayerObject *player, bool playerTwo, std::function<bool()> modeMatches)
+  HairNode *setupHair(HairNode *hair, PlayerObject *player, std::function<std::string()> const &look,
+                      std::function<bool()> modeMatches)
   {
     if (!hair)
       return nullptr;
@@ -76,50 +60,80 @@ namespace
                       { return gameModeOf(player); });
     hair->setMusicDriven(true);
     hair->setPlayer(player);
-    hair->setUseLooks(true, playerTwo);
+    hair->setLook(look);
     return hair;
   }
+}
 
-  // Attaches the hair for every mode of the player, adds the nodes to `nodes` for the reactions.
-  // False while the player isn't in the scene yet: player 2 is only added on the first dual portal
-  bool attachHair(PlayerObject *player, bool playerTwo, std::vector<Ref<HairNode>> &nodes)
+// ! --- Level hair --- !
+
+// The jetpack is the ship of platformer levels
+GameMode gameModeOf(PlayerObject *player)
+{
+  if (player->m_isShip)
+    return player->m_isPlatformer ? GameMode::Jetpack : GameMode::Ship;
+  if (player->m_isBird)
+    return GameMode::Ufo;
+  if (player->m_isBall)
+    return GameMode::Ball;
+  if (player->m_isDart)
+    return GameMode::Wave;
+  if (player->m_isRobot)
+    return GameMode::Robot;
+  if (player->m_isSpider)
+    return GameMode::Spider;
+  if (player->m_isSwing)
+    return GameMode::Swing;
+  return GameMode::Cube;
+}
+
+bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<Ref<HairNode>> &nodes, std::function<std::string()> look)
+{
+  if (!player || !player->getParent())
+    return false;
+
+  // By default the player wears its own looks: of the icon, of the game mode, for player 2
+  if (!look)
   {
-    if (!player || !player->getParent())
-      return false;
-
-    auto simSpace = player->getParent();
-    auto primary = player->m_iconSprite;
-    auto secondary = player->m_iconSpriteSecondary;
-
-    auto iconHair = setupHair(HairNode::attach(player->m_iconSprite, player->m_iconSprite, primary, secondary, simSpace),
-                              player, playerTwo, [player]
-                              { return usesIconSprite(player); });
-    if (iconHair)
+    look = [player, playerTwo]
     {
-      nodes.push_back(iconHair);
-      iconHair->setOnGround([player]
-                            { return iconStandsOnGround(player); });
-      iconHair->setBoxHead([player]
-                           { return iconIsCube(player); });
-    }
-
-    if (auto robot = player->m_robotSprite)
-    {
-      if (auto hair = setupHair(HairNode::attach(headOf(robot), robot, primary, secondary, simSpace),
-                                player, playerTwo, [player]
-                                { return player->m_isRobot; }))
-        nodes.push_back(hair);
-    }
-
-    if (auto spider = player->m_spiderSprite)
-    {
-      if (auto hair = setupHair(HairNode::attach(headOf(spider), spider, primary, secondary, simSpace),
-                                player, playerTwo, [player]
-                                { return player->m_isSpider; }))
-        nodes.push_back(hair);
-    }
-    return true;
+      auto const mode = gameModeOf(player);
+      return looks::lookFor(playerTwo, mode, looks::equippedIcon(mode));
+    };
   }
+
+  auto simSpace = player->getParent();
+  auto primary = player->m_iconSprite;
+  auto secondary = player->m_iconSpriteSecondary;
+
+  auto iconHair = setupHair(HairNode::attach(player->m_iconSprite, player->m_iconSprite, primary, secondary, simSpace),
+                            player, look, [player]
+                            { return usesIconSprite(player); });
+  if (iconHair)
+  {
+    nodes.push_back(iconHair);
+    iconHair->setOnGround([player]
+                          { return iconStandsOnGround(player); });
+    iconHair->setBoxHead([player]
+                         { return iconIsCube(player); });
+  }
+
+  if (auto robot = player->m_robotSprite)
+  {
+    if (auto hair = setupHair(HairNode::attach(headOf(robot), robot, primary, secondary, simSpace),
+                              player, look, [player]
+                              { return player->m_isRobot; }))
+      nodes.push_back(hair);
+  }
+
+  if (auto spider = player->m_spiderSprite)
+  {
+    if (auto hair = setupHair(HairNode::attach(headOf(spider), spider, primary, secondary, simSpace),
+                              player, look, [player]
+                              { return player->m_isSpider; }))
+      nodes.push_back(hair);
+  }
+  return true;
 }
 
 // ! --- PlayLayer --- !
@@ -137,8 +151,8 @@ class $modify(HairPlayLayer, PlayLayer)
     if (!PlayLayer::init(level, useReplay, dontCreateObjects))
       return false;
 
-    attachHair(m_player1, false, m_fields->m_hair);
-    m_fields->m_player2Attached = attachHair(m_player2, true, m_fields->m_hair);
+    attachLevelHair(m_player1, false, m_fields->m_hair);
+    m_fields->m_player2Attached = attachLevelHair(m_player2, true, m_fields->m_hair);
 
     return true;
   }
@@ -150,7 +164,7 @@ class $modify(HairPlayLayer, PlayLayer)
 
     auto fields = m_fields.self();
     if (!fields->m_player2Attached && m_player2 && m_player2->getParent())
-      fields->m_player2Attached = attachHair(m_player2, true, fields->m_hair);
+      fields->m_player2Attached = attachLevelHair(m_player2, true, fields->m_hair);
   }
 
   // ! --- Reactions --- !
@@ -215,3 +229,31 @@ class $modify(HairPlayerObject, PlayerObject)
     this->notifyBoost(before);
   }
 };
+
+// ! --- Emotes --- !
+
+$on_mod(Loaded)
+{
+  static constexpr std::array<std::pair<char const *, HairNode::Emote>, 4> kKeys = {{
+      {"emote-heart", HairNode::Emote::Heart},
+      {"emote-note", HairNode::Emote::Note},
+      {"emote-exclaim", HairNode::Emote::Exclaim},
+      {"emote-question", HairNode::Emote::Question},
+  }};
+  for (auto [key, emote] : kKeys)
+  {
+    listenForKeybindSettingPresses(key, [emote](Keybind const &, bool down, bool repeat, double)
+                                   {
+                                     auto playLayer = static_cast<HairPlayLayer *>(PlayLayer::get());
+                                     if (!down || repeat || !playLayer)
+                                       return false;
+                                     for (auto &hair : playLayer->m_fields->m_hair)
+                                     {
+                                       if (hair->player() == playLayer->m_player1)
+                                         hair->emote(emote);
+                                     }
+                                     globedSendEmote(emote);
+                                     return false;
+                                   });
+  }
+}

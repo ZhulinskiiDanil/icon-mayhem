@@ -8,13 +8,17 @@
 	},
 	"id": "zhulis.icon-mayhem",
 	"name": "Icon Mayhem",
-	"version": "v1.4.0",
+	"version": "v1.5.0",
 	"developer": "Zhulis",
 	"description": "Cute and crazy icon customizations: physics-based hair, accessories, wings, a pet and effects",
 	"repository": "https://github.com/ZhulinskiiDanil/icon-mayhem",
 	"tags": ["customization"],
 	"dependencies": {
-		"geode.node-ids": ">=v1.23.3"
+		"geode.node-ids": ">=v1.23.3",
+		"dankmeme.globed2": {
+			"version": ">=v2.2.0",
+			"required": false
+		}
 	},
 	"resources": {
 		"sprites": [
@@ -34,6 +38,19 @@
 			"description": "Show hair on the icon preview in the garage",
 			"type": "bool",
 			"default": true
+		},
+		"show-in-menus": {
+			"name": "Show in menus",
+			"description": "Show your look on your icons on your profile and on the profile button of the main menu",
+			"type": "bool",
+			"default": true
+		},
+		"quality": {
+			"name": "Quality",
+			"description": "Balanced and Low draw fewer locks and particles and simulate less often, for slower phones and computers. Presets keep their values",
+			"type": "string",
+			"default": "High",
+			"one-of": ["High", "Balanced", "Low"]
 		},
 		"modes-title": {
 			"type": "title",
@@ -93,6 +110,39 @@
 			"description": "Customize the cube riding the jetpack",
 			"type": "bool",
 			"default": true
+		},
+		"emotes-title": {
+			"type": "title",
+			"name": "Emotes",
+			"description": "Keys that show a little speech bubble above your icon while playing"
+		},
+		"emote-heart": {
+			"name": "Heart emote",
+			"description": "A heart in a speech bubble above your icon",
+			"type": "keybind",
+			"default": "Alt+One",
+			"category": "gameplay"
+		},
+		"emote-note": {
+			"name": "Music emote",
+			"description": "A note in a speech bubble above your icon",
+			"type": "keybind",
+			"default": "Alt+Two",
+			"category": "gameplay"
+		},
+		"emote-exclaim": {
+			"name": "\"!\" emote",
+			"description": "An exclamation mark in a speech bubble above your icon",
+			"type": "keybind",
+			"default": "Alt+Three",
+			"category": "gameplay"
+		},
+		"emote-question": {
+			"name": "\"?\" emote",
+			"description": "A question mark in a speech bubble above your icon",
+			"type": "keybind",
+			"default": "Alt+Four",
+			"category": "gameplay"
 		},
 		"hair-title": {
 			"type": "title",
@@ -1578,6 +1628,51 @@
 			"control": {
 				"slider": true
 			}
+		},
+		"trail-title": {
+			"type": "title",
+			"name": "Trail"
+		},
+		"trail": {
+			"name": "Trail",
+			"description": "A long ribbon tied at the back of the head, or little hearts, stars or sparkles left behind while moving",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Ribbon", "Hearts", "Stars", "Sparkles"]
+		},
+		"trail-length": {
+			"name": "Trail length",
+			"description": "Length of the ribbon in icon units, or how long the hearts and stars stay",
+			"type": "float",
+			"default": 50,
+			"min": 10,
+			"max": 120,
+			"control": {
+				"slider": true
+			}
+		},
+		"trail-width": {
+			"name": "Ribbon width",
+			"description": "Width of the ribbon",
+			"type": "float",
+			"default": 2.5,
+			"min": 1,
+			"max": 6,
+			"control": {
+				"slider": true
+			}
+		},
+		"trail-color": {
+			"name": "Trail color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"trail-custom-color": {
+			"name": "Custom color",
+			"type": "color",
+			"default": "#FF8FB1"
 		},
 		"sparkles-title": {
 			"type": "title",

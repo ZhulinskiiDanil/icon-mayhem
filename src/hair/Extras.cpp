@@ -94,6 +94,9 @@ namespace
   constexpr int kScarfPoints = 7;
   constexpr float kScarfEndWidth = .8f;   // relative to the band
   constexpr float kScarfStiffness = .45f;
+  constexpr float kTrailStiffness = .04f; // just enough to keep it from hanging straight down
+  constexpr float kRibbonTwists = 1.5f;    // turns along the ribbon
+  constexpr float kRibbonTwistSpeed = 3.f; // radians / s
 
   EarShape const &earShape(EarStyle style)
   {
@@ -200,6 +203,19 @@ void HairNode::addEarAndScarfLocks()
       lock.depth = end == 0 ? 1.f : .8f;
       m_locks.push_back(lock);
     }
+  }
+
+  m_trailStart = m_locks.size();
+  if (m_config.trail == TrailStyle::Ribbon && m_config.trailLength > 0.f)
+  {
+    Lock lock;
+    lock.kind = LockKind::Trail;
+    lock.angle = 0.f;
+    lock.length = m_config.trailLength;
+    lock.width = m_config.trailWidth;
+    lock.curl = 0.f;
+    lock.depth = 1.f;
+    m_locks.push_back(lock);
   }
 }
 
@@ -367,6 +383,18 @@ void HairNode::buildExtraTarget(Lock const &lock, HairStrandTarget &target, CCPo
     target.stiffnessPower = shape.stiffnessPower;
     stiffness = shape.stiffness;
   }
+  else if (lock.kind == LockKind::Trail)
+  {
+    // Tied at the back of the head a bit above the middle, streaming back on its own
+    CCPoint const back = normalized(m_frameBack, across);
+    target.root = headCenter + back * (this->headEdge(back) * .7f) + up * (kHeadRadius * .35f * m_simScale);
+    CCPoint const dir = normalized(back + down * .25f, back);
+    for (int k = 0; k < segments; ++k)
+      target.restDirs[k] = dir;
+    target.collide = false;
+    target.stiffnessPower = 1.f;
+    stiffness = kTrailStiffness;
+  }
   else if (lock.kind == LockKind::ScarfEnd)
   {
     // Two ends hanging from the knot, the air flow blows them back
@@ -414,6 +442,66 @@ float HairNode::lockWidthAt(Lock const &lock, float along) const
     return 1.f - .95f * std::pow(along, 1.1f);
   default:
     return 1.f - kTipTaper * along;
+  }
+}
+
+// ! --- Ribbon --- !
+
+void HairNode::drawRibbon(CCDrawNode *node)
+{
+  auto const &strands = m_sim.strands();
+  if (m_trailStart >= m_frontStart || m_trailStart >= strands.size())
+    return;
+
+  auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
+  auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
+  float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
+  float const outline = m_config.outline ? kOutlineWidth * scale * .8f : 0.f;
+
+  auto const &lock = m_locks[m_trailStart];
+  auto const color = this->lockColor(lock);
+  auto const backSide = shaded(color, .72f);
+  auto const edge = mixedWhite(color, .4f);
+  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  float const half = lock.width * .5f * scale;
+
+  buildCurve(strands[m_trailStart], simToNode, 4, m_curve);
+  int const last = static_cast<int>(m_curve.size()) - 1;
+  if (last < 1)
+    return;
+
+  // A flat band that turns over along its length: its width swings with the twist
+  std::vector<CCPoint> left(last + 1);
+  std::vector<CCPoint> right(last + 1);
+  std::vector<bool> front(last + 1);
+  for (int k = 0; k <= last; ++k)
+  {
+    float const along = static_cast<float>(k) / static_cast<float>(last);
+    CCPoint const dir = normalized(m_curve[std::min(k + 1, last)] - m_curve[std::max(k - 1, 0)], {1.f, 0.f});
+    CCPoint const side = perpendicular(dir);
+    float const twist = std::cos(along * kRibbonTwists * 2.f * kPi - m_time * kRibbonTwistSpeed);
+    float const width = half * (.25f + .75f * std::abs(twist)) * (1.f - .3f * along);
+    left[k] = m_curve[k] + side * width;
+    right[k] = m_curve[k] - side * width;
+    front[k] = twist >= 0.f;
+  }
+
+  for (int pass = outline > 0.f ? 0 : 1; pass < 2; ++pass)
+  {
+    for (int k = 1; k <= last; ++k)
+    {
+      if (pass == 0)
+      {
+        node->drawSegment(left[k - 1], left[k], outline, outlineColor);
+        node->drawSegment(right[k - 1], right[k], outline, outlineColor);
+        continue;
+      }
+      std::array<CCPoint, 4> quad = {left[k - 1], left[k], right[k], right[k - 1]};
+      auto const fill = front[k] ? color : backSide;
+      node->drawPolygon(quad.data(), 4, fill, 0.f, fill);
+      if (front[k])
+        node->drawSegment(left[k - 1], left[k], .18f * scale, edge);
+    }
   }
 }
 

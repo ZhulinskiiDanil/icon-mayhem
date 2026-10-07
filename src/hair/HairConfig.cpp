@@ -201,6 +201,28 @@ namespace
     return StreakPlacement::Bangs;
   }
 
+  TrailStyle parseTrail(std::string const &value)
+  {
+    if (value == "Ribbon")
+      return TrailStyle::Ribbon;
+    if (value == "Hearts")
+      return TrailStyle::Hearts;
+    if (value == "Stars")
+      return TrailStyle::Stars;
+    if (value == "Sparkles")
+      return TrailStyle::Sparkles;
+    return TrailStyle::None;
+  }
+
+  Quality parseQuality(std::string const &value)
+  {
+    if (value == "Balanced")
+      return Quality::Balanced;
+    if (value == "Low")
+      return Quality::Low;
+    return Quality::High;
+  }
+
   HairStyle parseStyle(std::string const &value)
   {
     if (value == "Long")
@@ -252,7 +274,10 @@ HairConfig HairConfig::load(matjson::Value const *look)
   {
     if (auto value = lookValue(key); value && value->isString())
     {
-      if (auto parsed = cc3bFromHexString(value->asString().unwrapOr(""), true))
+      auto text = value->asString().unwrapOr("");
+      if (!text.empty() && text.front() == '#')
+        text.erase(0, 1);
+      if (auto parsed = cc3bFromHexString(text, true))
         return parsed.unwrap();
     }
     return mod->getSettingValue<ccColor3B>(key);
@@ -262,6 +287,8 @@ HairConfig HairConfig::load(matjson::Value const *look)
 
   cfg.enabled = mod->getSettingValue<bool>("enabled");
   cfg.showInGarage = mod->getSettingValue<bool>("show-in-garage");
+  cfg.showInMenus = mod->getSettingValue<bool>("show-in-menus");
+  cfg.quality = parseQuality(mod->getSettingValue<std::string>("quality"));
 
   static constexpr std::array<char const *, static_cast<size_t>(GameMode::Count)> kModeKeys{
       "mode-cube", "mode-ship", "mode-ball", "mode-ufo", "mode-wave",
@@ -430,6 +457,12 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.streakPlacement = parseStreaks(text("streak-placement"));
   cfg.streakColor = color("streak-color");
 
+  cfg.trail = parseTrail(text("trail"));
+  cfg.trailLength = number("trail-length");
+  cfg.trailWidth = number("trail-width");
+  cfg.trailColorSource = parseColorSource(text("trail-color"));
+  cfg.trailColor = color("trail-custom-color");
+
   cfg.orbReaction = flag("orb-reaction");
   cfg.orbKick = number("orb-kick");
 
@@ -479,6 +512,29 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.ahoge = std::clamp(cfg.ahoge, 0, 2);
   cfg.clipCount = std::clamp(cfg.clipCount, 0, 3);
   cfg.streaks = std::clamp(cfg.streaks, 0, 8);
+
+  // Performance mode: fewer locks, segments, particles and simulation steps
+  switch (cfg.quality)
+  {
+  case Quality::Balanced:
+    cfg.lockCount = std::min(cfg.lockCount, 48);
+    cfg.segments = std::min(cfg.segments, 8);
+    cfg.maxParticles = 50;
+    cfg.simRate = 180.f;
+    break;
+  case Quality::Low:
+    cfg.lockCount = std::min(cfg.lockCount, 24);
+    cfg.segments = std::min(cfg.segments, 6);
+    cfg.bangsCount = std::min(cfg.bangsCount, 8);
+    cfg.maxParticles = 25;
+    cfg.simRate = 120.f;
+    cfg.petalAmount *= .5f;
+    cfg.sparkleRate *= .5f;
+    cfg.haloGlow = false;
+    break;
+  case Quality::High:
+    break;
+  }
 
   return cfg;
 }

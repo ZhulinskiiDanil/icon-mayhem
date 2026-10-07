@@ -218,7 +218,7 @@ void CustomizerPopup::buildPreview()
   m_player->setScale(kPreviewScale);
   m_stage->addChild(m_player);
 
-  attachSimplePlayerHair(m_player, false);
+  attachSimplePlayerHair(m_player, PreviewPlace::Customizer);
   if (auto hair = getSimplePlayerHair(m_player).icon)
   {
     hair->setOnGround([this]
@@ -403,6 +403,11 @@ void CustomizerPopup::addRow(char const *key)
   if (std::string_view(key) == "@looks")
   {
     m_list->m_contentLayer->addChild(createLooksRow(kListSize.width));
+    return;
+  }
+  if (std::string_view(key) == "@emote-keys")
+  {
+    m_list->m_contentLayer->addChild(createEmoteKeysRow(kListSize.width));
     return;
   }
 

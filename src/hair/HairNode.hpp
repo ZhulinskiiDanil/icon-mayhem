@@ -7,6 +7,7 @@
 #include <Geode/Geode.hpp>
 #include <array>
 #include <functional>
+#include <optional>
 #include <random>
 
 // ! --- Hair node --- !
@@ -63,13 +64,21 @@ public:
   void setIsDead(std::function<bool()> fn) { m_isDeadFn = std::move(fn); }
   // In a level: the headphones glow to the level music (a slow idle glow otherwise)
   void setMusicDriven(bool enabled) { m_musicDriven = enabled; }
-  // In a level: the look can change with the game mode and for player 2 (see Looks.hpp).
-  // Previews always show the main look, the one being edited
-  void setUseLooks(bool enabled, bool playerTwo)
+  // The look to wear (a preset name, "" for the main look), asked every frame; see Looks.hpp.
+  // Without it the rig wears the main look, like the customizer preview that edits it
+  void setLook(std::function<std::string()> fn) { m_lookFn = std::move(fn); }
+  // Profile and menu icons follow the "Show in menus" setting
+  void setMenu(bool menu) { m_isMenu = menu; }
+
+  // A little speech bubble above the head, from the emote keys (or another player on Globed)
+  enum class Emote
   {
-    m_useLooks = enabled;
-    m_playerTwo = playerTwo;
-  }
+    Heart,
+    Note,
+    Exclaim,
+    Question,
+  };
+  void emote(Emote emote);
 
   // Gameplay events for the reactions
   void celebrate();
@@ -97,6 +106,7 @@ private:
     Ribbon,   // ribbon tail hanging from a bow
     Ear,      // soft ear on top of the head
     ScarfEnd, // end of the scarf fluttering behind
+    Trail,    // the long ribbon tied at the back of the head
   };
 
   // One lock of the hairstyle, generated once per config
@@ -148,6 +158,7 @@ private:
   // Scarf: where the knot is (back of the neck) and the band across the bottom of the head
   cocos2d::CCPoint scarfKnot(cocos2d::CCPoint const &headCenter) const;
   void drawScarfBand(cocos2d::CCDrawNode *node);
+  void drawRibbon(cocos2d::CCDrawNode *node);
   void drawEarInners(cocos2d::CCDrawNode *node);
   void updateEars(float dt);
 
@@ -166,6 +177,7 @@ private:
     Star,
     Zzz,
     Drop,
+    Trail, // left behind while moving: a heart, a star or a sparkle (the trail setting)
   };
   void updateParticles(float dt);
   void onDeath();
@@ -207,6 +219,7 @@ private:
   void updatePetAlone(float dt);
   void petReact(PetMood mood, float duration);
   void drawPet(cocos2d::CCDrawNode *node);
+  void drawEmote(cocos2d::CCDrawNode *node);
   void drawBlush(cocos2d::CCDrawNode *node);
   void drawParticles(cocos2d::CCDrawNode *node);
   // Fill color of a lock at a point along it: dyed tips and the shine are mixed in here
@@ -260,6 +273,7 @@ private:
   size_t m_ahogeStart = 0;
   size_t m_earsStart = 0;
   size_t m_scarfStart = 0;
+  size_t m_trailStart = 0; // the ribbon, drawn as a flat band
   size_t m_frontStart = 0;
   size_t m_bangsStart = 0;
   size_t m_ribbonsStart = 0;
@@ -320,6 +334,7 @@ private:
   float m_sparkleTimer = 0.f;
   float m_blushPop = 0.f; // 1 right after a landing, fades to 0
   float m_petalTimer = 0.f;
+  float m_trailTimer = 0.f;
   float m_idleTime = 0.f; // s standing still
   float m_sleepy = 0.f;   // 0 awake .. 1 asleep
   float m_zzzTimer = 0.f;
@@ -330,8 +345,7 @@ private:
   float m_beat = 0.f; // 0..1, the music pulse for the headphones
   bool m_musicDriven = false;
   cocos2d::CCNode *m_player = nullptr;
-  bool m_useLooks = false;
-  bool m_playerTwo = false;
+  std::function<std::string()> m_lookFn;
   std::string m_lookName; // "" is the main look
 
   float m_wingAngle = 0.f; // degrees the wings are raised by a flap
@@ -344,6 +358,9 @@ private:
   PetMood m_petMood = PetMood::Normal;
   float m_petMoodTime = 0.f; // s left of a happy mood
   unsigned m_petFrame = 0;   // last frame the pet was updated
+  float m_petTilt = 0.f;     // s left of a puzzled head tilt (the "?" emote)
+  std::optional<Emote> m_emote;
+  float m_emoteAge = 0.f; // s
   bool m_diedActive = false; // the rig was showing when the icon died, so the pet and the reactions play
 
   std::function<bool()> m_isDeadFn;
@@ -360,5 +377,6 @@ private:
   bool m_needsReset = true;
   bool m_idleWind = false;
   bool m_isGarage = false;
+  bool m_isMenu = false;
   bool m_debugDraw = false;
 };
