@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.2
+
+- Globed: big looks reach the other players too. The Globed server drops events over 1024 bytes, so a detailed look was lost on the way; looks now travel in small parts. Tested with Globed 2.2.3 builds
+
 ## v1.5.1
 
 - Globed: sharing looks and emotes waits for Globed 2.2.3. Globed 2.2.2 was released without the API other mods use, so nothing was sent. Icon Mayhem keeps asking and starts sharing as soon as Globed answers

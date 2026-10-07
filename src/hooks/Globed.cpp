@@ -10,6 +10,7 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 
+#include <optional>
 #include <set>
 #include <unordered_map>
 
@@ -26,6 +27,19 @@ namespace
   constexpr char const *kLookEvent = "zhulis.icon-mayhem/look";
   constexpr char const *kEmoteEvent = "zhulis.icon-mayhem/emote";
   constexpr float kScanEvery = .5f; // s between looking for new players and look changes
+
+  // The Globed server drops events over 1024 bytes and counts every started 512 bytes as one more
+  // event: a look goes in parts of at most this many bytes, each with a small header
+  constexpr size_t kLookPart = 500;
+  constexpr uint8_t kLookFormat = 1; // first header byte; a whole JSON look (v1.5.1) starts with '{'
+
+  // Parts of a look still arriving, by sender
+  struct PendingLook
+  {
+    uint8_t id = 0;
+    std::vector<std::optional<std::string>> parts;
+  };
+  std::unordered_map<int, PendingLook> s_pendingLooks;
 
   // Rigs of the other players in the current level, by their player id
   std::unordered_map<int, std::vector<WeakRef<HairNode>>> s_remoteRigs;
@@ -80,7 +94,60 @@ namespace
     return table && table->game && table->game->isActive();
   }
 
-  void send(char const *event, std::string const &payload, std::vector<int32_t> targets = {})
+  void send(char const *event, std::string const &payload, std::vector<int32_t> targets = {});
+
+  // Header: format, look id, part index, part count; then the part of the JSON
+  void sendLook(std::string const &look)
+  {
+    static uint8_t lookId = 0;
+    ++lookId;
+    size_t const count = std::max<size_t>(1, (look.size() + kLookPart - 1) / kLookPart);
+    for (size_t i = 0; i < count; ++i)
+    {
+      std::string part;
+      part += static_cast<char>(kLookFormat);
+      part += static_cast<char>(lookId);
+      part += static_cast<char>(i);
+      part += static_cast<char>(count);
+      part += look.substr(i * kLookPart, kLookPart);
+      send(kLookEvent, part);
+    }
+  }
+
+  // A whole look when all of its parts are here
+  std::optional<std::string> receiveLookPart(int sender, std::string const &payload)
+  {
+    if (!payload.empty() && payload.front() == '{')
+      return payload; // one piece, from Icon Mayhem v1.5.1
+    if (payload.size() < 4 || static_cast<uint8_t>(payload[0]) != kLookFormat)
+      return std::nullopt;
+
+    uint8_t const id = static_cast<uint8_t>(payload[1]);
+    size_t const index = static_cast<uint8_t>(payload[2]);
+    size_t const count = static_cast<uint8_t>(payload[3]);
+    if (count == 0 || index >= count)
+      return std::nullopt;
+
+    auto &pending = s_pendingLooks[sender];
+    if (pending.id != id || pending.parts.size() != count)
+    {
+      pending.id = id;
+      pending.parts.assign(count, std::nullopt);
+    }
+    pending.parts[index] = payload.substr(4);
+
+    std::string whole;
+    for (auto const &part : pending.parts)
+    {
+      if (!part)
+        return std::nullopt;
+      whole += *part;
+    }
+    s_pendingLooks.erase(sender);
+    return whole;
+  }
+
+  void send(char const *event, std::string const &payload, std::vector<int32_t> targets)
   {
     globed::EventOptions options;
     options.server = globed::EventServer::Game;
@@ -133,13 +200,16 @@ namespace
 
       if (name == kLookEvent)
       {
-        auto look = matjson::parse(payload);
+        auto whole = receiveLookPart(sender, payload);
+        if (!whole)
+          continue;
+        auto look = matjson::parse(*whole);
         if (!look || !look.unwrap().isObject())
         {
-          log::warn("Globed: a look from player {} is not valid JSON ({} bytes)", sender, payload.size());
+          log::warn("Globed: a look from player {} is not valid JSON ({} bytes)", sender, whole->size());
           continue;
         }
-        log::info("Globed: got the look of player {} ({} bytes)", sender, payload.size());
+        log::info("Globed: got the look of player {} ({} bytes)", sender, whole->size());
         looks::setRemote(sender, std::move(look).unwrap());
       }
       else if (name == kEmoteEvent && payload.size() == 1)
@@ -197,6 +267,7 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
   bool init(GJGameLevel *level, bool useReplay, bool dontCreateObjects)
   {
     s_remoteRigs.clear();
+    s_pendingLooks.clear();
     looks::clearRemotes();
     if (!PlayLayer::init(level, useReplay, dontCreateObjects))
       return false;
@@ -279,8 +350,9 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     if (look != fields->m_sentLook || newPlayer)
     {
       fields->m_sentLook = look;
-      send(kLookEvent, look);
-      log::info("Globed: sent our look to {} players ({} bytes)", fields->m_seen.size(), look.size());
+      sendLook(look);
+      log::info("Globed: sent our look to {} players ({} bytes in {} parts)", fields->m_seen.size(), look.size(),
+                (look.size() + kLookPart - 1) / kLookPart);
     }
   }
 };
