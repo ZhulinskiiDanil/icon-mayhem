@@ -34,8 +34,23 @@ namespace looks
   // The icon of this mode the player has on now
   int equippedIcon(GameMode mode);
 
-  // `icon` < 0: unknown, icon looks are skipped
-  std::string lookFor(bool playerTwo, GameMode mode, int icon = -1);
+  // Icons of More Icons, by their name: a look of their own the same way
+  std::string forCustomIcon(GameMode mode, std::string const &name);
+  void setForCustomIcon(GameMode mode, std::string const &name, std::string const &preset);
+  // The More Icons icon worn in a mode, "" for an icon of the game (or without More Icons)
+  std::string equippedCustomIcon(GameMode mode, bool dual = false);
+  // The preset linked to the icon worn in a mode: its More Icons icon, or its game icon
+  std::string linkedLook(GameMode mode);
+  // Ships, UFOs and jetpacks carry the cube: the hair sits on it, so its link counts there
+  GameMode linkModeOf(GameMode mode);
+  // The look a player wears now in a mode: the link of the icon (the cube in a vehicle), then the
+  // look of the mode (see lookFor)
+  std::string wornLook(bool playerTwo, GameMode mode);
+  IconType iconTypeOf(GameMode mode);
+
+  // `icon` < 0: unknown, icon looks are skipped. `custom`: the More Icons icon worn, its link
+  // counts instead of the game icon under it
+  std::string lookFor(bool playerTwo, GameMode mode, int icon = -1, std::string const &custom = "");
 
   // Config of a look: the preset on top of the mod settings, the mod settings alone for the main
   // look or a preset that doesn't exist anymore. Cached per settings version
@@ -44,6 +59,10 @@ namespace looks
   std::optional<matjson::Value> presetSettings(std::string const &name);
   // Presets were saved, deleted or imported: read them again
   void invalidate();
+  // A preset was renamed: the modes, player 2 and icons that wore it wear the new name
+  void renamePreset(std::string const &from, std::string const &to);
+  // The look name of a built-in preset, even when a saved preset has the same name
+  std::string builtInLook(std::string const &name);
 
   // Looks of other players on Globed, by their player id. configFor() reads them as "@remote:<id>",
   // a player without a look (no mod) wears nothing

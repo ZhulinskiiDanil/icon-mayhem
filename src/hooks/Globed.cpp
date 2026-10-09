@@ -167,7 +167,7 @@ namespace
 
     auto player = PlayLayer::get() ? PlayLayer::get()->m_player1 : nullptr;
     GameMode const mode = player ? gameModeOf(player) : GameMode::Cube;
-    auto const name = looks::lookFor(false, mode, looks::equippedIcon(mode));
+    auto const name = looks::wornLook(false, mode);
     if (built && name == payloadName && payloadVersion == HairConfig::version())
       return payload;
 
@@ -326,7 +326,8 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
         // The sender of a look is an account id, Globed lists player ids: wear whichever has a look
         std::vector<Ref<HairNode>> rigs;
         if (!attachLevelHair(static_cast<PlayerObject *>(visual), second, rigs, [id, account]
-                             { return looks::hasRemote(account) ? looks::remoteName(account) : looks::remoteName(id); }))
+                             { return looks::hasRemote(account) ? looks::remoteName(account) : looks::remoteName(id); },
+                             m_player1))
         {
           log::warn("Globed: can't dress player {} (account {}), its icon isn't in the level yet", id, account);
           continue;

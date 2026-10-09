@@ -462,7 +462,7 @@ void HairNode::drawRibbon(CCDrawNode *node)
   auto const color = this->lockColor(lock);
   auto const backSide = shaded(color, .72f);
   auto const edge = mixedWhite(color, .4f);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
   float const half = lock.width * .5f * scale;
 
   buildCurve(strands[m_trailStart], simToNode, 4, m_curve);
@@ -539,7 +539,7 @@ void HairNode::drawTies(CCDrawNode *node)
 
   auto const color = m_config.tieColorSource == HairColorSource::Hair ? this->hairColor()
                                                                       : this->sourceColor(m_config.tieColorSource, m_config.tieColor);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
   auto const &strands = m_sim.strands();
 
   // A soft ring at the root of the main lock of every tail
@@ -578,7 +578,7 @@ void HairNode::drawBows(CCDrawNode *node)
     CCPoint const anchor = this->bowAnchor(group, m_frameParams.headCenter, m_frameUp, across, &outwardSim);
     CCPoint const knot = CCPointApplyAffineTransform(anchor, simToNode);
     CCPoint const outward = normalized(applyVec(outwardSim, simToNode), {0.f, 1.f});
-    drawBowShape(node, knot, outward, m_bowWobble, size, color, outline);
+    drawBowShape(node, knot, outward, m_bowWobble, size, color, outline, this->ink(color.a));
   }
 }
 
@@ -590,7 +590,7 @@ void HairNode::drawEarInners(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
   auto const inner = premultiplied(m_config.earInnerColor, alpha);
   auto const tip = premultiplied({255, 255, 255}, alpha);
   auto const &strands = m_sim.strands();
@@ -628,7 +628,7 @@ void HairNode::drawScarfBand(CCDrawNode *node)
 
   auto const color = m_config.scarfColorSource == HairColorSource::Hair ? this->hairColor()
                                                                         : this->sourceColor(m_config.scarfColorSource, m_config.scarfColor);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
 
   // A band across the bottom of the face in the icon frame, dipping a little in the middle
   float const unit = m_simScale;
@@ -690,7 +690,7 @@ void HairNode::drawBraids(CCDrawNode *node, size_t from, size_t to)
   {
     auto const &lock = m_locks[s];
     auto const base = shaded(this->lockColor(lock), kBackShade + (1.f - kBackShade) * lock.depth);
-    auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, base.a};
+    auto const outlineColor = this->ink(base.a);
 
     buildCurve(strands[s], simToNode, 3, m_curve);
     if (m_curve.size() < 2)

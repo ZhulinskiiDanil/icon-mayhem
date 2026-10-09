@@ -175,7 +175,10 @@ void HairNode::updateDecor(float dt, CCPoint const &headCenter, CCPoint const &u
 
   this->updateParticles(dt);
 
-  if (m_config.sparkles != SparkleStyle::None && m_config.sparkleRate > 0.f)
+  // Focused: nothing new floats around the icon
+  bool const calm = m_focus < .5f;
+
+  if (calm && m_config.sparkles != SparkleStyle::None && m_config.sparkleRate > 0.f)
   {
     m_sparkleTimer += dt * m_config.sparkleRate * kParticlesPerSecond;
     for (; m_sparkleTimer >= 1.f; m_sparkleTimer -= 1.f)
@@ -183,7 +186,7 @@ void HairNode::updateDecor(float dt, CCPoint const &headCenter, CCPoint const &u
   }
 
   // A trail of little hearts, stars or sparkles left behind, more of them the faster you go
-  if (m_config.trail != TrailStyle::None && m_config.trail != TrailStyle::Ribbon)
+  if (calm && m_config.trail != TrailStyle::None && m_config.trail != TrailStyle::Ribbon)
   {
     float const pace = std::clamp(speed / kTrailFullSpeed, 0.f, 1.f);
     m_trailTimer += dt * kTrailPerSecond * pace;
@@ -191,7 +194,7 @@ void HairNode::updateDecor(float dt, CCPoint const &headCenter, CCPoint const &u
       this->spawnParticle(ParticleKind::Trail, headCenter, false);
   }
 
-  if (m_config.petals && m_config.petalAmount > 0.f)
+  if (calm && m_config.petals && m_config.petalAmount > 0.f)
   {
     auto const kind = m_config.weather == WeatherStyle::Snow     ? ParticleKind::Snow
                       : m_config.weather == WeatherStyle::Leaves ? ParticleKind::Leaf
@@ -266,6 +269,7 @@ void HairNode::updateParticles(float dt)
 void HairNode::onLanded(CCPoint const &headCenter, CCPoint const &, CCPoint const &)
 {
   m_idleTime = 0.f;
+  m_faceBlink = std::min(m_faceBlink, 0.f); // a squash blink
   m_landPop = 1.f;
 
   if (m_config.blush && m_config.blushPop)
@@ -287,6 +291,7 @@ void HairNode::burst(ParticleKind kind, int count, CCPoint const &headCenter)
 
 void HairNode::celebrate()
 {
+  this->setFaceMood(FaceMood::Happy, 2.5f);
   if (m_config.reactions)
     this->burst(ParticleKind::Heart, kCelebrateHearts, m_frameParams.headCenter);
   this->petReact(PetMood::Happy, 3.f);
@@ -294,6 +299,7 @@ void HairNode::celebrate()
 
 void HairNode::checkpointReached()
 {
+  this->setFaceMood(FaceMood::Happy, 1.2f);
   if (m_config.reactions)
     this->burst(ParticleKind::Sparkle, kCheckpointSparkles, m_frameParams.headCenter);
   this->petReact(PetMood::Happy, 1.5f);
@@ -301,6 +307,7 @@ void HairNode::checkpointReached()
 
 void HairNode::boosted(CCPoint const &up)
 {
+  this->setFaceMood(FaceMood::Surprised, .5f);
   if (!m_config.orbReaction || m_needsReset || !this->isActive())
     return;
 
@@ -470,7 +477,7 @@ void HairNode::drawParticles(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
   float const outline = m_config.outline ? kOutlineWidth * scale : 0.f;
 
   auto const sparkleColor = m_config.sparkleColorSource == HairColorSource::Hair
@@ -478,7 +485,7 @@ void HairNode::drawParticles(CCDrawNode *node)
                                 : this->sourceColor(m_config.sparkleColorSource, m_config.sparkleColor);
   auto const weatherColor = premultiplied(m_config.petalColor, alpha);
   auto const white = ccColor4F{alpha, alpha, alpha, alpha};
-  auto const black = ccColor4F{0.f, 0.f, 0.f, alpha};
+  auto const black = this->ink(alpha);
   CCPoint const up = normalized(applyVec(m_gravityDir ? m_gravityDir() * -1.f : CCPoint{0.f, 1.f}, simToNode), {0.f, 1.f});
 
   for (auto const &particle : m_particles)
@@ -488,7 +495,7 @@ void HairNode::drawParticles(CCDrawNode *node)
     float const fade = std::min(1.f, particle.age / .15f) * (t > .6f ? (1.f - t) / .4f : 1.f);
     CCPoint const center = CCPointApplyAffineTransform(particle.position, simToNode);
     CCPoint const turned = rotated(up, particle.rotation);
-    auto const own = faded(particle.tinted ? particle.color : weatherColor, fade);
+    auto const own = faded(particle.tinted ? faded(particle.color, m_fadeAlpha) : weatherColor, fade);
 
     switch (particle.kind)
     {
@@ -567,6 +574,8 @@ void HairNode::visitEffects(CCDrawNode *node)
   if (dead && !m_wasDead)
   {
     m_diedActive = frame - m_aliveFrame < 5;
+    // The death reactions show even in a hard part
+    m_focus = 0.f;
     if (m_diedActive)
     {
       this->onDeath();
@@ -598,11 +607,19 @@ void HairNode::visitEffects(CCDrawNode *node)
   {
     if (m_petFrame != frame)
       this->updatePetAlone(dt);
+    m_fadeAlpha = 1.f - m_focus * (1.f - m_config.focusOpacity);
     this->drawPet(node);
   }
 
+  // X eyes for a moment where the face was
+  m_deadAge = dead && m_diedActive ? m_deadAge + dt : 0.f;
+  if (dead && m_diedActive)
+    this->drawDeadFace(node, m_deadAge);
+
+  m_fadeAlpha = 1.f - m_focus;
   this->drawParticles(node);
   this->drawEmote(node);
+  m_fadeAlpha = 1.f;
 }
 
 // ! --- Emotes --- !
@@ -615,7 +632,7 @@ void HairNode::drawEmote(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
   float const outline = kOutlineWidth * scale;
 
   // Pops in with a little overshoot, floats up slowly, fades out at the end
@@ -634,7 +651,7 @@ void HairNode::drawEmote(CCDrawNode *node)
   CCPoint const center = anchor + right * (radius * .35f);
 
   auto const white = ccColor4F{fade, fade, fade, fade};
-  auto const black = ccColor4F{0.f, 0.f, 0.f, fade};
+  auto const black = this->ink(fade);
 
   // The bubble with its little tail pointing at the head
   std::array<CCPoint, 3> tail = {center - up * (radius * .55f) - right * (radius * .55f), center - up * (radius * .25f) - right * (radius * .05f),

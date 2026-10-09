@@ -133,6 +133,7 @@ enum class EarringStyle
   Hearts,
   Stars,
   Pearls,
+  Pendulum, // a long faceted drop under a little cap, like Yor's
 };
 
 enum class StreakPlacement
@@ -151,6 +152,72 @@ enum class TrailStyle
   Hearts,
   Stars,
   Sparkles,
+};
+
+enum class PetBehavior
+{
+  Float,
+  Run,
+};
+
+enum class CapeStyle
+{
+  None,
+  Cape,
+  ShortCape,
+  Flag,
+};
+
+enum class CapePattern
+{
+  Plain,
+  Stripes,
+  Stars,
+  Hearts,
+};
+
+enum class FaceStyle
+{
+  None,
+  Eyes,
+  EyesAndMouth,
+};
+
+enum class BangsStyle
+{
+  Straight,  // a neat fringe
+  Parted,    // combed to both sides from a part in the middle
+  SideSwept, // all combed to one side
+  OneSide,   // hair on one side of the face only
+};
+
+enum class FaceLook
+{
+  Onyx,           // big dark eyes, a red liner flick
+  Sapphire,       // blue to violet, streaks and sparkles
+  SapphireHearts, // the same with heart pupils
+  Crimson,        // black whites, a red ringed iris, red veins
+};
+
+// The mood of the eyes, in their shape (tools/make_eyes.py, EXPRESSIONS); the order of the textures
+enum class FaceShape
+{
+  Default,
+  Flirty,    // the lower lid pushed up by the cheek
+  Sultry,    // heavy half lids
+  Angry,     // slanted down to the nose
+  Kind,      // soft and drooping
+  Cheerful,  // round and lifted
+  Judging,   // a flat lid over a half eye
+  Sad,       // slanted up to the nose
+  Surprised, // wide open
+};
+
+enum class FocusMode
+{
+  Off,
+  Auto,
+  Always,
 };
 
 enum class Quality
@@ -183,6 +250,7 @@ enum class HairStyle
 
 struct HairConfig
 {
+  bool customization = true; // the master switch: off hides everything everywhere
   bool enabled = true;
   bool showInGarage = true;
   bool showInMenus = true; // your icons on your profile and the menu
@@ -190,6 +258,10 @@ struct HairConfig
   Quality quality = Quality::High;
   size_t maxParticles = 90;
   float simRate = 240.f; // simulation steps per second
+  // Focus mode: in hard parts the things floating around the icon fade, so nothing covers the view
+  FocusMode focusMode = FocusMode::Off;
+  float focusOpacity = .2f; // how visible faded things stay
+  bool focusHair = false;   // the hair and the face items fade too
   std::array<bool, static_cast<size_t>(GameMode::Count)> modes; // the whole rig is hidden in the modes turned off
   HairStyle style = HairStyle::Flowing;
   bool spinWithIcon = true;
@@ -209,6 +281,8 @@ struct HairConfig
   bool braidFaceLocks = false;
   float faceLockInsetX = 0.f; // towards the middle of the face
   float faceLockInsetY = 0.f; // down the face
+  float faceLockShiftX = 0.f; // both locks towards the front
+  float faceLockTilt = 0.f;   // icon units the front lock is higher than the back one
   HairColorSource faceLockColorSource = HairColorSource::Hair;
   cocos2d::ccColor3B faceLockColor = {58, 42, 128};
 
@@ -220,6 +294,9 @@ struct HairConfig
   float bangsArcSoftness = .5f; // 0 rounds only the ends, 1 makes one smooth arc
   float bangsInsetX = 0.f;     // to the right
   float bangsInsetY = 0.f;     // down the face
+  BangsStyle bangsStyle = BangsStyle::Straight;
+  bool bangsRight = true;        // the side Side swept combs to and One side covers
+  float bangsTransition = .5f;   // One side: 0 a sharp edge, 1 shorter and shorter
   HairColorSource bangsColorSource = HairColorSource::Hair;
   cocos2d::ccColor3B bangsColor = {58, 42, 128};
 
@@ -331,6 +408,7 @@ struct HairConfig
   HairColorSource petColorSource = HairColorSource::Custom;
   cocos2d::ccColor3B petColor = {245, 215, 181};
   bool petMoods = true; // sleeps, cheers and is sad with the icon
+  PetBehavior petBehavior = PetBehavior::Float; // Run: runs on the blocks of the level
 
   // Hat on the hairstyle
   HatStyle hat = HatStyle::None;
@@ -370,12 +448,34 @@ struct HairConfig
   float earringSize = 1.f;
   float earringLength = 2.5f; // icon units of chain
   float earringHeight = -4.f; // icon units from the middle of the head side
+  float earringInsetX = 0.f;  // both towards the middle of the face
   HairColorSource earringColorSource = HairColorSource::Custom;
   cocos2d::ccColor3B earringColor = {255, 210, 74};
   bool bell = false;
   float bellSize = 1.f;
   cocos2d::ccColor3B bellColor = {255, 210, 74};
   cocos2d::ccColor3B collarColor = {217, 48, 62};
+
+  // A cloth cape pinned on the back of the head, or a flag on a pole
+  CapeStyle cape = CapeStyle::None;
+  float capeLength = 30.f;
+  float capeWidth = 14.f; // the pinned edge, icon units
+  HairColorSource capeColorSource = HairColorSource::Custom;
+  cocos2d::ccColor3B capeColor = {217, 48, 62};
+  cocos2d::ccColor3B capeLining = {255, 210, 74};
+  CapePattern capePattern = CapePattern::Plain;
+
+  // A living face: eyes (and a mouth) that watch the level
+  FaceStyle face = FaceStyle::None;
+  FaceLook faceStyle = FaceLook::Onyx;
+  FaceShape faceShape = FaceShape::Default;
+  float faceX = 7.5f; // icon units from the middle to each eye
+  float faceY = 1.f;
+  float faceShiftX = 0.f; // both eyes towards the front
+  float faceTilt = 0.f;   // degrees the eye line turns, the front eye up
+  float faceScaleX = 1.f; // each eye stretched sideways
+  float faceScaleY = 1.f;
+  bool faceWatch = false; // look at spikes and orbs ahead, get scared (off while the eyes don't move)
 
   // Colored locks in the hair
   int streaks = 0;
@@ -409,6 +509,7 @@ struct HairConfig
   HairColorSource colorSource = HairColorSource::Secondary;
   cocos2d::ccColor3B customColor = {58, 42, 128};
   bool outline = true;
+  cocos2d::ccColor3B outlineColor = {0, 0, 0};
 
   // Hair look
   bool hairShine = false;

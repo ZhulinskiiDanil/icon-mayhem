@@ -4,6 +4,8 @@
 #include "../presets/Looks.hpp"
 
 #include <Geode/Geode.hpp>
+#include <deque>
+#include <chrono>
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/PlayerObject.hpp>
 
@@ -42,8 +44,8 @@ namespace
     return body->m_headSprite ? static_cast<CCSprite *>(body->m_headSprite) : body;
   }
 
-  HairNode *setupHair(HairNode *hair, PlayerObject *player, std::function<std::string()> const &look,
-                      std::function<bool()> modeMatches)
+  HairNode *setupHair(HairNode *hair, PlayerObject *player, PlayerObject *focusOf,
+                      std::function<std::string()> const &look, std::function<bool()> modeMatches)
   {
     if (!hair)
       return nullptr;
@@ -61,6 +63,8 @@ namespace
     hair->setMusicDriven(true);
     hair->setPlayer(player);
     hair->setLook(look);
+    hair->setFocusSignal([focusOf]
+                         { return focusSignal(focusOf); });
     return hair;
   }
 }
@@ -87,10 +91,13 @@ GameMode gameModeOf(PlayerObject *player)
   return GameMode::Cube;
 }
 
-bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<Ref<HairNode>> &nodes, std::function<std::string()> look)
+bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<Ref<HairNode>> &nodes, std::function<std::string()> look,
+                     PlayerObject *focusOf)
 {
   if (!player || !player->getParent())
     return false;
+  if (!focusOf)
+    focusOf = player;
 
   // By default the player wears its own looks: of the icon, of the game mode, for player 2
   if (!look)
@@ -98,7 +105,7 @@ bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<Ref<HairN
     look = [player, playerTwo]
     {
       auto const mode = gameModeOf(player);
-      return looks::lookFor(playerTwo, mode, looks::equippedIcon(mode));
+      return looks::wornLook(playerTwo, mode);
     };
   }
 
@@ -107,7 +114,7 @@ bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<Ref<HairN
   auto secondary = player->m_iconSpriteSecondary;
 
   auto iconHair = setupHair(HairNode::attach(player->m_iconSprite, player->m_iconSprite, primary, secondary, simSpace),
-                            player, look, [player]
+                            player, focusOf, look, [player]
                             { return usesIconSprite(player); });
   if (iconHair)
   {
@@ -121,7 +128,7 @@ bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<Ref<HairN
   if (auto robot = player->m_robotSprite)
   {
     if (auto hair = setupHair(HairNode::attach(headOf(robot), robot, primary, secondary, simSpace),
-                              player, look, [player]
+                              player, focusOf, look, [player]
                               { return player->m_isRobot; }))
       nodes.push_back(hair);
   }
@@ -129,7 +136,7 @@ bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<Ref<HairN
   if (auto spider = player->m_spiderSprite)
   {
     if (auto hair = setupHair(HairNode::attach(headOf(spider), spider, primary, secondary, simSpace),
-                              player, look, [player]
+                              player, focusOf, look, [player]
                               { return player->m_isSpider; }))
       nodes.push_back(hair);
   }
@@ -193,10 +200,52 @@ class $modify(HairPlayLayer, PlayLayer)
   }
 };
 
-// ! --- Orbs and pads --- !
+// ! --- Orbs, pads and clicks --- !
+
+namespace
+{
+  constexpr double kClickWindow = 1.5;     // s of jump presses that count
+  constexpr float kBusyClicks = 5.f;       // presses in the window that make it a hard part
+  constexpr float kCalmClicks = 2.f;       // presses in the window that still count as calm
+  constexpr float kFastSpeed = 1.f;        // player speed where it starts (normal is .9, fast 1.1)
+  constexpr float kFastestSpeed = 1.3f;    // fully focused from "faster" on
+
+  double now()
+  {
+    using namespace std::chrono;
+    return duration<double>(steady_clock::now().time_since_epoch()).count();
+  }
+}
 
 class $modify(HairPlayerObject, PlayerObject)
 {
+  struct Fields
+  {
+    std::deque<double> m_presses; // times of recent jump presses
+  };
+
+  bool pushButton(PlayerButton button)
+  {
+    bool const result = PlayerObject::pushButton(button);
+    if (button == PlayerButton::Jump)
+    {
+      auto &presses = m_fields->m_presses;
+      presses.push_back(now());
+      while (presses.size() > 32)
+        presses.pop_front();
+    }
+    return result;
+  }
+
+  float busyness()
+  {
+    auto &presses = m_fields->m_presses;
+    double const since = now() - kClickWindow;
+    while (!presses.empty() && presses.front() < since)
+      presses.pop_front();
+    return std::clamp((static_cast<float>(presses.size()) - kCalmClicks) / (kBusyClicks - kCalmClicks), 0.f, 1.f);
+  }
+
   // Tells the player's rigs when an orb or a pad changed its vertical speed
   void notifyBoost(double velocityBefore)
   {
@@ -231,6 +280,14 @@ class $modify(HairPlayerObject, PlayerObject)
     this->notifyBoost(before);
   }
 };
+
+float focusSignal(PlayerObject *player)
+{
+  if (!player)
+    return 0.f;
+  float const speed = std::clamp((player->m_playerSpeed - kFastSpeed) / (kFastestSpeed - kFastSpeed), 0.f, 1.f);
+  return std::max(speed, static_cast<HairPlayerObject *>(player)->busyness());
+}
 
 // ! --- Emotes --- !
 

@@ -4,6 +4,8 @@
 #include <Geode/ui/SliderNode.hpp>
 #include <Geode/ui/TextInput.hpp>
 
+#include <functional>
+
 // ! --- Setting row --- !
 // One row of the customizer list, built from a mod setting by its type:
 // title, toggle, slider with a text input (int / float), arrows (string with options)
@@ -17,6 +19,11 @@ public:
 
   // Pulls the value from the setting again, after a reset for example
   void refresh();
+  // Runs after the player changed the value
+  void setOnChange(std::function<void()> onChange) { m_onChange = std::move(onChange); }
+  // The row heads a block of settings: the block name in gold instead of the setting name,
+  // starting at `left`. Gives where the name ends
+  float useAsHeader(std::string const &title, float left, bool dim);
 
 private:
   bool init(std::shared_ptr<geode::SettingV3> setting, float width);
@@ -40,7 +47,12 @@ private:
   double numberMax() const;
   double numberSnap() const;
 
+  void changed();
+
   std::shared_ptr<geode::SettingV3> m_setting;
+  std::function<void()> m_onChange;
+  cocos2d::CCLabelBMFont *m_label = nullptr;
+  CCMenuItemSpriteExtra *m_info = nullptr;
   float m_width = 0.f;
 
   cocos2d::CCMenu *m_menu = nullptr;

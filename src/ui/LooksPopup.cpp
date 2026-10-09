@@ -1,4 +1,7 @@
 #include "LooksPopup.hpp"
+#include "Buttons.hpp"
+#include "LinkerPopup.hpp"
+#include "PresetPicker.hpp"
 #include <Geode/ui/GeodeUI.hpp>
 #include "../presets/Looks.hpp"
 #include "../presets/Presets.hpp"
@@ -22,14 +25,12 @@ namespace
   constexpr float kResetSpace = 24.f; // left of the row name, for the reset button
 
   constexpr char const *kMainLook = "Main look";
-  constexpr char const *kPlayerOneHint = "Your icon wears the look of its game mode (an icon look wins).\n"
+  constexpr char const *kPlayerOneHint = "Your icon wears the look of its game mode (an icon linked in the Linker wins).\n"
                                          "Modes left at \"Main look\" wear the loaded preset";
   constexpr char const *kPlayerTwoHint = "The second icon in dual: its own look of the mode first,\n"
                                          "then \"All modes\", then player 1's look of the mode";
-  constexpr char const *kIconsHint = "A look for one icon wins over the look of its game mode.\n"
-                                     "Change your icon in the garage, it changes the look too";
-  constexpr std::array<char const *, 3> kTabNames = {"Player 1", "Player 2", "Icons"};
-  constexpr std::array<char const *, 3> kHints = {kPlayerOneHint, kPlayerTwoHint, kIconsHint};
+  constexpr std::array<char const *, 2> kTabNames = {"Player 1", "Player 2"};
+  constexpr std::array<char const *, 2> kHints = {kPlayerOneHint, kPlayerTwoHint};
 }
 
 // ! --- Creation --- !
@@ -75,16 +76,6 @@ bool LooksPopup::initLooks(Tab tab)
   m_mainLayer->addChildAtPosition(scrollbar, Anchor::BottomLeft,
                                   {kListOrigin.x + kListSize.width + 8.f, kListOrigin.y + kListSize.height / 2.f});
 
-  // The main look, the shipped presets, then the player's own
-  m_options.push_back("");
-  for (auto const &preset : presets::builtIn())
-    m_options.push_back(preset.name);
-  for (auto const &preset : presets::list())
-  {
-    if (std::find(m_options.begin(), m_options.end(), preset.name) == m_options.end())
-      m_options.push_back(preset.name);
-  }
-
   this->buildTabs();
   this->buildRows();
   return true;
@@ -101,8 +92,7 @@ void LooksPopup::buildTabs()
   for (size_t i = 0; i < kTabNames.size(); ++i)
   {
     auto const tab = static_cast<Tab>(i);
-    auto sprite = ButtonSprite::create(kTabNames[i], 70, true, "goldFont.fnt",
-                                       tab == m_tab ? "GJ_button_01.png" : "GJ_button_04.png", 24.f, .6f);
+    auto sprite = textButton(kTabNames[i], 70.f, tab == m_tab ? "GJ_button_01.png" : "GJ_button_04.png");
     m_tabs[i] = sprite;
     // Recolors the buttons instead of rebuilding the menu that is handling this touch
     auto button = CCMenuItemExt::createSpriteExtra(sprite, [this, tab](auto)
@@ -117,6 +107,15 @@ void LooksPopup::buildTabs()
                                                    });
     m_tabMenu->addChild(button);
   }
+
+  // Presets of single icons live in the Linker
+  auto linker = CCMenuItemExt::createSpriteExtra(textButton("Linker", 70.f, "GJ_button_02.png"), [](auto)
+                                                 {
+                                                   if (auto popup = LinkerPopup::create())
+                                                     popup->show();
+                                                 });
+  linker->setID("linker-button");
+  m_tabMenu->addChild(linker);
   m_tabMenu->updateLayout();
   m_mainLayer->addChildAtPosition(m_tabMenu, Anchor::Top, {0.f, -44.f});
 }
@@ -137,51 +136,20 @@ void LooksPopup::buildRows()
 {
   m_list->m_contentLayer->removeAllChildren();
 
-  if (m_tab == Tab::Icons)
+  // Player 2 falls back to its look for all modes, then to the icon and player 1's looks
+  bool const two = m_tab == Tab::PlayerTwo;
+  if (two)
   {
-    // The icons you have on now, then every other icon that has a look
-    addSectionLabel("Your icons");
-    for (size_t i = 0; i < static_cast<size_t>(GameMode::Count); ++i)
-    {
-      auto const mode = static_cast<GameMode>(i);
-      int const icon = looks::equippedIcon(mode);
-      m_list->m_contentLayer->addChild(this->createRow(fmt::format("{} #{}", looks::modeName(mode), icon), "Mode look", [mode, icon]
-                                                       { return looks::forIcon(mode, icon); }, [mode, icon](std::string const &name)
-                                                       { looks::setForIcon(mode, icon, name); }));
-    }
-
-    bool labelled = false;
-    for (auto const &[mode, icon] : looks::iconsWithLooks())
-    {
-      if (icon == looks::equippedIcon(mode))
-        continue;
-      if (!labelled)
-      {
-        addSectionLabel("Other icons");
-        labelled = true;
-      }
-      m_list->m_contentLayer->addChild(this->createRow(fmt::format("{} #{}", looks::modeName(mode), icon), "Mode look", [mode, icon]
-                                                       { return looks::forIcon(mode, icon); }, [mode, icon](std::string const &name)
-                                                       { looks::setForIcon(mode, icon, name); }));
-    }
+    m_list->m_contentLayer->addChild(this->createRow("All modes", "Same as player 1", []
+                                                     { return looks::forPlayerTwo(); }, [](std::string const &name)
+                                                     { looks::setForPlayerTwo(name); }));
   }
-  else
+  for (size_t i = 0; i < static_cast<size_t>(GameMode::Count); ++i)
   {
-    // Player 2 falls back to its look for all modes, then to the icon and player 1's looks
-    bool const two = m_tab == Tab::PlayerTwo;
-    if (two)
-    {
-      m_list->m_contentLayer->addChild(this->createRow("All modes", "Same as player 1", []
-                                                       { return looks::forPlayerTwo(); }, [](std::string const &name)
-                                                       { looks::setForPlayerTwo(name); }));
-    }
-    for (size_t i = 0; i < static_cast<size_t>(GameMode::Count); ++i)
-    {
-      auto const mode = static_cast<GameMode>(i);
-      m_list->m_contentLayer->addChild(this->createRow(looks::modeName(mode), two ? "Same as all modes" : kMainLook, [mode, two]
-                                                       { return looks::forMode(mode, two); }, [mode, two](std::string const &name)
-                                                       { looks::setForMode(mode, two, name); }));
-    }
+    auto const mode = static_cast<GameMode>(i);
+    m_list->m_contentLayer->addChild(this->createRow(looks::modeName(mode), two ? "Same as all modes" : kMainLook, [mode, two]
+                                                     { return looks::forMode(mode, two); }, [mode, two](std::string const &name)
+                                                     { looks::setForMode(mode, two, name); }));
   }
 
   m_list->m_contentLayer->updateLayout();
@@ -236,24 +204,28 @@ CCNode *LooksPopup::createRow(std::string const &label, char const *unset, std::
   *resetButton = reset;
   show();
 
-  for (int dir : {-1, 1})
-  {
-    auto sprite = CCSprite::createWithSpriteFrameName("navArrowBtn_001.png");
-    sprite->setScale(.3f);
-    sprite->setFlipX(dir < 0);
-    auto arrow = CCMenuItemExt::createSpriteExtra(sprite, [this, dir, current, assign, show](auto)
-                                                  {
-                                                    auto const name = current();
-                                                    auto it = std::find(m_options.begin(), m_options.end(), name);
-                                                    int index = it == m_options.end() ? 0 : static_cast<int>(it - m_options.begin());
-                                                    int const count = static_cast<int>(m_options.size());
-                                                    index = (index + dir + count) % count;
-                                                    assign(m_options[static_cast<size_t>(index)]);
-                                                    show();
-                                                  });
-    arrow->setPosition({dir < 0 ? kListSize.width - 10.f - kChoiceWidth + 6.f : kListSize.width - 16.f, centerY});
-    menu->addChild(arrow);
-  }
+  // The preset in a box: one tap opens the list with search
+  auto box = NineSlice::create("square02b_001.png");
+  box->setColor({0, 0, 0});
+  box->setOpacity(90);
+  box->setContentSize({kChoiceWidth, kRowHeight - 6.f});
+  auto choose = CCMenuItemExt::createSpriteExtra(box, [label, unset, current, assign, show](auto)
+                                                 {
+                                                   auto picker = PresetPicker::create(label, current(), unset, [assign, show](std::string const &name)
+                                                                                      {
+                                                                                        assign(name);
+                                                                                        show();
+                                                                                      });
+                                                   if (picker)
+                                                     picker->show();
+                                                 });
+  choose->m_scaleMultiplier = 1.03f;
+  choose->setPosition({kListSize.width - 10.f - kChoiceWidth / 2.f, centerY});
+  menu->addChild(choose);
+  // The name on top of the box
+  value->removeFromParent();
+  value->setZOrder(1);
+  row->addChild(value);
 
   return row;
 }
@@ -265,7 +237,7 @@ CCNode *createLooksRow(float width)
   auto row = CCNode::create();
   row->setContentSize({width, 30.f});
 
-  auto label = CCLabelBMFont::create("Looks per mode and icon", "bigFont.fnt");
+  auto label = CCLabelBMFont::create("Looks per mode", "bigFont.fnt");
   label->setScale(.4f);
   label->setAnchorPoint({0.f, .5f});
   label->setPosition({8.f, 15.f});
@@ -276,7 +248,7 @@ CCNode *createLooksRow(float width)
   menu->setContentSize(row->getContentSize());
   row->addChild(menu);
 
-  auto sprite = ButtonSprite::create("Edit", 40, true, "goldFont.fnt", "GJ_button_01.png", 22.f, .6f);
+  auto sprite = textButton("Edit", 40.f, "GJ_button_01.png", 22.f);
   auto button = CCMenuItemExt::createSpriteExtra(sprite, [](auto)
                                                  {
                                                    if (auto popup = LooksPopup::create())
@@ -306,7 +278,7 @@ CCNode *createEmoteKeysRow(float width)
   menu->setContentSize(row->getContentSize());
   row->addChild(menu);
 
-  auto sprite = ButtonSprite::create("Keys", 40, true, "goldFont.fnt", "GJ_button_01.png", 22.f, .6f);
+  auto sprite = textButton("Keys", 40.f, "GJ_button_01.png", 22.f);
   auto button = CCMenuItemExt::createSpriteExtra(sprite, [](auto)
                                                  { openSettingsPopup(Mod::get(), false); });
   button->setPosition({width - 34.f, 15.f});

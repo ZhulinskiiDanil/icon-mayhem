@@ -8,7 +8,7 @@
 	},
 	"id": "zhulis.icon-mayhem",
 	"name": "Icon Mayhem",
-	"version": "v1.5.2",
+	"version": "v1.6.0",
 	"developer": "Zhulis",
 	"description": "Cute and crazy icon customizations: physics-based hair, accessories, wings, a pet and effects",
 	"repository": "https://github.com/ZhulinskiiDanil/icon-mayhem",
@@ -18,11 +18,16 @@
 		"dankmeme.globed2": {
 			"version": ">=v2.2.0",
 			"required": false
+		},
+		"hiimjustin000.more_icons": {
+			"version": ">=v2.0.0",
+			"required": false
 		}
 	},
 	"resources": {
 		"sprites": [
-			"resources/*.png"
+			"resources/*.png",
+			"resources/eyes/*.png", "resources/icons/*.png"
 		],
 		"files": [
 			"resources/presets/*.json"
@@ -32,6 +37,12 @@
 		"general-title": {
 			"type": "title",
 			"name": "General"
+		},
+		"customization": {
+			"name": "Customization",
+			"description": "Turns everything off at once (hair, accessories, the pet, effects) in levels, the garage and menus. Your look stays as it is for when you turn it back on",
+			"type": "bool",
+			"default": true
 		},
 		"show-in-garage": {
 			"name": "Show in garage",
@@ -51,6 +62,35 @@
 			"type": "string",
 			"default": "High",
 			"one-of": ["High", "Balanced", "Low"]
+		},
+		"focus-title": {
+			"type": "title",
+			"name": "Focus",
+			"description": "Nothing covers your view in hard parts: the things floating around the icon fade and come back when it calms down"
+		},
+		"focus-mode": {
+			"name": "Focus mode",
+			"description": "Auto: fades at faster speeds and when you click a lot. Always: faded in every level. The hair stays unless you turn on the option below",
+			"type": "string",
+			"default": "Off",
+			"one-of": ["Off", "Auto", "Always"]
+		},
+		"focus-opacity": {
+			"name": "Faded opacity",
+			"description": "How visible the pet, wings and halo stay while focused, 0 hides them. The trail, weather and particles always hide",
+			"type": "float",
+			"default": 0.2,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
+		},
+		"focus-hair": {
+			"name": "Fade the hair too",
+			"description": "The hair, the face locks and everything on the face fade as well while focused",
+			"type": "bool",
+			"default": false
 		},
 		"modes-title": {
 			"type": "title",
@@ -296,6 +336,28 @@
 				"slider": true
 			}
 		},
+		"face-lock-shift-x": {
+			"name": "Face lock shift",
+			"description": "Moves both face locks sideways together in icon units, positive towards the front",
+			"type": "float",
+			"default": 0,
+			"min": -10,
+			"max": 10,
+			"control": {
+				"slider": true
+			}
+		},
+		"face-lock-tilt": {
+			"name": "Face lock tilt",
+			"description": "One face lock higher and the other lower, in icon units. Positive raises the front lock",
+			"type": "float",
+			"default": 0,
+			"min": -15,
+			"max": 15,
+			"control": {
+				"slider": true
+			}
+		},
 		"face-lock-color": {
 			"name": "Face lock color",
 			"description": "Same as the hair, the icon colors or the custom color below",
@@ -317,6 +379,31 @@
 			"description": "Short hair falling over the top of the face",
 			"type": "bool",
 			"default": false
+		},
+		"bangs-style": {
+			"name": "Bangs style",
+			"description": "Straight: a neat fringe. Parted: combed to both sides from a part in the middle, like Frieren. Side swept: all combed to one side, longer there. One side: hair only on one side of the face",
+			"type": "string",
+			"default": "Straight",
+			"one-of": ["Straight", "Parted", "Side swept", "One side"]
+		},
+		"bangs-side": {
+			"name": "Bangs side",
+			"description": "The side Side swept combs to and One side covers",
+			"type": "string",
+			"default": "Right",
+			"one-of": ["Left", "Right"]
+		},
+		"bangs-transition": {
+			"name": "Bangs edge",
+			"description": "One side: 0 cuts the hair off sharply in the middle, 1 makes it shorter and shorter towards the bare side",
+			"type": "float",
+			"default": 0.5,
+			"min": 0,
+			"max": 1,
+			"control": {
+				"slider": true
+			}
 		},
 		"bangs-length": {
 			"name": "Bangs length",
@@ -460,6 +547,98 @@
 			"name": "Clip custom color",
 			"type": "color",
 			"default": "#FFD84A"
+		},
+		"face-title": {
+			"type": "title",
+			"name": "Face",
+			"description": "Detailed anime eyes. Needs Quality: High"
+		},
+		"face": {
+			"name": "Face",
+			"description": "Eyes, or eyes and a mouth, drawn on the icon",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Eyes", "Eyes and mouth"]
+		},
+		"face-style": {
+			"name": "Eye style",
+			"description": "Onyx: big dark eyes with a red liner flick. Sapphire: blue to violet with streaks and sparkles, also with heart pupils. Crimson: black whites, a red ringed iris and red veins",
+			"type": "string",
+			"default": "Onyx",
+			"one-of": ["Onyx", "Sapphire", "Sapphire hearts", "Crimson"]
+		},
+		"face-shape": {
+			"name": "Eye shape",
+			"description": "The mood is in the shape. Flirty: the lower lid pushed up by the cheek. Sultry: heavy half lids. Angry: slanted down to the nose. Kind: soft and drooping. Cheerful: round and lifted. Judging: a flat lid over a half eye. Sad: slanted up to the nose. Surprised: wide open",
+			"type": "string",
+			"default": "Default",
+			"one-of": ["Default", "Flirty", "Sultry", "Angry", "Kind", "Cheerful", "Judging", "Sad", "Surprised"]
+		},
+		"face-x": {
+			"name": "Eye spread",
+			"description": "Icon units from the middle of the face to each eye",
+			"type": "float",
+			"default": 7.5,
+			"min": 2,
+			"max": 12,
+			"control": {
+				"slider": true
+			}
+		},
+		"face-shift-x": {
+			"name": "Eye shift",
+			"description": "Moves both eyes sideways together in icon units, positive towards the front",
+			"type": "float",
+			"default": 0,
+			"min": -10,
+			"max": 10,
+			"control": {
+				"slider": true
+			}
+		},
+		"face-tilt": {
+			"name": "Eye tilt",
+			"description": "Turns the line between the eyes in degrees, the eyes turn with it. Positive raises the front eye",
+			"type": "float",
+			"default": 0,
+			"min": -30,
+			"max": 30,
+			"control": {
+				"slider": true
+			}
+		},
+		"face-y": {
+			"name": "Eye position",
+			"description": "Icon units from the middle of the face, up is positive",
+			"type": "float",
+			"default": 1,
+			"min": -10,
+			"max": 10,
+			"control": {
+				"slider": true
+			}
+		},
+		"face-scale-x": {
+			"name": "Eye width",
+			"description": "Stretches each eye sideways (not the distance between them)",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
+		},
+		"face-scale-y": {
+			"name": "Eye height",
+			"description": "Stretches each eye up and down",
+			"type": "float",
+			"default": 1,
+			"min": 0.5,
+			"max": 2,
+			"control": {
+				"slider": true
+			}
 		},
 		"tails-title": {
 			"type": "title",
@@ -936,6 +1115,65 @@
 			"type": "color",
 			"default": "#FFFFFF"
 		},
+		"cape-title": {
+			"type": "title",
+			"name": "Cape",
+			"description": "Real cloth: it streams behind you, hangs when you stand and shows its lining when it turns over"
+		},
+		"cape": {
+			"name": "Cape",
+			"description": "A cape on the back of the head, a short cape, or a flag on a little pole",
+			"type": "string",
+			"default": "None",
+			"one-of": ["None", "Cape", "Short cape", "Flag"]
+		},
+		"cape-length": {
+			"name": "Cape length",
+			"description": "How long the cloth is, in icon units",
+			"type": "float",
+			"default": 30,
+			"min": 10,
+			"max": 60,
+			"control": {
+				"slider": true
+			}
+		},
+		"cape-width": {
+			"name": "Cape width",
+			"description": "Length of the edge pinned to the head (the flag: to the pole)",
+			"type": "float",
+			"default": 14,
+			"min": 6,
+			"max": 24,
+			"control": {
+				"slider": true
+			}
+		},
+		"cape-color": {
+			"name": "Cape color",
+			"description": "Same as the hair, an icon color or the custom color below",
+			"type": "string",
+			"default": "Custom",
+			"one-of": ["Hair", "Primary", "Secondary", "Custom"]
+		},
+		"cape-custom-color": {
+			"name": "Custom color",
+			"type": "color",
+			"default": "#D9303E"
+		},
+		"cape-lining": {
+			"name": "Lining color",
+			"description": "The other side of the cloth, also the pattern color",
+			"type": "color",
+			"default": "#FFD24A"
+		},
+		"cape-pattern": {
+			"name": "Cape pattern",
+			"description": "Plain, stripes, little stars or hearts",
+			"type": "string",
+			"default": "Plain",
+			"one-of": ["Plain", "Stripes", "Stars", "Hearts"]
+		},
 		"pet-title": {
 			"type": "title",
 			"name": "Pet"
@@ -986,6 +1224,13 @@
 			"description": "The pet falls asleep with you, cheers on checkpoints and level completes and is sad when you die",
 			"type": "bool",
 			"default": true
+		},
+		"pet-behavior": {
+			"name": "Pet behavior",
+			"description": "Float behind you, or run on the blocks of the level: it jumps over spikes, catches up and rides on your head in the ship, UFO, wave, swing and jetpack",
+			"type": "string",
+			"default": "Float",
+			"one-of": ["Float", "Run"]
 		},
 		"hat-title": {
 			"type": "title",
@@ -1160,10 +1405,10 @@
 		},
 		"earrings": {
 			"name": "Earrings",
-			"description": "Earrings on both sides of the head that swing when you move",
+			"description": "Earrings on both sides of the head that swing when you move. Pendulum: a long faceted gold drop, like Yor's",
 			"type": "string",
 			"default": "None",
-			"one-of": ["None", "Drops", "Hearts", "Stars", "Pearls"]
+			"one-of": ["None", "Drops", "Hearts", "Stars", "Pearls", "Pendulum"]
 		},
 		"earring-size": {
 			"name": "Earring size",
@@ -1194,6 +1439,17 @@
 			"default": -4,
 			"min": -12,
 			"max": 8,
+			"control": {
+				"slider": true
+			}
+		},
+		"earring-inset-x": {
+			"name": "Earring inset X",
+			"description": "Moves both earrings towards the middle of the face in icon units, negative moves them out",
+			"type": "float",
+			"default": 0,
+			"min": -6,
+			"max": 12,
 			"control": {
 				"slider": true
 			}
@@ -1383,9 +1639,15 @@
 		},
 		"outline": {
 			"name": "Outline",
-			"description": "Draw a black outline like the icon has",
+			"description": "Draw an outline like the icon has",
 			"type": "bool",
 			"default": true
+		},
+		"outline-color": {
+			"name": "Outline color",
+			"description": "Black like the icon, or soft lines: a dark plum or brown looks like anime line art",
+			"type": "color",
+			"default": "#000000"
 		},
 		"hair-shine": {
 			"name": "Hair shine",

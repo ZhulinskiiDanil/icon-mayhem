@@ -35,6 +35,8 @@ namespace presets
   Preset surpriseColors();
   // The current look with every part of the hair (face locks, bangs, tails, ears) colored like the hair
   Preset matchColors();
+  // Nothing on the icon: every look setting at its default and the hair off, to build a look from scratch
+  void applyEmpty();
 
   // Default values of every look setting, and a look without the settings at their defaults
   // (small enough to send to other players)
@@ -56,14 +58,35 @@ namespace presets
   // A saved preset by name, or a built-in one
   std::optional<Preset> find(std::string_view name);
 
-  // Favorites, switched through from the pause menu
-  std::vector<std::string> favorites();
-  bool isFavorite(std::string_view name);
-  void setFavorite(std::string_view name, bool favorite);
-  // Applies the favorite after the one applied last, gives its name (nothing without favorites)
-  std::optional<std::string> applyNextFavorite();
   // Overwrites a saved preset with the same name
   geode::Result<> save(Preset const &preset);
   geode::Result<> remove(std::string_view name);
+  // Renames a saved preset, the looks that wear it go along
+  geode::Result<> rename(std::string_view from, std::string const &to);
+  // `base`, or "base 2", "base 3"... the first name no saved preset has
+  std::string uniqueName(std::string const &base);
+
+  // The current look and the preset it came from: the one loaded or saved last. Empty when it
+  // came from none (an empty look, or that preset was deleted)
+  std::string current();
+  bool currentIsBuiltIn();
+  // The current look now is the preset `name`: changes are counted from here
+  void markCurrent(std::string_view name, bool builtIn);
+  // The look changed since it was loaded or saved
+  bool modified();
+  // Applies a preset as the current look
+  void load(Preset const &preset);
+  // A look from no preset that is exactly one of the saved presets becomes that preset
+  // (looks from before the mod remembered where they came from)
+  void adoptMatchingPreset();
+
+  // Saved presets loaded or saved lately, the latest first
+  std::vector<std::string> recent();
+
+  // Editing the look of an icon in the customizer: the main look and the preset it came from
+  // wait aside, saved, so even a restart in the middle brings them back
+  void stashMainLook();
+  bool hasStashedLook();
+  void restoreMainLook();
   geode::Result<> writeFile(Preset const &preset, std::filesystem::path const &path);
 }

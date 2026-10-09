@@ -16,8 +16,42 @@ namespace
 {
   constexpr char const *kFormat = "icon-mayhem-preset";
   constexpr int kVersion = 1;
-  constexpr char const *kFavoritesSave = "favorite-presets";
-  constexpr char const *kLastQuickSave = "last-quick-preset";
+  constexpr char const *kCurrentSave = "current-preset";
+  constexpr char const *kCurrentBuiltInSave = "current-preset-built-in";
+  constexpr char const *kBaselineSave = "current-preset-look"; // the look when it was loaded or saved
+  constexpr char const *kRecentSave = "recent-presets";
+  constexpr char const *kStashSave = "stashed-main-look";
+  constexpr size_t kMaxRecent = 64;
+
+  void replaceName(std::vector<std::string> &names, std::string_view from, std::string const &to)
+  {
+    for (auto &name : names)
+    {
+      if (name == from)
+        name = to;
+    }
+  }
+
+  // Put on the top of the recent list
+  void touch(std::string_view name)
+  {
+    auto list = Mod::get()->getSavedValue<std::vector<std::string>>(kRecentSave, {});
+    std::erase(list, std::string(name));
+    list.insert(list.begin(), std::string(name));
+    if (list.size() > kMaxRecent)
+      list.resize(kMaxRecent);
+    Mod::get()->setSavedValue(kRecentSave, list);
+  }
+
+  // Values of a setting are the same; colors may differ in letter case, numbers by rounding
+  bool sameValue(matjson::Value const &a, matjson::Value const &b)
+  {
+    if (a.isNumber() && b.isNumber())
+      return std::abs(a.asDouble().unwrap() - b.asDouble().unwrap()) < 1e-4;
+    if (a.isString() && b.isString())
+      return utils::string::toLower(a.asString().unwrap()) == utils::string::toLower(b.asString().unwrap());
+    return a == b;
+  }
 
   // Preset name -> file name, anything unusual becomes "_"
   std::string fileName(std::string_view name)
@@ -326,58 +360,13 @@ std::optional<Preset> presets::find(std::string_view name)
   return std::nullopt;
 }
 
-// ! --- Favorites --- !
-
-std::vector<std::string> presets::favorites()
-{
-  return Mod::get()->getSavedValue<std::vector<std::string>>(kFavoritesSave, {});
-}
-
-bool presets::isFavorite(std::string_view name)
-{
-  auto const list = favorites();
-  return std::find(list.begin(), list.end(), name) != list.end();
-}
-
-void presets::setFavorite(std::string_view name, bool favorite)
-{
-  auto list = favorites();
-  std::erase(list, std::string(name));
-  if (favorite)
-    list.emplace_back(name);
-  Mod::get()->setSavedValue(kFavoritesSave, list);
-}
-
-std::optional<std::string> presets::applyNextFavorite()
-{
-  // Favorites whose preset still exists, in the order they were starred
-  std::vector<Preset> looks;
-  for (auto const &name : favorites())
-  {
-    if (auto preset = find(name))
-      looks.push_back(std::move(*preset));
-  }
-  if (looks.empty())
-    return std::nullopt;
-
-  auto const last = Mod::get()->getSavedValue<std::string>(kLastQuickSave, "");
-  size_t next = 0;
-  for (size_t i = 0; i < looks.size(); ++i)
-  {
-    if (looks[i].name == last)
-      next = (i + 1) % looks.size();
-  }
-
-  apply(looks[next]);
-  Mod::get()->setSavedValue(kLastQuickSave, looks[next].name);
-  return looks[next].name;
-}
-
 Result<> presets::save(Preset const &preset)
 {
   GEODE_UNWRAP(file::createDirectoryAll(folder()));
   looks::invalidate();
-  return writeFile(preset, pathOf(preset.name));
+  GEODE_UNWRAP(writeFile(preset, pathOf(preset.name)));
+  touch(preset.name);
+  return Ok();
 }
 
 Result<> presets::remove(std::string_view name)
@@ -387,7 +376,175 @@ Result<> presets::remove(std::string_view name)
   looks::invalidate();
   if (error)
     return Err("Unable to delete the preset: {}", error.message());
+
+  auto recent = presets::recent();
+  std::erase(recent, std::string(name));
+  Mod::get()->setSavedValue(kRecentSave, recent);
+  // The look stays on, it just isn't saved anywhere anymore
+  if (current() == name && !currentIsBuiltIn())
+    Mod::get()->setSavedValue<std::string>(kCurrentSave, "");
   return Ok();
+}
+
+Result<> presets::rename(std::string_view from, std::string const &to)
+{
+  if (to.empty())
+    return Err("The name is empty");
+  if (to == from)
+    return Ok();
+
+  auto preset = readFile(pathOf(from));
+  if (!preset)
+    return Err("Unable to read the preset: {}", preset.unwrapErr());
+
+  // Only the letter case changes: on Windows that's the same file
+  bool const sameFile = utils::string::toLower(utils::string::pathToString(pathOf(from))) ==
+                        utils::string::toLower(utils::string::pathToString(pathOf(to)));
+  if (!sameFile && exists(to))
+    return Err("A preset named \"{}\" already exists", to);
+
+  auto renamed = std::move(preset).unwrap();
+  renamed.name = to;
+  GEODE_UNWRAP(file::createDirectoryAll(folder()));
+  GEODE_UNWRAP(writeFile(renamed, pathOf(to)));
+  if (!sameFile)
+  {
+    std::error_code error;
+    std::filesystem::remove(pathOf(from), error);
+  }
+
+  auto recent = presets::recent();
+  replaceName(recent, from, to);
+  Mod::get()->setSavedValue(kRecentSave, recent);
+  if (current() == from && !currentIsBuiltIn())
+    Mod::get()->setSavedValue(kCurrentSave, to);
+  looks::renamePreset(std::string(from), to);
+  looks::invalidate();
+  return Ok();
+}
+
+std::string presets::uniqueName(std::string const &base)
+{
+  std::string name = base;
+  for (int i = 2; exists(name); ++i)
+    name = fmt::format("{} {}", base, i);
+  return name;
+}
+
+// ! --- Current look --- !
+
+std::string presets::current()
+{
+  return Mod::get()->getSavedValue<std::string>(kCurrentSave, "");
+}
+
+bool presets::currentIsBuiltIn()
+{
+  return Mod::get()->getSavedValue<bool>(kCurrentBuiltInSave, false);
+}
+
+void presets::markCurrent(std::string_view name, bool builtIn)
+{
+  Mod::get()->setSavedValue(kCurrentSave, std::string(name));
+  Mod::get()->setSavedValue(kCurrentBuiltInSave, builtIn);
+  Mod::get()->setSavedValue(kBaselineSave, capture("").settings);
+}
+
+namespace
+{
+  // Two looks have the same value for every look setting
+  bool sameLook(matjson::Value const &look, matjson::Value const &baseline)
+  {
+    for (auto key : lookSettingKeys())
+    {
+      auto now = look.get(key);
+      auto then = baseline.get(key);
+      if (!now || !then)
+      {
+        if (static_cast<bool>(now) != static_cast<bool>(then))
+          return false;
+        continue;
+      }
+      if (!sameValue(now.unwrap(), then.unwrap()))
+        return false;
+    }
+    return true;
+  }
+}
+
+bool presets::modified()
+{
+  auto const baseline = Mod::get()->getSavedValue<matjson::Value>(kBaselineSave, matjson::Value::object());
+  return !sameLook(capture("").settings, baseline);
+}
+
+void presets::adoptMatchingPreset()
+{
+  if (!current().empty())
+    return;
+  auto const look = capture("").settings;
+  for (auto const &preset : list())
+  {
+    if (sameLook(look, withDefaults(preset.settings)))
+    {
+      markCurrent(preset.name, false);
+      return;
+    }
+  }
+}
+
+void presets::load(Preset const &preset)
+{
+  apply(preset);
+  markCurrent(preset.name, preset.builtIn);
+  if (!preset.builtIn)
+    touch(preset.name);
+}
+
+std::vector<std::string> presets::recent()
+{
+  return Mod::get()->getSavedValue<std::vector<std::string>>(kRecentSave, {});
+}
+
+void presets::stashMainLook()
+{
+  auto stash = matjson::Value::object();
+  stash["look"] = capture("").settings;
+  stash["name"] = current();
+  stash["builtIn"] = currentIsBuiltIn();
+  stash["baseline"] = Mod::get()->getSavedValue<matjson::Value>(kBaselineSave, matjson::Value::object());
+  Mod::get()->setSavedValue(kStashSave, stash);
+}
+
+bool presets::hasStashedLook()
+{
+  auto const stash = Mod::get()->getSavedValue<matjson::Value>(kStashSave, matjson::Value());
+  return stash.isObject() && stash.contains("look");
+}
+
+void presets::restoreMainLook()
+{
+  auto const stash = Mod::get()->getSavedValue<matjson::Value>(kStashSave, matjson::Value());
+  if (!stash.isObject())
+    return;
+
+  if (auto look = stash.get("look"); look && look.unwrap().isObject())
+  {
+    Preset preset;
+    preset.settings = look.unwrap();
+    apply(preset);
+  }
+  std::string name;
+  if (auto value = stash.get("name"); value && value.unwrap().isString())
+    name = value.unwrap().asString().unwrap();
+  bool builtIn = false;
+  if (auto value = stash.get("builtIn"); value && value.unwrap().isBool())
+    builtIn = value.unwrap().asBool().unwrap();
+  Mod::get()->setSavedValue(kCurrentSave, name);
+  Mod::get()->setSavedValue(kCurrentBuiltInSave, builtIn);
+  if (auto value = stash.get("baseline"); value && value.unwrap().isObject())
+    Mod::get()->setSavedValue(kBaselineSave, value.unwrap());
+  Mod::get()->setSavedValue(kStashSave, matjson::Value());
 }
 
 Result<> presets::writeFile(Preset const &preset, std::filesystem::path const &path)
@@ -531,6 +688,17 @@ Preset presets::surpriseColors()
   set["streak-color"] = palette.accent;
   set["headphones-light"] = palette.accent;
   return preset;
+}
+
+void presets::applyEmpty()
+{
+  for (auto key : lookSettingKeys())
+  {
+    if (auto setting = Mod::get()->getSetting(key))
+      setting->reset();
+  }
+  Mod::get()->setSettingValue<bool>("enabled", false);
+  markCurrent("", false);
 }
 
 Preset presets::matchColors()

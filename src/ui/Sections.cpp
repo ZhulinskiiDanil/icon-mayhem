@@ -14,9 +14,14 @@ std::vector<CustomizerSection> const &customizerSections()
   static std::vector<CustomizerSection> const list{
       {"General",
        {
+           "customization",
            "show-in-garage",
            "show-in-menus",
            "quality",
+           "focus-title",
+           "focus-mode",
+           "focus-opacity",
+           "focus-hair",
            "modes-title",
            "mode-cube",
            "mode-ship",
@@ -28,6 +33,7 @@ std::vector<CustomizerSection> const &customizerSections()
            "mode-swing",
            "mode-jetpack",
            "@looks",
+           "@linker",
            "emotes-title",
            "@emote-keys",
        }},
@@ -45,6 +51,7 @@ std::vector<CustomizerSection> const &customizerSections()
            "color-source",
            "custom-color",
            "outline",
+           "outline-color",
            "hair-shine",
            "shine-position",
            "shine-strength",
@@ -67,10 +74,15 @@ std::vector<CustomizerSection> const &customizerSections()
            "braid-face-locks",
            "face-lock-inset-x",
            "face-lock-inset-y",
+           "face-lock-shift-x",
+           "face-lock-tilt",
            "face-lock-color",
            "face-lock-custom-color",
            "bangs-title",
            "bangs",
+           "bangs-style",
+           "bangs-side",
+           "bangs-transition",
            "bangs-length",
            "bangs-density",
            "bangs-spread",
@@ -87,6 +99,16 @@ std::vector<CustomizerSection> const &customizerSections()
            "clip-size",
            "clip-color",
            "clip-custom-color",
+           "face-title",
+           "face",
+           "face-style",
+           "face-shape",
+           "face-x",
+           "face-shift-x",
+           "face-tilt",
+           "face-y",
+           "face-scale-x",
+           "face-scale-y",
        }},
       {"Extras",
        {
@@ -152,6 +174,14 @@ std::vector<CustomizerSection> const &customizerSections()
            "wing-flap",
            "wing-color",
            "wing-custom-color",
+           "cape-title",
+           "cape",
+           "cape-length",
+           "cape-width",
+           "cape-color",
+           "cape-custom-color",
+           "cape-lining",
+           "cape-pattern",
            "pet-title",
            "pet",
            "pet-size",
@@ -159,6 +189,7 @@ std::vector<CustomizerSection> const &customizerSections()
            "pet-color",
            "pet-custom-color",
            "pet-moods",
+           "pet-behavior",
            "hat-title",
            "hat",
            "hat-size",
@@ -186,6 +217,7 @@ std::vector<CustomizerSection> const &customizerSections()
            "earring-size",
            "earring-length",
            "earring-height",
+           "earring-inset-x",
            "earring-color",
            "earring-custom-color",
            "bell-title",
@@ -258,15 +290,120 @@ std::vector<CustomizerSection> const &customizerSections()
   return list;
 }
 
+// ! --- Groups --- !
+
+namespace
+{
+  // First settings of a block that are not its switch
+  constexpr std::array<std::string_view, 3> kNotSwitches{"customization", "mode-cube", "reactions"};
+
+  // Fitting a part to the icon and fine detail, behind "More"
+  constexpr std::array<std::string_view, 41> kFineTuning{
+      "segments", "lock-width", "hair-top-gap", "spin-with-icon", "shine-position", "tips-start",
+      "face-lock-inset-x", "face-lock-inset-y", "face-lock-shift-x", "face-lock-tilt",
+      "bangs-arc-size", "bangs-arc-softness", "bangs-inset-x", "bangs-inset-y",
+      "face-x", "face-shift-x", "face-tilt", "face-y",
+      "ponytail-position", "bow-position", "ear-spread", "headband-inset", "flower-position",
+      "halo-height", "hat-tilt", "hat-inset", "glasses-x", "glasses-y", "earring-height", "earring-inset-x",
+      "blush-spread", "blush-height", "sticker-x", "sticker-y", "orb-kick",
+      "wind-gust-speed", "wind-flutter", "hair-friction", "damping", "pet-distance", "clip-side"};
+
+  bool isSwitch(std::string_view key)
+  {
+    if (key.starts_with('@') || std::find(kNotSwitches.begin(), kNotSwitches.end(), key) != kNotSwitches.end())
+      return false;
+    auto setting = Mod::get()->getSetting(key);
+    if (!setting)
+      return false;
+    if (typeinfo_pointer_cast<BoolSettingV3>(setting))
+      return true;
+    if (auto string = typeinfo_pointer_cast<StringSettingV3>(setting))
+    {
+      auto options = string->getEnumOptions();
+      return options && (std::find(options->begin(), options->end(), "None") != options->end() ||
+                         std::find(options->begin(), options->end(), "Off") != options->end());
+    }
+    if (auto number = typeinfo_pointer_cast<IntSettingV3>(setting))
+      return number->getMinValue().value_or(-1) == 0;
+    return false;
+  }
+}
+
+std::vector<CustomizerGroup> const &customizerGroups()
+{
+  static std::vector<CustomizerGroup> const groups = []
+  {
+    std::vector<CustomizerGroup> out;
+    auto const &sections = customizerSections();
+    for (size_t s = 0; s < sections.size(); ++s)
+    {
+      CustomizerGroup group;
+      group.id = fmt::format("{}-top", sections[s].name);
+      group.name = sections[s].name;
+      group.section = s;
+      bool fresh = true; // nothing in the block yet: the next setting may be its switch
+
+      for (char const *key : sections[s].keys)
+      {
+        auto setting = Mod::get()->getSetting(key);
+        if (setting && typeinfo_pointer_cast<TitleSettingV3>(setting))
+        {
+          if (group.master || !group.keys.empty())
+            out.push_back(std::move(group));
+          group = CustomizerGroup{};
+          group.id = key;
+          group.name = setting->getDisplayName();
+          group.section = s;
+          fresh = true;
+          continue;
+        }
+        if (fresh && isSwitch(key))
+        {
+          group.master = key;
+          group.hidesWhenOff = !typeinfo_pointer_cast<IntSettingV3>(setting);
+        }
+        else
+          group.keys.push_back(key);
+        fresh = false;
+      }
+      if (group.master || !group.keys.empty())
+        out.push_back(std::move(group));
+    }
+    return out;
+  }();
+  return groups;
+}
+
+bool groupIsOn(CustomizerGroup const &group)
+{
+  if (!group.master)
+    return true;
+  auto setting = Mod::get()->getSetting(group.master);
+  if (auto toggle = typeinfo_pointer_cast<BoolSettingV3>(setting))
+    return toggle->getValue();
+  if (auto string = typeinfo_pointer_cast<StringSettingV3>(setting))
+    return string->getValue() != "None" && string->getValue() != "Off";
+  if (auto number = typeinfo_pointer_cast<IntSettingV3>(setting))
+    return number->getValue() != 0;
+  return true;
+}
+
+bool isFineTuning(std::string_view key)
+{
+  return std::find(kFineTuning.begin(), kFineTuning.end(), key) != kFineTuning.end();
+}
+
 // ! --- Look settings --- !
 
 std::vector<std::string_view> const &lookSettingKeys()
 {
   static std::vector<std::string_view> const keys = []
   {
-    // Turning the mod on and off, also per game mode, isn't part of a look
+    // Turning the mod on and off, also per game mode, isn't part of a look. Whether the hair is on is
+    // (an empty look has none)
     static constexpr std::array kNotLook{
-        std::string_view("enabled"), std::string_view("show-in-garage"), std::string_view("show-in-menus"), std::string_view("quality"), std::string_view("mode-cube"),
+        std::string_view("customization"), std::string_view("show-in-garage"), std::string_view("show-in-menus"), std::string_view("quality"),
+        std::string_view("focus-mode"), std::string_view("focus-opacity"), std::string_view("focus-hair"), std::string_view("mode-cube"),
         std::string_view("mode-ship"), std::string_view("mode-ball"), std::string_view("mode-ufo"),
         std::string_view("mode-wave"), std::string_view("mode-robot"), std::string_view("mode-spider"),
         std::string_view("mode-swing"), std::string_view("mode-jetpack")};

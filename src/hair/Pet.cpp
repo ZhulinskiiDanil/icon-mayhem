@@ -1,5 +1,6 @@
 #include "HairNode.hpp"
 #include "HairShared.hpp"
+#include "LevelQuery.hpp"
 
 #include <array>
 #include <cmath>
@@ -33,6 +34,16 @@ namespace
   constexpr float kPetZEvery = 2.2f;   // s between the little "z"s of a sleeping pet
   constexpr float kPetTiltTime = 1.2f;  // s of the puzzled head tilt
   constexpr float kPetTiltAngle = 18.f; // degrees
+
+  // The running pet, in level units (a block is 30)
+  constexpr float kRunGravity = 1800.f;  // units / s^2
+  constexpr float kRunJump = 560.f;      // units / s up, clears a spike
+  constexpr float kRunFollow = 45.f;     // units behind you
+  constexpr float kRunSpeed = 420.f;     // units / s, more when you're fast
+  constexpr float kRunSee = 55.f;        // units ahead it watches for spikes and gaps
+  constexpr float kRunLost = 450.f;      // further away than this it gives up and comes back
+  constexpr float kRunHop = 8.f;         // 1 / s, how fast it hops onto your head
+  constexpr float kLevelFloor = 90.f;    // the top of the ground of a level
 }
 
 CCPoint HairNode::petTarget(CCPoint const &headCenter) const
@@ -55,17 +66,25 @@ void HairNode::updatePet(float dt, CCPoint const &headCenter)
   if (m_config.pet == PetStyle::None)
     return;
 
-  // Snaps back after a respawn or a teleport, otherwise follows lazily
-  CCPoint const target = this->petTarget(headCenter);
-  if (m_needsReset || target.getDistance(m_petPosition) > kHeadRadius * 10.f * m_simScale)
-  {
-    m_petPosition = target;
-    m_petVelocity = CCPoint{};
-  }
+  // Only in a level there are blocks to run on
+  if (m_config.petBehavior == PetBehavior::Run && m_focusFn)
+    this->updatePetRunner(dt, headCenter);
   else
   {
-    m_petVelocity = m_petVelocity + ((target - m_petPosition) * kPetSpring - m_petVelocity * kPetDamping) * dt;
-    m_petPosition = m_petPosition + m_petVelocity * dt;
+    // Snaps back after a respawn or a teleport, otherwise follows lazily
+    CCPoint const target = this->petTarget(headCenter);
+    if (m_needsReset || target.getDistance(m_petPosition) > kHeadRadius * 10.f * m_simScale)
+    {
+      m_petPosition = target;
+      m_petVelocity = CCPoint{};
+    }
+    else
+    {
+      m_petVelocity = m_petVelocity + ((target - m_petPosition) * kPetSpring - m_petVelocity * kPetDamping) * dt;
+      m_petPosition = m_petPosition + m_petVelocity * dt;
+    }
+    m_petGrounded = false;
+    m_petRiding = false;
   }
 
   // Back alive: no more tears
@@ -80,6 +99,100 @@ void HairNode::updatePet(float dt, CCPoint const &headCenter)
   if (m_petBlink < -kPetBlink)
     m_petBlink = 2.f + 3.f * std::uniform_real_distribution<float>(0.f, 1.f)(m_random);
   m_petFrame = CCDirector::sharedDirector()->getTotalFrames();
+}
+
+void HairNode::updatePetRunner(float dt, CCPoint const &headCenter)
+{
+  CCPoint const down = m_gravityDir ? m_gravityDir() : CCPoint{0.f, -1.f};
+  bool const flipped = down.y > 0.f;
+  float const upSign = flipped ? -1.f : 1.f;
+  float const body = kPetBody * m_config.petSize * m_simScale;
+  float const dir = m_facing >= 0.f ? 1.f : -1.f;
+
+  // In the flying modes it rides on your head
+  auto const mode = m_gameModeFn ? m_gameModeFn() : GameMode::Cube;
+  bool const flying = mode == GameMode::Ship || mode == GameMode::Ufo || mode == GameMode::Wave ||
+                      mode == GameMode::Swing || mode == GameMode::Jetpack;
+  CCPoint const seat = headCenter + CCPoint{0.f, upSign * (this->headEdge({0.f, upSign}) + body)};
+
+  // Respawn, teleport or lost: back next to you
+  float const away = m_petPosition.getDistance(headCenter);
+  if (m_needsReset || away > kRunLost * m_simScale)
+  {
+    m_petPosition = flying ? seat : headCenter - CCPoint{dir * kRunFollow * m_simScale, 0.f};
+    m_petVelocity = CCPoint{};
+    m_petGrounded = false;
+    m_petRiding = flying;
+    return;
+  }
+
+  if (flying || m_petRiding)
+  {
+    // Hops up and sits; jumps back down once you're back on the ground
+    if (!flying)
+    {
+      m_petRiding = false;
+      m_petVelocity = CCPoint{-dir * 120.f * m_simScale, upSign * kRunJump * .6f * m_simScale};
+    }
+    else
+    {
+      m_petRiding = true;
+      float const hop = std::min(1.f, kRunHop * dt);
+      m_petPosition = m_petPosition + (seat - m_petPosition) * hop;
+      m_petVelocity = CCPoint{};
+      m_petGrounded = false;
+      return;
+    }
+  }
+
+  // Runs to a spot a little behind you, faster the further it is
+  float const targetX = headCenter.x - dir * kRunFollow * m_simScale;
+  float const maxRun = std::max(kRunSpeed * m_simScale, std::abs(m_headVelocity.x) * 1.3f);
+  float const runX = std::clamp((targetX - m_petPosition.x) * 6.f, -maxRun, maxRun);
+  m_petVelocity.x = m_petVelocity.x + (runX - m_petVelocity.x) * std::min(1.f, 12.f * dt);
+  m_petVelocity.y -= upSign * kRunGravity * m_simScale * dt;
+
+  CCPoint const next = m_petPosition + m_petVelocity * dt;
+  float const feetY = next.y - upSign * body;
+  // The floor of the level isn't an object: blocks or the floor, whichever is higher
+  auto ground = level::groundBelow(next.x, m_petPosition.y, body * .6f, 400.f * m_simScale, flipped);
+  if (!flipped)
+    ground = std::max(ground.value_or(kLevelFloor), kLevelFloor);
+  if (ground && (flipped ? feetY >= *ground : feetY <= *ground) && m_petVelocity.y * upSign <= 0.f)
+  {
+    m_petPosition = CCPoint{next.x, *ground + upSign * body};
+    m_petVelocity.y = 0.f;
+    m_petGrounded = true;
+  }
+  else
+  {
+    m_petPosition = next;
+    m_petGrounded = false;
+  }
+
+  // On the ground: jumps a spike or a gap ahead, or after you when you're up high
+  if (m_petGrounded)
+  {
+    float const going = m_petVelocity.x >= 0.f ? 1.f : -1.f;
+    CCPoint const ahead{going, 0.f};
+    bool const spike = level::nearestHazard(m_petPosition, ahead, kRunSee * m_simScale, body * 1.5f).has_value();
+    auto groundAhead = level::groundBelow(m_petPosition.x + going * body * 2.f, m_petPosition.y, body * .5f,
+                                          body * 3.f, flipped);
+    if (!flipped && m_petPosition.y - body <= kLevelFloor + 1.f)
+      groundAhead = kLevelFloor;
+    bool const gap = !groundAhead && std::abs(m_petVelocity.x) > 40.f * m_simScale;
+    bool const climb = (headCenter.y - m_petPosition.y) * upSign > 45.f * m_simScale &&
+                       std::abs(headCenter.x - m_petPosition.x) < 90.f * m_simScale;
+    if (spike || gap || climb)
+    {
+      m_petVelocity.y = upSign * kRunJump * m_simScale;
+      m_petGrounded = false;
+    }
+  }
+
+  // Feet patter while running
+  if (m_petGrounded)
+    m_petRunPhase += std::abs(m_petVelocity.x) / std::max(body, .001f) * dt * 1.6f;
 }
 
 void HairNode::updatePetAlone(float dt)
@@ -148,9 +261,9 @@ void HairNode::drawPet(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
   float const outline = m_config.outline ? kOutlineWidth * scale : 0.f;
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, alpha};
+  auto const outlineColor = this->ink(alpha);
 
   auto color = this->sourceColor(m_config.petColorSource, m_config.petColor);
   CCPoint const center = CCPointApplyAffineTransform(m_petPosition, simToNode);
@@ -168,6 +281,20 @@ void HairNode::drawPet(CCDrawNode *node)
       fillCircle(node, center, r + outline, outlineColor);
     fillCircle(node, center, r, fill);
   };
+
+  // Little feet under a running pet (the ghost and the slime have none)
+  if (m_config.petBehavior == PetBehavior::Run && m_config.pet != PetStyle::Ghost && m_config.pet != PetStyle::Slime &&
+      (m_petGrounded || m_petRiding))
+  {
+    for (float side : {-1.f, 1.f})
+    {
+      float const step = m_petGrounded ? std::sin(m_petRunPhase + (side > 0.f ? kPi : 0.f)) : 0.f;
+      CCPoint const foot = center - up * (r * (.9f - .12f * std::max(0.f, step))) + right * (side * r * .4f + step * r * .25f);
+      if (outline > 0.f)
+        fillEllipse(node, foot, right, r * .3f + outline, r * .18f + outline, outlineColor);
+      fillEllipse(node, foot, right, r * .3f, r * .18f, shaded(color, .85f));
+    }
+  }
 
   switch (m_config.pet)
   {

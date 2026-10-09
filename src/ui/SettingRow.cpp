@@ -107,15 +107,42 @@ void SettingRow::addLabel()
   label->limitLabelWidth(m_width * kLabelWidth, kLabelScale, .1f);
   label->setPosition({kPadding, centerY});
   this->addChild(label);
+  m_label = label;
 
   if (!m_setting->getDescription())
     return;
 
   auto infoSprite = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
   infoSprite->setScale(.4f);
-  auto info = CCMenuItemSpriteExtra::create(infoSprite, this, menu_selector(SettingRow::onInfo));
-  info->setPosition({kPadding + label->getScaledContentWidth() + 8.f, centerY});
-  m_menu->addChild(info);
+  m_info = CCMenuItemSpriteExtra::create(infoSprite, this, menu_selector(SettingRow::onInfo));
+  m_info->setPosition({kPadding + label->getScaledContentWidth() + 8.f, centerY});
+  m_menu->addChild(m_info);
+}
+
+float SettingRow::useAsHeader(std::string const &title, float left, bool dim)
+{
+  if (!m_label)
+    return left;
+  float const centerY = this->getContentHeight() / 2.f;
+  m_label->removeFromParent();
+  m_label = CCLabelBMFont::create(title.c_str(), "goldFont.fnt");
+  m_label->setAnchorPoint({0.f, .5f});
+  m_label->limitLabelWidth(m_width * kLabelWidth, .5f, .1f);
+  m_label->setPosition({left, centerY});
+  if (dim)
+    m_label->setColor({170, 170, 170});
+  this->addChild(m_label);
+
+  float const right = left + m_label->getScaledContentWidth();
+  if (m_info)
+    m_info->setPosition({right + 8.f, centerY});
+  return right;
+}
+
+void SettingRow::changed()
+{
+  if (m_onChange)
+    m_onChange();
 }
 
 void SettingRow::addToggle()
@@ -144,6 +171,7 @@ void SettingRow::addSlider()
                                   if (snap > 0.0)
                                     snapped = std::round(snapped / snap) * snap;
                                   this->setNumberValue(snapped);
+                                  this->changed();
                                 });
   m_slider->setMin(static_cast<float>(this->numberMin()));
   m_slider->setMax(static_cast<float>(this->numberMax()));
@@ -267,6 +295,7 @@ void SettingRow::onToggle(CCObject *)
   // The toggler flips its state after the callback
   if (auto setting = as<BoolSettingV3>(m_setting))
     setting->setValue(!m_toggle->isToggled());
+  this->changed();
 }
 
 void SettingRow::onArrow(CCObject *sender)
@@ -286,6 +315,7 @@ void SettingRow::onArrow(CCObject *sender)
 
   setting->setValue((*options)[index]);
   this->refresh();
+  this->changed();
 }
 
 void SettingRow::onColor(CCObject *)
@@ -299,6 +329,7 @@ void SettingRow::onColor(CCObject *)
                      {
                        setting->setValue(ccColor3B{color.r, color.g, color.b});
                        self->refresh();
+                       self->changed();
                      });
   popup->show();
 }

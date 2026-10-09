@@ -2,6 +2,12 @@
 
 A growing collection of **cute and crazy customizations** for your icons: **physics-based hair** that reacts to every jump, flip and dash, accessories, wings, a little pet and cozy effects. Everything is set up in a **customizer with a live icon preview**, opened from the pause menu.
 
+## Alive
+
+- **Anime eyes**: detailed eyes in three styles, Onyx (big and round), Sapphire (long and sharp, also with heart pupils) and Crimson (wide and heavy-lidded), and a shape for the mood: flirty, sultry, angry, kind, cheerful, judging, sad or surprised
+- **Capes of real cloth**: a cape, a short cape or a flag that streams behind you, hangs in folds when you stand and shows its lining when it turns over
+- **A pet that plays the level with you**: it runs on the blocks, jumps over spikes, catches up and rides on your head when you fly
+
 ## Hair
 
 - **Every game mode**: cube, ship, ball, UFO, wave, robot, spider, swing and jetpack. In the ship, UFO and jetpack the hair sits on the cube riding the vehicle, and on the robot and spider it grows from the head
@@ -11,7 +17,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Pick the game modes**: turn the whole customization off where you don't want it, for example keep it on the cube only
 - **Platformer support**: the hairstyle turns around when you change direction
 - **3 hairstyles**: *Flowing*, *Long* and *Spiky*
-- **Face locks and bangs**: wavy locks framing the face and a fringe over it, drawn in front of the icon. Fit them to any icon: move them, bend the bangs along a round top, give them their own color
+- **Face locks and bangs**: wavy locks framing the face and a fringe over it, drawn in front of the icon. Bangs straight, parted in the middle, swept to one side or on one side only. Fit them to any icon: move them, bend the bangs along a round top, give them their own color
 - **Hair under a cap**: leave the top of the head bare and the hair comes out from under the cap or hat of your icon
 - **Ponytail and twin tails** tied with a scrunchie or a bow, **braids**, an **ahoge** that bounces on every jump
 - **Hair shine**, **dyed tips** and **colored streaks** in the bangs or the hair
@@ -43,27 +49,36 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 
 ## Customizer and presets
 
+- **Open it anywhere**: from the pause menu or from the garage, no level needed
 - **Live preview**: switch game modes, make the icon jump or run and watch the hair react while you tweak it. Changes apply instantly
 - **Hitbox helpers** show the head collider, the roots and the bangs hairline, so the hair is easy to fit to any icon
 - **Quick actions**: **Undo**, a **Surprise** look, random **Colors**, **Match** all hair parts to the hair color
+- **Tidy blocks**: every part (Cape, Pet, Bangs, Glasses...) folds into one line with its switch right in it. A part that is off shows nothing more, turning it on opens its settings. Positions and fine detail wait under **Fine tuning**
+- **On now** shows everything you are wearing, from every tab, in one list
 - **Search** over all the settings
-- **Built-in presets**: Kepochka, Kitty, Sakura, Angel, Fairy, Twin Tails, Ponytail, Short and Ahoge
-- **Your own presets**: save your look under a name and switch between looks in one tap. Share a preset through the clipboard or as a file, import presets from friends the same way
-- **Favorites**: star presets and switch between them with the star button in the pause menu
+- **Built-in presets**: Kitty, Sakura, Angel, Fairy, Ponytail, Short and Ahoge
+- **Empty look**: start from nothing and build a look from scratch
+- **Your own presets**: the customizer shows which preset your look came from and whether it changed; **Save** puts the changes back into it in one tap. The presets window lists your looks latest first, with search, and shows the selected one on your icon before you load it. Rename, save over, share through the clipboard or as a file, import presets from friends the same way
 - **Looks per mode**: wear another preset in each game mode, for example a witch hat on the ship, separately for player 1 and player 2 in dual
-- **A look per icon**: give each icon its own preset, change your icon in the garage and the look follows
+- **Linker**: link a preset to any icon in a grid of your icons, More Icons icons included, change your icon in the garage and the look follows. Edit it right in the customizer with the Main | Icon switch
 - **Garage preview** with a light breeze, so you can see your look before playing, and your look on your **profile** and in the **main menu**
 - **Globed**: players in the same level see each other's looks and emotes (both need Icon Mayhem). Needs Globed 2.2.3 or newer: 2.2.2 doesn't let other mods talk to it
 - **Quality** setting for slower phones and computers
+- **Focus mode** for hard levels: at faster speeds and when you click a lot, everything floating around the icon fades away so nothing covers your view, and comes back when it calms down
 
 ## Settings
 
 | Setting | What it does |
 | --- | --- |
+| Customization | The master switch: turns everything off at once everywhere, your look stays for when you turn it back on |
 | Show in menus | Your look on your own profile and on the profile button of the main menu |
 | Quality | High, Balanced or Low: fewer locks, particles and simulation steps for slower devices |
+| Focus mode | Off, Auto (faster speeds and busy clicking) or Always: the trail, weather and particles hide, the pet, wings and halo fade |
+| Faded opacity | How visible the pet, wings and halo stay while focused |
+| Fade the hair too | The hair and the face items fade as well while focused |
 | Game modes | Turn the whole customization (hair, accessories, pet, effects) on or off for each game mode |
-| Looks per mode and icon | A preset for each game mode (player 1 and player 2 separately) and for each icon |
+| Looks per mode | A preset for each game mode, player 1 and player 2 separately; pick it from a list with search |
+| Linker | A preset linked to any icon, over the look of its mode |
 | Emotes | Keys for the heart, note, "!" and "?" bubbles (Alt+One to Alt+Four by default) |
 | Hairstyle | Shape of the hairstyle |
 | Density | Number of hair locks |
@@ -74,6 +89,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 | Show face locks | Wavy locks hanging in front of the face. Left and right can be turned on separately |
 | Face lock length / width | Length and width of the face locks, separate from the rest of the hair |
 | Face lock inset X / Y | Moves the locks towards the middle of the face / down the face |
+| Face lock shift / tilt | Moves both locks sideways together / one lock higher and the other lower |
 | Face lock color | Same as the hair, an icon color or a custom one |
 | Show bangs | Short hair falling over the top of the face |
 | Bangs length / density | How far down the face the bangs reach / how many locks they have |
@@ -94,13 +110,16 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 | Halo | Height, size, color and glow |
 | Wings | Angel, fairy or bat: size, how strongly they flap, color |
 | Hat | Beret, beanie or witch hat: size, tilt, position, color |
+| Face | Eyes or eyes and a mouth: style (Onyx, Sapphire, Sapphire hearts, Crimson), shape (Flirty, Sultry, Angry, Kind, Cheerful, Judging, Sad, Surprised), spread, shift and tilt of the eye line, position, width and height of each eye. Needs Quality: High |
+| Cape | Cape, short cape or flag: length, width, color, lining, pattern (stripes, stars, hearts) |
+| Pet behavior | Float behind you, or run on the blocks of the level |
 | Pet | Cat, ghost, bird, bunny or slime: size, how far behind it floats, color, moods |
 | Headphones | Plain or with cat ears: size, color, light color, glowing to the music |
 | Glasses | Round, hearts or stars: spread, height, size, frame color, lens tint |
 | Earrings | Drops, hearts, stars or pearls: size, chain length, height, color |
 | Cat bell | A bell on a collar (or on the scarf): size, bell and collar color |
 | Color | Primary or secondary icon color, or a custom one |
-| Outline | Black outline around the hair, like the icon has |
+| Outline | An outline around the hair and everything on the icon, like the icon has, in any color: black, or soft anime line art in dark plum or brown |
 | Hair shine | A glossy ring of light across the hair: position and strength |
 | Dyed tips | The locks fade into a second color towards the tips |
 | Colored streaks | How many locks get another color and where: bangs, face locks, front, back or scattered |

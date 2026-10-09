@@ -1,5 +1,42 @@
 # Changelog
 
+## v1.6.0
+
+### On your icon
+- Anime eyes: Onyx (big and round), Sapphire (long and sharp, also with heart pupils) and Crimson (wide and heavy-lidded), each in nine shapes (flirty, sultry, angry, kind, cheerful, judging, sad, surprised), with their own width, height, shift and tilt, on High quality
+- Capes made of real cloth: a cape, a short cape or a flag on a little pole. It streams behind you, hangs in folds when you stand and shows its lining when it turns over. Stripes, stars or hearts
+- The pet can run on the blocks of the level: it jumps over spikes and gaps, catches up and rides on your head in the ship, UFO, wave, swing and jetpack
+- Bangs styles: straight, parted in the middle and combed to both sides (like Frieren), swept to one side, or on one side of the face only with a sharp or a soft edge
+- Pendulum earrings: a long faceted gold drop under a little cap, like Yor's. Earrings move in and out with Earring inset X
+- Face locks shift together, and tilt sets one lock higher than the other
+- Outline color: the outline of the hair, accessories, the pet, the cape and the face in any color, not only black
+- Focus mode: nothing covers your view in hard parts. At faster speeds and when you click a lot (Auto) or always, the trail, weather and particles hide and the pet, wings and halo fade, then come back when it calms down. The hair can fade too. Other players' looks on Globed follow your focus
+
+### Looks and presets
+- Linker: link a preset to any icon, not only the one you wear. Every icon of a mode in a grid like the garage, linked ones show their preset under them, the selected one wears it on the right. A linked icon wins over the look of its mode; ships, UFOs and jetpacks carry your cube, so they wear the preset of the cube
+- More Icons in the Linker, in their own list: wear a More Icons icon and its linked preset comes along in levels, the garage, menus and on Globed
+- Link many at once: pick a preset for the brush and every icon you tap gets it (tap again to unlink), or search More Icons by name or pack and link all found
+- Main | Icon in the customizer preview: edit the look of the icon you wear right there. Save keeps it in its preset, the main look comes back when you switch back or close the customizer (even after a restart in the middle)
+- The garage and the menus show the look of the icon you wear (they showed the main look with More Icons)
+- Looks per mode: tap a mode to pick its preset from a list with search, no more paging with arrows
+- Presets made over: the customizer and the presets window know which preset your look came from and whether it changed, and Save puts the changes back into it in one tap. Save as makes a new one, a built-in look saves as your own copy
+- Your presets come first, the latest on top, built-in ones in their own tab, with search. The selected one is shown alive on your icon before you load it. Rename presets and save over one
+- Empty look: start from nothing and build your own. Presets remember whether the hair is on
+
+### Customizer
+- Every part folds into one line with its switch in the header: turn a cape or glasses on and off without opening anything. A part that is off hides its settings, turning it on opens them
+- Positions, insets and tilts wait under "Fine tuning" in each part
+- "On now" next to the search lists everything you are wearing, from every tab
+- Icons on the obvious buttons (undo, surprise, colors, match, jump, run, save, hitboxes, reset, paste, import, copy, export, rename, delete), so the windows are tidier and the preview has more room. Saving and other big changes ask first, and the icons that change your look explain themselves the first time
+- Customization switch at the top of General: turns everything off at once, everywhere, and back on with your look as it was
+- The customizer opens from the garage too, no level needed
+- The preview shows your custom icon from More Icons
+- Buttons keep their size with any texture pack
+
+### Removed
+- The built-in presets Kepochka and Twin Tails
+- The star button in the pause menu (the next favorite look) and the favorite stars: the Linker and looks per mode do it better
+
 ## v1.5.2
 
 - Globed: big looks reach the other players too. The Globed server drops events over 1024 bytes, so a detailed look was lost on the way; looks now travel in small parts. Tested with Globed 2.2.3 builds

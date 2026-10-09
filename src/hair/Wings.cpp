@@ -72,7 +72,7 @@ void HairNode::drawWings(CCDrawNode *node)
 
   auto const color = m_config.wingColorSource == HairColorSource::Hair ? this->hairColor()
                                                                        : this->sourceColor(m_config.wingColorSource, m_config.wingColor);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
 
   CCPoint const center = m_frameParams.headCenter;
   CCPoint const up = m_frameUp;

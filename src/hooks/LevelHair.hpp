@@ -15,5 +15,9 @@
 // The game mode a player is in; the jetpack is the ship of platformer levels
 GameMode gameModeOf(PlayerObject *player);
 
+// How hard the moment is for a player, 0..1: faster speed portals and busy clicking
+float focusSignal(PlayerObject *player);
+
+// `focusOf` is the player whose moment drives the focus mode (other players' rigs follow yours)
 bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<geode::Ref<HairNode>> &nodes,
-                     std::function<std::string()> look = {});
+                     std::function<std::string()> look = {}, PlayerObject *focusOf = nullptr);

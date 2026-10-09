@@ -80,7 +80,8 @@ bool HairNode::decorActive() const
   return m_config.blush || m_config.sparkles != SparkleStyle::None || m_config.clipCount > 0 || m_config.headband ||
          m_config.flowers != FlowerStyle::None || m_config.halo || m_config.petals || m_config.sleepy ||
          m_config.wings != WingStyle::None || m_config.pet != PetStyle::None || m_config.hat != HatStyle::None ||
-         m_config.sticker != StickerStyle::None || m_config.reactions || m_config.cuteDeath || this->charmsActive();
+         m_config.sticker != StickerStyle::None || m_config.reactions || m_config.cuteDeath || this->charmsActive() ||
+         m_config.face != FaceStyle::None || m_config.cape != CapeStyle::None;
 }
 
 // ! --- Hair look --- !
@@ -184,7 +185,7 @@ void HairNode::drawClips(CCDrawNode *node)
   float const size = kClipSize * m_config.clipSize * scale;
 
   auto const color = this->sourceColor(m_config.clipColorSource, m_config.clipColor);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
   auto const shine = faded({1.f, 1.f, 1.f, 1.f}, .7f * color.a);
 
   for (int i = 0; i < m_config.clipCount; ++i)
@@ -246,7 +247,7 @@ void HairNode::drawBlush(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
 
   // On the face, so in the icon's own frame: it follows the sprite even when the hair stays upright
   float const pop = m_config.blushPop ? m_blushPop : 0.f;
@@ -304,7 +305,7 @@ void HairNode::drawHeadband(CCDrawNode *node)
   auto const color = m_config.headbandColorSource == HairColorSource::Hair
                          ? this->hairColor()
                          : this->sourceColor(m_config.headbandColorSource, m_config.headbandColor);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
 
   // Along the edge of the head over the top, from one side to the other
   CCPoint const center = m_frameParams.headCenter;
@@ -339,7 +340,7 @@ void HairNode::drawHeadband(CCDrawNode *node)
   case HeadbandDeco::Bow:
   {
     CCPoint const knot = arcPoint(0.f, &outward);
-    drawBowShape(node, knot + outward * radius, outward, m_bowWobble, kHeadbandBowSize * scale, color, outline);
+    drawBowShape(node, knot + outward * radius, outward, m_bowWobble, kHeadbandBowSize * scale, color, outline, this->ink(color.a));
     break;
   }
   case HeadbandDeco::CatEars:
@@ -381,9 +382,8 @@ namespace
   // A flower at `center`, `up` gives its turn. Sakura: five heart-shaped petals pointing in,
   // daisy: ten thin white petals around a yellow middle
   void drawFlower(CCDrawNode *node, CCPoint const &center, CCPoint const &up, float size, bool sakura, ccColor4F const &color,
-                  float outline)
+                  float outline, ccColor4F const &outlineColor)
   {
-    auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
     int const petals = sakura ? 5 : 10;
 
     for (int pass = outline > 0.f ? 0 : 1; pass < 2; ++pass)
@@ -433,7 +433,7 @@ void HairNode::drawFlowers(CCDrawNode *node)
     CCPoint outward;
     CCPoint const point = onHead(m_config.flowerPosition, outward);
     drawFlower(node, point, rotated(outward, radians(m_bowWobble * .5f)), kFlowerSize * m_config.flowerSize * scale,
-               m_config.flowers == FlowerStyle::Sakura, color, outline);
+               m_config.flowers == FlowerStyle::Sakura, color, outline, this->ink(color.a));
     return;
   }
 
@@ -446,7 +446,7 @@ void HairNode::drawFlowers(CCDrawNode *node)
     CCPoint outward;
     CCPoint const point = onHead(kCrownFrom + (-2.f * kCrownFrom) * t, outward);
     CCPoint const leafDir = rotated(outward, radians(i % 2 == 0 ? 60.f : -60.f));
-    fillEllipse(node, point + leafDir * (size * .9f), leafDir, size * .55f, size * .22f, leaf, outline, {0.f, 0.f, 0.f, color.a});
+    fillEllipse(node, point + leafDir * (size * .9f), leafDir, size * .55f, size * .22f, leaf, outline, this->ink(color.a));
   }
   for (int i = 0; i < kCrownFlowers; ++i)
   {
@@ -455,7 +455,7 @@ void HairNode::drawFlowers(CCDrawNode *node)
     CCPoint const point = onHead(kCrownFrom + (-2.f * kCrownFrom) * t, outward);
     bool const sakura = i % 2 == 0;
     auto const flower = sakura ? color : premultiplied({255, 255, 255}, color.a);
-    drawFlower(node, point, rotated(outward, radians(m_bowWobble * .5f + 17.f * static_cast<float>(i))), size, sakura, flower, outline);
+    drawFlower(node, point, rotated(outward, radians(m_bowWobble * .5f + 17.f * static_cast<float>(i))), size, sakura, flower, outline, this->ink(flower.a));
   }
 }
 
@@ -494,7 +494,7 @@ void HairNode::drawHalo(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
 
   CCPoint const worldUp = m_gravityDir ? m_gravityDir() * -1.f : CCPoint{0.f, 1.f};
   CCPoint const up = normalized(applyVec(worldUp, simToNode), {0.f, 1.f});
@@ -538,9 +538,9 @@ void HairNode::drawSticker(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
   float const outline = m_config.outline ? kOutlineWidth * scale * .8f : 0.f;
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, alpha};
+  auto const outlineColor = this->ink(alpha);
 
   // On the face like the blush, in the icon's own frame
   CCPoint const right = normalized(applyVec(m_iconBack * -1.f, simToNode), {1.f, 0.f});
@@ -608,7 +608,7 @@ void HairNode::drawHat(CCDrawNode *node)
 
   auto const color = m_config.hatColorSource == HairColorSource::Hair ? this->hairColor()
                                                                       : this->sourceColor(m_config.hatColorSource, m_config.hatColor);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
 
   // Sits on top of the head in the hair frame, tilted, swaying with the bows, squashed after a landing
   CCPoint const center = m_frameParams.headCenter;

@@ -1,6 +1,8 @@
 #include "HairConfig.hpp"
 
 #include <algorithm>
+#include <array>
+#include <string_view>
 
 using namespace geode::prelude;
 
@@ -185,6 +187,8 @@ namespace
       return EarringStyle::Stars;
     if (value == "Pearls")
       return EarringStyle::Pearls;
+    if (value == "Pendulum")
+      return EarringStyle::Pendulum;
     return EarringStyle::None;
   }
 
@@ -212,6 +216,85 @@ namespace
     if (value == "Sparkles")
       return TrailStyle::Sparkles;
     return TrailStyle::None;
+  }
+
+  PetBehavior parsePetBehavior(std::string const &value)
+  {
+    return value == "Run" ? PetBehavior::Run : PetBehavior::Float;
+  }
+
+  CapeStyle parseCape(std::string const &value)
+  {
+    if (value == "Cape")
+      return CapeStyle::Cape;
+    if (value == "Short cape")
+      return CapeStyle::ShortCape;
+    if (value == "Flag")
+      return CapeStyle::Flag;
+    return CapeStyle::None;
+  }
+
+  CapePattern parseCapePattern(std::string const &value)
+  {
+    if (value == "Stripes")
+      return CapePattern::Stripes;
+    if (value == "Stars")
+      return CapePattern::Stars;
+    if (value == "Hearts")
+      return CapePattern::Hearts;
+    return CapePattern::Plain;
+  }
+
+  FaceStyle parseFace(std::string const &value)
+  {
+    if (value == "Eyes")
+      return FaceStyle::Eyes;
+    if (value == "Eyes and mouth")
+      return FaceStyle::EyesAndMouth;
+    return FaceStyle::None;
+  }
+
+  FaceShape parseFaceShape(std::string const &value)
+  {
+    constexpr std::array<std::string_view, 9> names = {"Default", "Flirty", "Sultry", "Angry", "Kind",
+                                                       "Cheerful", "Judging", "Sad", "Surprised"};
+    for (size_t i = 0; i < names.size(); ++i)
+    {
+      if (value == names[i])
+        return static_cast<FaceShape>(i);
+    }
+    return FaceShape::Default;
+  }
+
+  BangsStyle parseBangsStyle(std::string const &value)
+  {
+    if (value == "Parted")
+      return BangsStyle::Parted;
+    if (value == "Side swept")
+      return BangsStyle::SideSwept;
+    if (value == "One side")
+      return BangsStyle::OneSide;
+    return BangsStyle::Straight;
+  }
+
+  FaceLook parseFaceLook(std::string const &value)
+  {
+    if (value == "Sapphire")
+      return FaceLook::Sapphire;
+    if (value == "Sapphire hearts")
+      return FaceLook::SapphireHearts;
+    if (value == "Crimson")
+      return FaceLook::Crimson;
+    return FaceLook::Onyx;
+  }
+
+  FocusMode parseFocus(std::string const &value)
+  {
+    if (value == "Auto")
+      return FocusMode::Auto;
+    if (value == "Always")
+      return FocusMode::Always;
+    return FocusMode::Off;
   }
 
   Quality parseQuality(std::string const &value)
@@ -285,10 +368,14 @@ HairConfig HairConfig::load(matjson::Value const *look)
 
   // The switches of the mod itself always come from the mod settings
 
-  cfg.enabled = mod->getSettingValue<bool>("enabled");
+  cfg.customization = mod->getSettingValue<bool>("customization");
+  cfg.enabled = flag("enabled"); // part of a look: an empty look has no hair
   cfg.showInGarage = mod->getSettingValue<bool>("show-in-garage");
   cfg.showInMenus = mod->getSettingValue<bool>("show-in-menus");
   cfg.quality = parseQuality(mod->getSettingValue<std::string>("quality"));
+  cfg.focusMode = parseFocus(mod->getSettingValue<std::string>("focus-mode"));
+  cfg.focusOpacity = static_cast<float>(mod->getSettingValue<double>("focus-opacity"));
+  cfg.focusHair = mod->getSettingValue<bool>("focus-hair");
 
   static constexpr std::array<char const *, static_cast<size_t>(GameMode::Count)> kModeKeys{
       "mode-cube", "mode-ship", "mode-ball", "mode-ufo", "mode-wave",
@@ -314,6 +401,8 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.braidFaceLocks = flag("braid-face-locks");
   cfg.faceLockInsetX = number("face-lock-inset-x");
   cfg.faceLockInsetY = number("face-lock-inset-y");
+  cfg.faceLockShiftX = number("face-lock-shift-x");
+  cfg.faceLockTilt = number("face-lock-tilt");
   cfg.faceLockColorSource = parseColorSource(text("face-lock-color"));
   cfg.faceLockColor = color("face-lock-custom-color");
 
@@ -325,6 +414,9 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.bangsArcSoftness = number("bangs-arc-softness");
   cfg.bangsInsetX = number("bangs-inset-x");
   cfg.bangsInsetY = number("bangs-inset-y");
+  cfg.bangsStyle = parseBangsStyle(text("bangs-style"));
+  cfg.bangsRight = text("bangs-side") != "Left";
+  cfg.bangsTransition = number("bangs-transition");
   cfg.bangsColorSource = parseColorSource(text("bangs-color"));
   cfg.bangsColor = color("bangs-custom-color");
 
@@ -426,6 +518,7 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.petColorSource = parseColorSource(text("pet-color"));
   cfg.petColor = color("pet-custom-color");
   cfg.petMoods = flag("pet-moods");
+  cfg.petBehavior = parsePetBehavior(text("pet-behavior"));
 
   cfg.headphones = parseHeadphones(text("headphones"));
   cfg.headphonesSize = number("headphones-size");
@@ -446,12 +539,31 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.earringSize = number("earring-size");
   cfg.earringLength = number("earring-length");
   cfg.earringHeight = number("earring-height");
+  cfg.earringInsetX = number("earring-inset-x");
   cfg.earringColorSource = parseColorSource(text("earring-color"));
   cfg.earringColor = color("earring-custom-color");
   cfg.bell = flag("bell");
   cfg.bellSize = number("bell-size");
   cfg.bellColor = color("bell-color");
   cfg.collarColor = color("collar-color");
+
+  cfg.cape = parseCape(text("cape"));
+  cfg.capeLength = number("cape-length");
+  cfg.capeWidth = number("cape-width");
+  cfg.capeColorSource = parseColorSource(text("cape-color"));
+  cfg.capeColor = color("cape-custom-color");
+  cfg.capeLining = color("cape-lining");
+  cfg.capePattern = parseCapePattern(text("cape-pattern"));
+
+  cfg.face = parseFace(text("face"));
+  cfg.faceStyle = parseFaceLook(text("face-style"));
+  cfg.faceShape = parseFaceShape(text("face-shape"));
+  cfg.faceX = number("face-x");
+  cfg.faceY = number("face-y");
+  cfg.faceShiftX = number("face-shift-x");
+  cfg.faceTilt = number("face-tilt");
+  cfg.faceScaleX = number("face-scale-x");
+  cfg.faceScaleY = number("face-scale-y");
 
   cfg.streaks = integer("streaks");
   cfg.streakPlacement = parseStreaks(text("streak-placement"));
@@ -505,6 +617,7 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.colorSource = parseColorSource(text("color-source"));
   cfg.customColor = color("custom-color");
   cfg.outline = flag("outline");
+  cfg.outlineColor = color("outline-color");
 
   cfg.lockCount = std::clamp(cfg.lockCount, 1, 256);
   cfg.segments = std::clamp(cfg.segments, 3, 16);

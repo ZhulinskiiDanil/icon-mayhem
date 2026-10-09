@@ -20,7 +20,10 @@ enum class PreviewPlace
   Customizer, // wears the main look, the one being edited
   Garage,     // the look of the icon, follows "Show in garage"
   Menu,       // your profile and the menu: the look of the icon, follows "Show in menus"
+  Presets,    // the presets popup: wears the look the popup gives it (setLook)
 };
 
 void attachSimplePlayerHair(SimplePlayer *player, PreviewPlace place);
+// The game mode of an icon type of the garage
+GameMode gameModeOf(IconType type);
 SimplePlayerHair getSimplePlayerHair(SimplePlayer *player);

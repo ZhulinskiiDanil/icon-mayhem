@@ -169,7 +169,7 @@ void HairNode::drawHeadphones(CCDrawNode *node)
   auto const color = m_config.headphonesColorSource == HairColorSource::Hair
                          ? this->hairColor()
                          : this->sourceColor(m_config.headphonesColorSource, m_config.headphonesColor);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
   auto const light = premultiplied(m_config.headphonesLight, color.a);
 
   // Around the head in the hairstyle frame, over the hair
@@ -260,9 +260,9 @@ void HairNode::drawGlasses(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
   float const outline = m_config.outline ? kOutlineWidth * scale * .7f : 0.f;
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, alpha};
+  auto const outlineColor = this->ink(alpha);
   auto const frame = premultiplied(m_config.glassesColor, alpha);
   auto const tint = premultiplied(m_config.glassesTint, alpha * m_config.glassesTintOpacity);
   auto const glint = ccColor4F{.8f * alpha, .8f * alpha, .8f * alpha, .8f * alpha};
@@ -345,7 +345,7 @@ void HairNode::drawEarrings(CCDrawNode *node)
   auto const color = m_config.earringColorSource == HairColorSource::Hair
                          ? this->hairColor()
                          : this->sourceColor(m_config.earringColorSource, m_config.earringColor);
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, color.a};
+  auto const outlineColor = this->ink(color.a);
   auto const shine = ccColor4F{.85f * color.a, .85f * color.a, .85f * color.a, .85f * color.a};
   CCPoint const down = m_gravityDir ? m_gravityDir() : CCPoint{0.f, -1.f};
   float const size = m_config.earringSize * kEarringScale * scale;
@@ -355,7 +355,7 @@ void HairNode::drawEarrings(CCDrawNode *node)
     // Hooked on the side of the head in the icon frame, hanging along gravity
     float const side = i == 0 ? -1.f : 1.f;
     CCPoint const dir = m_iconBack * -side;
-    CCPoint const anchorSim = m_frameParams.headCenter + dir * (this->headEdge(dir) - .3f * m_simScale) +
+    CCPoint const anchorSim = m_frameParams.headCenter + dir * (this->headEdge(dir) - (.3f + m_config.earringInsetX) * m_simScale) +
                               m_iconUp * (m_config.earringHeight * m_simScale);
     CCPoint const hang = m_earringSwing[i].direction(down);
     CCPoint const chainEndSim = anchorSim + hang * (m_config.earringLength * m_simScale);
@@ -411,6 +411,31 @@ void HairNode::drawEarrings(CCDrawNode *node)
       fillCircle(node, charm, size * 1.05f, color);
       fillCircle(node, charm - across * (size * .3f) + up * (size * .35f), size * .32f, shine);
       break;
+    case EarringStyle::Pendulum:
+    {
+      // A little cap, then a long faceted drop: widest near the top, a sharp point at the bottom.
+      // One face is in the shade, a thin light runs down the other
+      auto at = [&](float x, float y)
+      { return charm + across * (x * size) + up * (y * size); };
+      std::array<CCPoint, 5> body = {at(-.34f, 1.f), at(.34f, 1.f), at(.72f, .3f), at(0.f, -2.7f), at(-.72f, .3f)};
+      if (outline > 0.f)
+      {
+        std::array<CCPoint, 5> edge = body;
+        for (auto &point : edge)
+          point = point + normalized(point - at(0.f, -.2f), up) * outline;
+        node->drawPolygon(edge.data(), static_cast<unsigned>(edge.size()), outlineColor, 0.f, outlineColor);
+        fillCircle(node, at(0.f, 1.25f), size * .42f + outline, outlineColor);
+      }
+      node->drawPolygon(body.data(), static_cast<unsigned>(body.size()), color, 0.f, color);
+      std::array<CCPoint, 4> shadow = {at(0.f, 1.f), at(.34f, 1.f), at(.72f, .3f), at(0.f, -2.7f)};
+      auto const dark = shaded(color, .72f);
+      node->drawPolygon(shadow.data(), static_cast<unsigned>(shadow.size()), dark, 0.f, dark);
+      node->drawSegment(at(-.36f, .55f), at(-.08f, -1.7f), size * .09f, shine);
+      // The cap the drop hangs from
+      fillCircle(node, at(0.f, 1.25f), size * .42f, shaded(color, .9f));
+      fillCircle(node, at(-.12f, 1.36f), size * .13f, shine);
+      break;
+    }
     default:
       break;
     }
@@ -427,9 +452,9 @@ void HairNode::drawCollarAndBell(CCDrawNode *node)
   auto const simToNode = CCAffineTransformConcat(m_simSpace->nodeToWorldTransform(), node->worldToNodeTransform());
   auto const headToNode = CCAffineTransformConcat(m_head->nodeToWorldTransform(), node->worldToNodeTransform());
   float const scale = applyVec({1.f, 0.f}, headToNode).getLength() * this->headUnit();
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
   float const outline = m_config.outline ? kOutlineWidth * scale : 0.f;
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, alpha};
+  auto const outlineColor = this->ink(alpha);
 
   // Across the bottom of the face in the icon frame, like the scarf
   float const unit = m_simScale;

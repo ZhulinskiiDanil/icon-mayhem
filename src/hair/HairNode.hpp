@@ -3,6 +3,7 @@
 #include "HairConfig.hpp"
 #include "HairShared.hpp"
 #include "HairSim.hpp"
+#include "ClothSim.hpp"
 
 #include <Geode/Geode.hpp>
 #include <array>
@@ -67,6 +68,9 @@ public:
   // The look to wear (a preset name, "" for the main look), asked every frame; see Looks.hpp.
   // Without it the rig wears the main look, like the customizer preview that edits it
   void setLook(std::function<std::string()> fn) { m_lookFn = std::move(fn); }
+  // In a level: how hard the moment is, 0..1 (speed, busy clicking), for the focus mode.
+  // Without it the rig is never focused (menus, previews)
+  void setFocusSignal(std::function<float()> fn) { m_focusFn = std::move(fn); }
   // Profile and menu icons follow the "Show in menus" setting
   void setMenu(bool menu) { m_isMenu = menu; }
 
@@ -203,6 +207,29 @@ private:
   void drawEarrings(cocos2d::CCDrawNode *node);
   void drawCollarAndBell(cocos2d::CCDrawNode *node);
 
+  // ! --- Cape (Cloth.cpp) --- !
+
+  // The pinned edge of the cloth and the way it hangs at rest, sim space
+  void capePins(cocos2d::CCPoint const &headCenter, std::vector<cocos2d::CCPoint> &pins, cocos2d::CCPoint &hang) const;
+  void updateCape(float dt, cocos2d::CCPoint const &headCenter);
+  void drawCape(cocos2d::CCDrawNode *node);
+
+  // ! --- Face (Face.cpp) --- !
+
+  enum class FaceMood
+  {
+    Normal,
+    Happy,     // checkpoints and level completes
+    Surprised, // orbs and pads
+  };
+  void updateFace(float dt, cocos2d::CCPoint const &headCenter, bool tookOff);
+  void setFaceMood(FaceMood mood, float duration);
+  void drawFace(cocos2d::CCDrawNode *node);
+  void buildEyeSprites();
+  void hideEyes();
+  // X eyes for a moment after a death, where the face was
+  void drawDeadFace(cocos2d::CCDrawNode *node, float age);
+
   // ! --- Wings (Wings.cpp) and the pet (Pet.cpp) --- !
 
   void updateWings(float dt, bool tookOff);
@@ -217,6 +244,8 @@ private:
   void updatePet(float dt, cocos2d::CCPoint const &headCenter);
   // After a death the hair isn't simulated, the pet just floats where it was
   void updatePetAlone(float dt);
+  // The running pet: on the blocks of the level, jumping spikes, riding on the head in flight
+  void updatePetRunner(float dt, cocos2d::CCPoint const &headCenter);
   void petReact(PetMood mood, float duration);
   void drawPet(cocos2d::CCDrawNode *node);
   void drawEmote(cocos2d::CCDrawNode *node);
@@ -226,6 +255,11 @@ private:
   cocos2d::ccColor4F lockColorAt(Lock const &lock, cocos2d::ccColor4F const &base, float along) const;
   float headUnit() const; // head-local units per hair unit
   bool isActive() const;
+  // Opacity to draw with: the icon's own times the focus fade of the part being drawn
+  float drawAlpha() const;
+  // The outline color of the look at this opacity, premultiplied
+  cocos2d::ccColor4F ink(float alpha) const;
+  void updateFocus(float dt);
   void updateFrame(float dt, bool snap);
   void updateMotion(float dt, cocos2d::CCPoint const &headCenter, bool snap);
   void updateGust(float dt);
@@ -278,6 +312,19 @@ private:
   size_t m_bangsStart = 0;
   size_t m_ribbonsStart = 0;
   geode::Ref<cocos2d::CCDrawNode> m_front; // draws the front locks above the icon
+  geode::Ref<cocos2d::CCNode> m_eyes;      // the eye sprites, over the icon and under the front locks
+
+  // One eye made of sprites: the white, the iris clipped by it, the lashes; the closed eye apart
+  struct EyeSprites
+  {
+    cocos2d::CCNode *root = nullptr;
+    cocos2d::CCNode *open = nullptr;
+    cocos2d::CCSprite *iris = nullptr;
+    std::vector<cocos2d::CCSprite *> sprites; // for the opacity
+  };
+  std::array<EyeSprites, 2> m_eyeSprites;
+  int m_eyeStyleBuilt = -1;
+  float m_eyeTexel = 1.f; // sprite units per texture pixel (Geode scales sprites for the texture quality)
   HairSim m_sim;
   std::vector<HairStrandTarget> m_targets;
   std::vector<cocos2d::CCPoint> m_curve; // scratch buffer for drawing
@@ -346,6 +393,10 @@ private:
   bool m_musicDriven = false;
   cocos2d::CCNode *m_player = nullptr;
   std::function<std::string()> m_lookFn;
+  std::function<float()> m_focusFn;
+  float m_focus = 0.f;     // 0 relaxed .. 1 focused, smoothed
+  float m_focusCalm = 0.f; // s since the moment stopped being hard
+  float m_fadeAlpha = 1.f; // set around the parts that fade with the focus
   std::string m_lookName; // "" is the main look
 
   float m_wingAngle = 0.f; // degrees the wings are raised by a flap
@@ -359,6 +410,23 @@ private:
   float m_petMoodTime = 0.f; // s left of a happy mood
   unsigned m_petFrame = 0;   // last frame the pet was updated
   float m_petTilt = 0.f;     // s left of a puzzled head tilt (the "?" emote)
+  bool m_petGrounded = false; // the running pet stands on a block
+  bool m_petRiding = false;   // the running pet sits on the head
+  float m_petRunPhase = 0.f;  // radians, the feet
+
+  ClothSim m_cloth;
+  float m_clothSpacing = 0.f; // sim units between cloth points
+
+  cocos2d::CCPoint m_faceLook;     // where the eyes look, icon frame, length up to 1
+  float m_faceScare = 0.f;         // 0..1, a spike right ahead
+  float m_faceBlink = 3.f;         // s until the next blink, negative while blinking
+  float m_faceJump = 0.f;          // s left of looking up after a takeoff
+  float m_faceQueryTimer = 0.f;
+  std::optional<cocos2d::CCPoint> m_watchTarget; // the spike or orb the eyes look at, sim space
+  bool m_watchIsHazard = false;
+  FaceMood m_faceMood = FaceMood::Normal;
+  float m_faceMoodTime = 0.f;
+  float m_deadAge = 0.f; // s since the death, for the X eyes
   std::optional<Emote> m_emote;
   float m_emoteAge = 0.f; // s
   bool m_diedActive = false; // the rig was showing when the icon died, so the pet and the reactions play

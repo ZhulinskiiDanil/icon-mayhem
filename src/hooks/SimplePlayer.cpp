@@ -16,34 +16,34 @@ namespace
     return type == IconType::Cube || type == IconType::Ball || type == IconType::Wave || type == IconType::Swing;
   }
 
-  GameMode gameModeOf(IconType type)
-  {
-    switch (type)
-    {
-    case IconType::Ship:
-      return GameMode::Ship;
-    case IconType::Ball:
-      return GameMode::Ball;
-    case IconType::Ufo:
-      return GameMode::Ufo;
-    case IconType::Wave:
-      return GameMode::Wave;
-    case IconType::Robot:
-      return GameMode::Robot;
-    case IconType::Spider:
-      return GameMode::Spider;
-    case IconType::Swing:
-      return GameMode::Swing;
-    case IconType::Jetpack:
-      return GameMode::Jetpack;
-    default:
-      return GameMode::Cube;
-    }
-  }
-
   CCSprite *headOf(GJRobotSprite *body)
   {
     return body->m_headSprite ? static_cast<CCSprite *>(body->m_headSprite) : body;
+  }
+}
+
+GameMode gameModeOf(IconType type)
+{
+  switch (type)
+  {
+  case IconType::Ship:
+    return GameMode::Ship;
+  case IconType::Ball:
+    return GameMode::Ball;
+  case IconType::Ufo:
+    return GameMode::Ufo;
+  case IconType::Wave:
+    return GameMode::Wave;
+  case IconType::Robot:
+    return GameMode::Robot;
+  case IconType::Spider:
+    return GameMode::Spider;
+  case IconType::Swing:
+    return GameMode::Swing;
+  case IconType::Jetpack:
+    return GameMode::Jetpack;
+  default:
+    return GameMode::Cube;
   }
 }
 
@@ -91,10 +91,15 @@ class $modify(HairSimplePlayer, SimplePlayer)
     // A light breeze keeps the garage and menus alive, the customizer preview stays calm to show the real drape
     hair->setIdleWind(place != PreviewPlace::Customizer);
     // Outside the customizer the icon wears its own look, like in a level
-    if (place != PreviewPlace::Customizer)
+    if (place == PreviewPlace::Garage || place == PreviewPlace::Menu)
     {
+      // The icon the player wears: the frame a preview was last given can be stale (More Icons
+      // swaps the sprites of a preview without it)
       hair->setLook([this]
-                    { return looks::lookFor(false, gameModeOf(m_fields->m_iconType), m_fields->m_iconId); });
+                    {
+                      auto const mode = gameModeOf(m_fields->m_iconType);
+                      return looks::wornLook(false, mode);
+                    });
     }
     hair->setShouldShow([this, showFor = std::move(showFor)]
                         { return showFor(m_fields->m_iconType); });

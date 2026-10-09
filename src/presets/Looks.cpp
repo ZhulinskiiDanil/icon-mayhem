@@ -1,6 +1,10 @@
 #include "Looks.hpp"
 #include "Presets.hpp"
 
+// More Icons is optional: its functions are reached through Geode events, without linking to it
+#define MORE_ICONS_EVENTS
+#include <hiimjustin000.more_icons/include/MoreIcons.hpp>
+
 #include <algorithm>
 #include <array>
 #include <map>
@@ -92,6 +96,7 @@ namespace
   };
 
   constexpr std::string_view kRemotePrefix = "@remote:";
+  constexpr std::string_view kBuiltInPrefix = "@builtin:";
 
   std::unordered_map<std::string, matjson::Value> &remoteLooks()
   {
@@ -204,7 +209,91 @@ int looks::equippedIcon(GameMode mode)
   }
 }
 
-std::string looks::lookFor(bool playerTwo, GameMode mode, int icon)
+IconType looks::iconTypeOf(GameMode mode)
+{
+  switch (mode)
+  {
+  case GameMode::Ship:
+    return IconType::Ship;
+  case GameMode::Ball:
+    return IconType::Ball;
+  case GameMode::Ufo:
+    return IconType::Ufo;
+  case GameMode::Wave:
+    return IconType::Wave;
+  case GameMode::Robot:
+    return IconType::Robot;
+  case GameMode::Spider:
+    return IconType::Spider;
+  case GameMode::Swing:
+    return IconType::Swing;
+  case GameMode::Jetpack:
+    return IconType::Jetpack;
+  default:
+    return IconType::Cube;
+  }
+}
+
+std::string looks::forCustomIcon(GameMode mode, std::string const &name)
+{
+  if (mode == GameMode::Count || name.empty())
+    return "";
+  auto const &icons = assignments().icons;
+  auto it = icons.find(fmt::format("{}:mi:{}", kModeKeys[static_cast<size_t>(mode)], name));
+  return it == icons.end() ? "" : it->second;
+}
+
+void looks::setForCustomIcon(GameMode mode, std::string const &name, std::string const &preset)
+{
+  auto &icons = assignments().icons;
+  auto const key = fmt::format("{}:mi:{}", kModeKeys[static_cast<size_t>(mode)], name);
+  if (preset.empty())
+    icons.erase(key);
+  else
+    icons[key] = preset;
+
+  auto json = matjson::Value::object();
+  for (auto const &[iconKey, value] : icons)
+    json[iconKey] = value;
+  Mod::get()->setSavedValue(kIconLooksSave, json);
+}
+
+std::string looks::equippedCustomIcon(GameMode mode, bool dual)
+{
+  if (mode == GameMode::Count)
+    return "";
+  auto info = more_icons::activeIcon(iconTypeOf(mode), dual);
+  return info ? info->getName() : "";
+}
+
+std::string looks::linkedLook(GameMode mode)
+{
+  mode = linkModeOf(mode);
+  auto const custom = equippedCustomIcon(mode);
+  return custom.empty() ? forIcon(mode, equippedIcon(mode)) : forCustomIcon(mode, custom);
+}
+
+GameMode looks::linkModeOf(GameMode mode)
+{
+  return mode == GameMode::Ship || mode == GameMode::Ufo || mode == GameMode::Jetpack ? GameMode::Cube : mode;
+}
+
+std::string looks::wornLook(bool playerTwo, GameMode mode)
+{
+  GameMode const linked = linkModeOf(mode);
+  // The icon link of the rider, then the look of the mode itself
+  if (mode != linked)
+  {
+    auto const custom = equippedCustomIcon(linked, playerTwo);
+    auto const look = custom.empty() ? forIcon(linked, equippedIcon(linked)) : forCustomIcon(linked, custom);
+    if (!look.empty() && !(playerTwo && (!forMode(mode, true).empty() || !forPlayerTwo().empty())))
+      return look;
+    return lookFor(playerTwo, mode);
+  }
+  return lookFor(playerTwo, mode, equippedIcon(mode), equippedCustomIcon(mode, playerTwo));
+}
+
+std::string looks::lookFor(bool playerTwo, GameMode mode, int icon, std::string const &custom)
 {
   auto const &saved = assignments();
   bool const known = mode != GameMode::Count;
@@ -216,7 +305,8 @@ std::string looks::lookFor(bool playerTwo, GameMode mode, int icon)
     if (!saved.playerTwo.empty())
       return saved.playerTwo;
   }
-  if (auto look = forIcon(mode, icon); !look.empty())
+  // A More Icons icon covers the game icon under it
+  if (auto look = custom.empty() ? forIcon(mode, icon) : forCustomIcon(mode, custom); !look.empty())
     return look;
   return known ? saved.modes[index] : "";
 }
@@ -259,12 +349,51 @@ HairConfig looks::configFor(std::string const &name)
 std::optional<matjson::Value> looks::presetSettings(std::string const &name)
 {
   auto &settings = presetCache()[name];
-  if (!settings)
+  if (!settings && name.starts_with(kBuiltInPrefix))
+  {
+    auto const plain = name.substr(kBuiltInPrefix.size());
+    for (auto const &preset : presets::builtIn())
+    {
+      if (preset.name == plain)
+        settings = preset.settings;
+    }
+  }
+  else if (!settings)
   {
     if (auto preset = presets::find(name))
       settings = preset->settings;
   }
   return settings;
+}
+
+std::string looks::builtInLook(std::string const &name)
+{
+  return fmt::format("{}{}", kBuiltInPrefix, name);
+}
+
+void looks::renamePreset(std::string const &from, std::string const &to)
+{
+  auto &saved = assignments();
+  auto rename = [&](std::string &name)
+  {
+    if (name == from)
+      name = to;
+  };
+  for (auto &name : saved.modes)
+    rename(name);
+  for (auto &name : saved.playerTwoModes)
+    rename(name);
+  rename(saved.playerTwo);
+  for (auto &[key, name] : saved.icons)
+    rename(name);
+
+  saveModes(kModeLooksSave, saved.modes);
+  saveModes(kPlayerTwoModesSave, saved.playerTwoModes);
+  Mod::get()->setSavedValue(kPlayerTwoSave, saved.playerTwo);
+  auto json = matjson::Value::object();
+  for (auto const &[key, value] : saved.icons)
+    json[key] = value;
+  Mod::get()->setSavedValue(kIconLooksSave, json);
 }
 
 void looks::invalidate()

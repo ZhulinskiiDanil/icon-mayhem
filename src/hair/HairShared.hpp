@@ -165,9 +165,8 @@ namespace hair
   // A bow: two loops tilted a bit away from the head, a fold inside each, the knot on top.
   // `outward` points away from the head, `wobble` swings the loops in degrees
   inline void drawBowShape(cocos2d::CCDrawNode *node, cocos2d::CCPoint const &knot, cocos2d::CCPoint const &outward, float wobble,
-                           float size, cocos2d::ccColor4F const &color, float outline)
+                           float size, cocos2d::ccColor4F const &color, float outline, cocos2d::ccColor4F const &outlineColor)
   {
-    auto const outlineColor = cocos2d::ccColor4F{0.f, 0.f, 0.f, color.a};
     cocos2d::CCPoint const along = rotated(perpendicular(outward), radians(wobble));
 
     for (float side : {-1.f, 1.f})

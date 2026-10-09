@@ -6,12 +6,14 @@ A [Geode](https://geode-sdk.org) mod for Geometry Dash with cute and crazy custo
 
 ## Features
 
+- **Alive**: detailed anime eyes, capes of real cloth, a pet that runs on the blocks with you
 - **Physics-based hair** in every game mode: three hairstyles, face locks and bangs, ponytail and twin tails, braids, an ahoge, gusty wind
 - **Accessories**: ears, bows, hair clips, a scarf, a headband, flowers, a halo, wings, hats, headphones, glasses, earrings, a cat bell and a little pet with moods
 - **Effects**: blush, face stickers, hearts and sparkles, weather (sakura, snow, leaves, stars), a ribbon trail, a sleepy icon, reactions to deaths, checkpoints, level completes, orbs and pads
 - **Customizer** with a live icon preview, opened from the pause menu: search, hitbox helpers, undo, random looks and colors
+- **Focus mode** for hard levels: what floats around the icon fades in hard parts, nothing covers your view
 - **Everywhere**: a look per icon and per game mode, your profile and the main menu, emotes, and other players' looks on Globed (from Globed 2.2.3)
-- **Presets**: built-in looks, your own saved looks, sharing through the clipboard or files, favorites switched from the pause menu, looks per game mode and for player 2
+- **Presets**: built-in looks, your own saved looks, sharing through the clipboard or files, looks per game mode and for player 2
 
 See [about.md](about.md) for the full description and every setting, and [changelog.md](changelog.md) for what changed.
 

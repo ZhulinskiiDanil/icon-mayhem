@@ -14,6 +14,9 @@ using namespace hair;
 
 namespace
 {
+  constexpr float kFocusIn = 7.f;   // 1 / s, focus comes in this fast
+  constexpr float kFocusOut = 1.f;  // 1 / s, and goes back this slowly
+  constexpr float kFocusHold = 1.5f; // s of calm before it goes back
   constexpr float kTeleportDistance = 160.f;
   constexpr float kRootDepth = .72f;      // roots sit inside the head so the icon hides them
   constexpr float kColliderScale = 1.1f;  // round heads: hair rests a bit above them
@@ -63,6 +66,14 @@ namespace
   constexpr float kBangFan = 16.f;            // degrees the side bangs turn out
   constexpr float kBangWidth = 1.5f;          // wide locks overlap into one fringe
   constexpr float kBangStiffness = 1.6f;      // short and neat, they keep their shape
+  constexpr float kBangPartGap = .14f;        // parted bangs: the bare part in the middle, of the face half
+  constexpr float kBangMinLength = .25f;      // one side bangs: the shortest lock towards the bare side
+
+  float smoothstep(float from, float to, float x)
+  {
+    float const t = std::clamp((x - from) / std::max(to - from, .0001f), 0.f, 1.f);
+    return t * t * (3.f - 2.f * t);
+  }
   constexpr float kArcSharpExponent = 8.f;    // arc softness 0: flat middle, only the ends drop
   constexpr float kArcSoftExponent = 1.5f;    // arc softness 1: one smooth arc
   constexpr float kMaxArcTurn = 45.f;         // degrees the bangs on a steep arc turn out at most
@@ -162,6 +173,11 @@ HairNode *HairNode::attach(CCSprite *head, CCNode *behind, CCSprite *primary, CC
   node->autorelease();
 
   parent->addChild(node, behind->getZOrder() - 1);
+
+  // The eyes sit on the icon under the front locks: same z, added first
+  node->m_eyes = CCNode::create();
+  node->m_eyes->setID("hair-eyes"_spr);
+  parent->addChild(node->m_eyes, behind->getZOrder() + 1);
 
   // Face locks and bangs go over the icon
   node->m_front = CCDrawNode::create();
@@ -379,12 +395,43 @@ void HairNode::addFrontLocks(std::mt19937 &rng)
   if (m_config.bangs)
   {
     int const count = m_config.bangsCount;
+    // `side` -1..1 across the face, -1 is the right (front) side. `toward` is the side Side swept
+    // combs to and One side covers, in the same units
+    float const toward = m_config.bangsRight ? -1.f : 1.f;
     for (int i = 0; i < count; ++i)
     {
+      float const u = count == 1 ? 0.f : (static_cast<float>(i) + .5f) / static_cast<float>(count) * 2.f - 1.f;
+      float side = u;
+      float lengthScale = 1.f;
+      switch (m_config.bangsStyle)
+      {
+      case BangsStyle::Parted:
+        // A bare part in the middle; the locks by the sides are longer, like curtain bangs
+        side = (u < 0.f ? -1.f : 1.f) * (kBangPartGap + (1.f - kBangPartGap) * std::abs(u));
+        lengthScale = .8f + .5f * std::abs(side);
+        break;
+      case BangsStyle::SideSwept:
+        // Longer towards the side they are combed to
+        lengthScale = .7f + .5f * (u * toward + 1.f) * .5f;
+        break;
+      case BangsStyle::OneSide:
+      {
+        // All the locks on the covered half (and the edge), shorter towards the bare side
+        float const edge = m_config.bangsTransition;
+        float const t = count == 1 ? 1.f : (static_cast<float>(i) + .5f) / static_cast<float>(count);
+        float const x = -edge + (1.f + edge) * t; // -edge..1, 1 is the covered side
+        side = x * toward;
+        lengthScale = edge < .02f ? 1.f : std::max(smoothstep(-edge, edge, x), kBangMinLength);
+        break;
+      }
+      default:
+        break;
+      }
+
       Lock lock;
       lock.kind = LockKind::Bang;
-      lock.side = count == 1 ? 0.f : (static_cast<float>(i) + .5f) / static_cast<float>(count) * 2.f - 1.f;
-      lock.length = m_config.bangsLength * (.85f + .3f * random(rng));
+      lock.side = side;
+      lock.length = m_config.bangsLength * lengthScale * (.85f + .3f * random(rng));
       lock.width = m_config.lockWidth * kBangWidth * (.85f + .3f * random(rng));
       lock.curl = 0.f;
       lock.depth = .5f + .5f * random(rng);
@@ -401,8 +448,45 @@ float HairNode::headUnit() const
   return radius > 1.f ? radius / kHeadRadius : 1.f;
 }
 
+cocos2d::ccColor4F HairNode::ink(float alpha) const
+{
+  return premultiplied(m_config.outlineColor, alpha);
+}
+
+float HairNode::drawAlpha() const
+{
+  return m_head->getDisplayedOpacity() / 255.f * m_fadeAlpha;
+}
+
+void HairNode::updateFocus(float dt)
+{
+  float target = 0.f;
+  if (m_focusFn && !m_needsReset)
+  {
+    if (m_config.focusMode == FocusMode::Always)
+      target = 1.f;
+    else if (m_config.focusMode == FocusMode::Auto)
+      target = std::clamp(m_focusFn(), 0.f, 1.f);
+  }
+
+  // Comes in fast, goes back slowly after a calm moment, so nothing blinks in and out
+  if (target >= m_focus)
+  {
+    m_focus = approach(m_focus, target, kFocusIn * dt);
+    m_focusCalm = 0.f;
+  }
+  else
+  {
+    m_focusCalm += dt;
+    if (m_focusCalm > kFocusHold)
+      m_focus = approach(m_focus, target, kFocusOut * dt);
+  }
+}
+
 bool HairNode::isActive() const
 {
+  if (!m_config.customization)
+    return false;
   if (!(m_config.enabled || this->extrasActive() || this->decorActive()) || (m_isGarage && !m_config.showInGarage) ||
       (m_isMenu && !m_config.showInMenus))
     return false;
@@ -487,6 +571,7 @@ void HairNode::visit()
     if (!this->isActive())
     {
       m_needsReset = true;
+      this->hideEyes();
       return;
     }
     m_wasDead = false;
@@ -669,10 +754,11 @@ void HairNode::buildFrontTarget(Lock const &lock, HairStrandTarget &target, CCPo
   if (lock.kind == LockKind::FaceLock)
   {
     // From the top corners of the face, out a bit and then down in soft waves.
-    // Inset X moves both locks to the middle, inset Y down the face
+    // Inset X moves both locks to the middle, inset Y down the face, shift both to the front, and
+    // tilt raises the front lock (side -1, `across` points back) and lowers the back one
     float const x = half * kFaceLockRootX - m_config.faceLockInsetX * unit;
-    float const y = half * kFaceLockRootY - m_config.faceLockInsetY * unit;
-    target.root = headCenter + up * y + across * (lock.side * x);
+    float const y = half * kFaceLockRootY - m_config.faceLockInsetY * unit - lock.side * m_config.faceLockTilt * .5f * unit;
+    target.root = headCenter + up * y + across * (lock.side * x - m_config.faceLockShiftX * unit);
     for (int k = 0; k < segments; ++k)
     {
       float const t = (static_cast<float>(k) + .5f) / static_cast<float>(segments);
@@ -693,10 +779,41 @@ void HairNode::buildFrontTarget(Lock const &lock, HairStrandTarget &target, CCPo
     // On a steep arc the bangs fall away from it, like hair along a round hairline
     float const slope = t > 0.f ? m_config.bangsArcSize * exponent * std::pow(t, exponent - 1.f) / (spread * kHeadRadius) : 0.f;
     float const arcTurn = std::min(std::atan(slope) * 180.f / kPi, kMaxArcTurn);
-    float const angle = radians(lock.side * kBangFan + (lock.side < 0.f ? -arcTurn : arcTurn));
-    CCPoint const dir = down * std::cos(angle) + across * std::sin(angle);
+    float const arc = lock.side < 0.f ? -arcTurn : arcTurn;
+
+    // Where the lock points at the root and at the tip, degrees from down towards `across`:
+    // combed bangs leave the hairline sideways and fall down towards the tips
+    float rootAngle = lock.side * kBangFan;
+    float tipAngle = rootAngle;
+    float const toward = m_config.bangsRight ? -1.f : 1.f;
+    switch (m_config.bangsStyle)
+    {
+    case BangsStyle::Parted:
+    {
+      float const away = lock.side < 0.f ? -1.f : 1.f;
+      rootAngle = away * (52.f - 20.f * t);
+      tipAngle = away * (4.f + 4.f * t);
+      break;
+    }
+    case BangsStyle::SideSwept:
+      rootAngle = toward * 56.f;
+      tipAngle = toward * 8.f;
+      break;
+    case BangsStyle::OneSide:
+      rootAngle = toward * 18.f;
+      tipAngle = toward * 4.f;
+      break;
+    default:
+      break;
+    }
     for (int k = 0; k < segments; ++k)
-      target.restDirs[k] = dir;
+    {
+      // Eases out: most of the turn happens near the root
+      float const along = (static_cast<float>(k) + .5f) / static_cast<float>(segments);
+      float const turn = 1.f - (1.f - along) * (1.f - along);
+      float const angle = radians(rootAngle + (tipAngle - rootAngle) * turn + arc);
+      target.restDirs[k] = down * std::cos(angle) + across * std::sin(angle);
+    }
     stiffness = kBangStiffness;
   }
 
@@ -760,10 +877,12 @@ void HairNode::simulate(float dt)
   bool const onGround = m_onGround && m_onGround();
   if (onGround && !m_wasOnGround && !m_needsReset)
     this->onLanded(headCenter, up, across);
+  this->updateFace(dt, headCenter, !onGround && m_wasOnGround && !m_needsReset);
   this->updateWings(dt, !onGround && m_wasOnGround && !m_needsReset);
   m_wasOnGround = onGround;
   this->updatePet(dt, headCenter);
   this->updateCharms(dt);
+  this->updateFocus(dt);
   this->updateDecor(dt, headCenter, up, across);
 
   // How fast the hairstyle frame turns: a spinning cube in a jump, a gravity flip
@@ -845,6 +964,7 @@ void HairNode::simulate(float dt)
   {
     m_sim.step(dt, m_targets, params);
   }
+  this->updateCape(dt, headCenter);
 }
 
 // ! --- Drawing --- !
@@ -883,7 +1003,7 @@ ccColor4F HairNode::lockColor(Lock const &lock) const
 
 ccColor4F HairNode::sourceColor(HairColorSource source, ccColor3B const &custom) const
 {
-  float const alpha = m_head->getDisplayedOpacity() / 255.f;
+  float const alpha = this->drawAlpha();
   auto const secondary = m_secondary ? m_secondary->getColor() : m_primary->getColor();
 
   switch (source)
@@ -955,6 +1075,17 @@ void HairNode::drawCapArc(CCAffineTransform const &simToHair, float from, float 
 
 void HairNode::redraw()
 {
+  // Focus: what floats around fades or hides, the hair only with "Fade the hair too"
+  float const faded = 1.f - m_focus * (1.f - m_config.focusOpacity);
+  float const hidden = 1.f - m_focus;
+  float const hair = m_config.focusHair ? faded : 1.f;
+  m_fadeAlpha = hair;
+
+  // The cape behind everything, it fades in focus like the other things around the icon
+  m_fadeAlpha = faded;
+  this->drawCape(this);
+  m_fadeAlpha = hair;
+
   // Behind the icon: the hairstyle with its base, the tails with their ties, the ahoge, the ears,
   // the ends of the scarf
   this->drawLocks(this, 0, m_tailsStart, true);
@@ -967,16 +1098,23 @@ void HairNode::redraw()
   this->drawLocks(this, m_earsStart, m_scarfStart, false);
   this->drawEarInners(this);
   this->drawLocks(this, m_scarfStart, m_trailStart, false);
+  m_fadeAlpha = hidden;
   this->drawRibbon(this);
+  m_fadeAlpha = faded;
   this->drawWings(this);
+  m_fadeAlpha = hair;
   if (!m_front)
+  {
+    m_fadeAlpha = 1.f;
     return;
+  }
 
   // In front of it: the blush on the cheeks, the scarf band, then the hair over them. Each group
   // gets its own outline so the bangs clearly lie over the face locks; the clips, bows and the
   // hearts go over everything
   this->drawBlush(m_front);
   this->drawSticker(m_front);
+  this->drawFace(m_front);
   this->drawScarfBand(m_front);
   this->drawCollarAndBell(m_front);
   this->drawEarrings(m_front);
@@ -993,7 +1131,9 @@ void HairNode::redraw()
   this->drawClips(m_front);
   this->drawLocks(m_front, m_ribbonsStart, m_locks.size(), false);
   this->drawBows(m_front);
+  m_fadeAlpha = faded;
   this->drawHalo(m_front);
+  m_fadeAlpha = 1.f;
 
   if (m_debugDraw)
     this->drawDebug();
@@ -1010,7 +1150,7 @@ void HairNode::drawLocks(CCDrawNode *node, size_t from, size_t to, bool withCap)
 
   float const outline = kOutlineWidth * hairScale;
   auto const hair = this->hairColor();
-  auto const outlineColor = ccColor4F{0.f, 0.f, 0.f, hair.a};
+  auto const outlineColor = this->ink(hair.a);
   auto const &strands = m_sim.strands();
   int const subdiv = m_config.lockCount > kDenseLockCount ? kCurveSubdivDense : kCurveSubdiv;
   to = std::min(to, strands.size());
