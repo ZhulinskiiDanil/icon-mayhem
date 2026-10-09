@@ -189,6 +189,7 @@ enum class BangsStyle
   Parted,    // combed to both sides from a part in the middle
   SideSwept, // all combed to one side
   OneSide,   // hair on one side of the face only
+  Clumps,    // a few wide pointed clumps, with thin wisps beside them
 };
 
 enum class FaceLook
@@ -292,11 +293,16 @@ struct HairConfig
   float bangsSpread = .8f;     // how far to the sides from the middle, 1 is the whole face
   float bangsArcSize = 0.f;    // how much the ends drop down, for icons with a round top
   float bangsArcSoftness = .5f; // 0 rounds only the ends, 1 makes one smooth arc
+  float bangsFan = 1.f;         // how much they turn out to the sides, 0 straight down
+  float bangsWidth = 1.f;       // width of each lock (or clump)
   float bangsInsetX = 0.f;     // to the right
   float bangsInsetY = 0.f;     // down the face
   BangsStyle bangsStyle = BangsStyle::Straight;
   bool bangsRight = true;        // the side Side swept combs to and One side covers
   float bangsTransition = .5f;   // One side: 0 a sharp edge, 1 shorter and shorter
+  int bangsClumps = 3;           // Clumps: how many
+  int bangsWisps = 1;            // Clumps: thin strands beside them
+  bool bangsFill = false;        // Clumps: locks in the gaps between them
   HairColorSource bangsColorSource = HairColorSource::Hair;
   cocos2d::ccColor3B bangsColor = {58, 42, 128};
 

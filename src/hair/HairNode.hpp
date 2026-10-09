@@ -57,6 +57,19 @@ public:
   // The head is a cube, the hair lies on its faces (a round collider otherwise)
   void setBoxHead(std::function<bool()> fn) { m_boxHead = std::move(fn); }
   void setIdleWind(bool enabled) { m_idleWind = enabled; }
+
+  // The air the hair feels now, for the wind view of the customizer: where it flows (sim space),
+  // how strong (the movement times Wind multiplier, plus the breeze, times the gust; 1 combs the
+  // hair fully), the gust factor alone, the flutter setting and the clock of the gusts
+  struct AirFlow
+  {
+    cocos2d::CCPoint toward;
+    float strength = 0.f;
+    float gust = 1.f;
+    float flutter = 0.f;
+    float time = 0.f;
+  };
+  AirFlow airFlow() const;
   void setGarage(bool garage) { m_isGarage = garage; }
   void resetSim() { m_needsReset = true; }
   // Draws the collider, the floor and where the locks grow over the icon, for tuning in the customizer
@@ -132,6 +145,8 @@ private:
   void reloadConfig();
   void generateLocks();
   void addFrontLocks(std::mt19937 &rng);
+  // Clumps bangs: a few wide pointed clumps and thin wisps beside them
+  void addBangClumps(std::mt19937 &rng);
   // Picks the locks that get the streak color
   void markStreaks();
 
@@ -340,6 +355,7 @@ private:
   float m_upAngle = 0.f;  // radians, smoothed "away from gravity" direction
   float m_facing = 1.f;   // smoothed, -1..1
   float m_motion = 0.f;   // smoothed, 0 standing still .. 1 moving fast enough to comb the hair back
+  float m_airFlow = 0.f;  // the flow before the clamp, see airFlow()
   cocos2d::CCPoint m_lastUp = {0.f, 1.f}; // hairstyle frame of the last frame, gives the spin speed
   float m_calm = 0.f;                      // current calm jumps strength, see HairSimParams::calm
   float m_gust = 1.f;                      // current wind strength factor, changes over time

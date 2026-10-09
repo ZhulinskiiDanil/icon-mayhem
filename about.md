@@ -17,7 +17,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Pick the game modes**: turn the whole customization off where you don't want it, for example keep it on the cube only
 - **Platformer support**: the hairstyle turns around when you change direction
 - **3 hairstyles**: *Flowing*, *Long* and *Spiky*
-- **Face locks and bangs**: wavy locks framing the face and a fringe over it, drawn in front of the icon. Bangs straight, parted in the middle, swept to one side or on one side only. Fit them to any icon: move them, bend the bangs along a round top, give them their own color
+- **Face locks and bangs**: wavy locks framing the face and a fringe over it, drawn in front of the icon. Bangs straight, parted in the middle, swept to one side, on one side only or in pointed anime clumps with little wisps. Fit them to any icon: move them, bend the bangs along a round top, give them their own color
 - **Hair under a cap**: leave the top of the head bare and the hair comes out from under the cap or hat of your icon
 - **Ponytail and twin tails** tied with a scrunchie or a bow, **braids**, an **ahoge** that bounces on every jump
 - **Hair shine**, **dyed tips** and **colored streaks** in the bangs or the hair
@@ -51,6 +51,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 
 - **Open it anywhere**: from the pause menu or from the garage, no level needed
 - **Live preview**: switch game modes, make the icon jump or run and watch the hair react while you tweak it. Changes apply instantly
+- **Wind view** shows the air the hair feels: its strength, gusts and flutter, flowing around the head
 - **Hitbox helpers** show the head collider, the roots and the bangs hairline, so the hair is easy to fit to any icon
 - **Quick actions**: **Undo**, a **Surprise** look, random **Colors**, **Match** all hair parts to the hair color
 - **Tidy blocks**: every part (Cape, Pet, Bangs, Glasses...) folds into one line with its switch right in it. A part that is off shows nothing more, turning it on opens its settings. Positions and fine detail wait under **Fine tuning**

@@ -46,6 +46,9 @@ private:
   void updatePreviewIcon();
 
   void update(float dt) override;
+  // Streaks of air through the preview: as strong, gusty and fluttering as the air the hair feels
+  void updateWind(float dt);
+  void onWind(cocos2d::CCObject *sender);
 
   void onTab(cocos2d::CCObject *sender);
   void onMode(cocos2d::CCObject *sender);
@@ -63,6 +66,9 @@ private:
   void onPresets(cocos2d::CCObject *sender);
   // Main | Icon: edit the main look or the look of the icon shown in the preview
   void onLookSwitch(cocos2d::CCObject *sender);
+  // Edits the preset linked to the icon in the preview, the main look waits aside. `tell` shows
+  // a notification; false when there is no link
+  bool startIconEdit(bool tell);
   void refreshLookSwitch();
   // Back to the main look, asking to save the icon look first; `then` runs after
   void endIconEdit(std::function<void()> then);
@@ -78,6 +84,25 @@ private:
   cocos2d::CCLabelBMFont *m_modeLabel = nullptr;
   cocos2d::CCNode *m_legend = nullptr;
   bool m_showHitboxes = false;
+
+  // Wind view
+  struct WindStreak
+  {
+    cocos2d::CCPoint position; // the leading end, in the preview panel
+    float length = 0.f;        // 0 for a mote of dust
+    float phase = 0.f;         // of the flutter wave
+    float speed = 0.f;         // of this streak, a bit different for each
+    float depth = 0.f;         // 0 far behind the icon .. 1 near, in front of it
+    float curl = 0.f;          // a curl at the end in a strong gust, its side; 0 none
+  };
+  bool m_showWind = false;
+  cocos2d::CCDrawNode *m_wind = nullptr;      // the far air, behind the icon
+  cocos2d::CCDrawNode *m_windFront = nullptr; // the near air, in front of it
+  cocos2d::CCDrawNode *m_windMeter = nullptr; // how strong the flow is, under the wind button
+  cocos2d::CCLabelBMFont *m_windHint = nullptr;
+  std::vector<WindStreak> m_streaks;
+  float m_windSpawn = 0.f;   // streaks owed, spawned when it reaches 1
+  unsigned m_windSeed = 1;
   cocos2d::CCLabelBMFont *m_lookLabel = nullptr;
   cocos2d::CCMenu *m_lookSwitch = nullptr;
   ButtonSprite *m_mainSprite = nullptr;

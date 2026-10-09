@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.7.0
+
+### Bangs
+- Clumps: a few wide pointed clumps like in anime (three for Yor's), the side ones curling to the middle, with thin wisps sticking out beside them
+- Locks between clumps: the hair under the clumps shows in the gaps, shorter and darker
+- Bangs width: how wide each lock or clump is
+- Bangs fan out: how much the bangs turn out to the sides with a wide spread and an arc, 0 makes them all fall straight down
+
+### Customizer
+- Wind view (the wind button left of the icon in the preview): air as strong as the air the hair feels, with every wind setting in it. Streaks at different depths (the near ones pass in front of the icon), flowing around the head with a calm wake behind it, motes of dust, curls in strong gusts. A meter under the button shows how strong the flow is and where it combs the hair fully
+- The customizer opens on the look of your icon when a preset is linked to it (Icon in Main | Icon); Main switches to the main look
+
+### Fixed
+- Globed: when Globed drops a player for a moment and makes a new icon for them, it gets their look again (it stayed plain until you left the level). Players who come back get your look again
+
 ## v1.6.0
 
 ### On your icon

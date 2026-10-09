@@ -291,11 +291,23 @@ def trash():
     return finish(m, [(det, INK)])
 
 
+def wind():
+    # Three gusts: the top one curls up at its end, the bottom one down
+    m = canvas(); d = ImageDraw.Draw(m)
+    w = 34
+    d.rounded_rectangle((44, 108, 236, 108 + w), radius=w // 2, fill=255)
+    thick_arc(d, (184, 22, 288, 142), 180, 450, w)
+    d.rounded_rectangle((44, 175, 320, 175 + w), radius=w // 2, fill=255)
+    d.rounded_rectangle((84, 242, 256, 242 + w), radius=w // 2, fill=255)
+    thick_arc(d, (204, 242, 308, 362), 270, 540, w)
+    return finish(m)
+
+
 ICONS = {
     'undo': undo, 'reset': reset, 'dice': dice, 'palette': palette, 'match': match, 'jump': jump, 'run': run,
     'stop': stop, 'save': save, 'save-as': save_as, 'hitboxes': hitboxes, 'empty': empty, 'paste': paste,
     'import': import_, 'export': export, 'folder': folder, 'copy': copy, 'rename': rename, 'link': link,
-    'target': target, 'trash': trash,
+    'target': target, 'trash': trash, 'wind': wind,
 }
 
 if __name__ == '__main__':

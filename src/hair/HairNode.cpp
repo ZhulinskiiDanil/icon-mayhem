@@ -68,6 +68,14 @@ namespace
   constexpr float kBangStiffness = 1.6f;      // short and neat, they keep their shape
   constexpr float kBangPartGap = .14f;        // parted bangs: the bare part in the middle, of the face half
   constexpr float kBangMinLength = .25f;      // one side bangs: the shortest lock towards the bare side
+  constexpr float kClumpOverlap = 1.05f;      // clumps: a little wider than their share, no gaps at the root
+  constexpr float kClumpLength = 1.35f;       // clumps are long and pointed, longer than plain bangs
+  constexpr float kClumpCurl = 14.f;          // degrees the tips of the side clumps turn to the middle
+  constexpr float kWispWidth = .9f;           // icon units, thin
+  constexpr float kWispLength = .75f;         // of the bangs length
+  constexpr float kWispTurn = 14.f;           // degrees a wisp turns away from its clump
+  constexpr float kFillWidth = .55f;          // locks between clumps: of a clump's width
+  constexpr float kFillLength = .72f;         // and of its length
 
   float smoothstep(float from, float to, float x)
   {
@@ -392,7 +400,9 @@ void HairNode::addFrontLocks(std::mt19937 &rng)
 
   // Bangs last, they cover the face locks
   m_bangsStart = m_locks.size();
-  if (m_config.bangs)
+  if (m_config.bangs && m_config.bangsStyle == BangsStyle::Clumps)
+    this->addBangClumps(rng);
+  else if (m_config.bangs)
   {
     int const count = m_config.bangsCount;
     // `side` -1..1 across the face, -1 is the right (front) side. `toward` is the side Side swept
@@ -432,11 +442,84 @@ void HairNode::addFrontLocks(std::mt19937 &rng)
       lock.kind = LockKind::Bang;
       lock.side = side;
       lock.length = m_config.bangsLength * lengthScale * (.85f + .3f * random(rng));
-      lock.width = m_config.lockWidth * kBangWidth * (.85f + .3f * random(rng));
+      lock.width = m_config.lockWidth * kBangWidth * m_config.bangsWidth * (.85f + .3f * random(rng));
       lock.curl = 0.f;
       lock.depth = .5f + .5f * random(rng);
       m_locks.push_back(lock);
     }
+  }
+}
+
+void HairNode::addBangClumps(std::mt19937 &rng)
+{
+  // A few wide locks, each tapering to a point: drawn with their own outlines they read as
+  // separate clumps, like anime bangs. `side` -1..1 across the face, -1 is the right (front) side
+  std::uniform_real_distribution<float> random(0.f, 1.f);
+  int const count = m_config.bangsClumps;
+  float const spread = std::max(m_config.bangsSpread, .05f);
+  float const share = 2.f * spread * kHeadRadius / static_cast<float>(count);
+  float const toward = m_config.bangsRight ? -1.f : 1.f;
+
+  auto clumpSide = [count](int i)
+  { return (static_cast<float>(i) + .5f) / static_cast<float>(count) * 2.f - 1.f; };
+
+  // Thin wisps first, so they peek out from behind the clumps: the first by the middle clump on
+  // the bangs side, the next ones by the clumps around it, on alternating sides
+  for (int w = 0; w < m_config.bangsWisps; ++w)
+  {
+    int const middle = (count - 1) / 2;
+    int const offset = (w + 1) / 2 * (w % 2 == 1 ? 1 : -1);
+    int const clump = std::clamp(middle + offset, 0, count - 1);
+    float const out = (w % 2 == 0 ? toward : -toward);
+    float const edge = share / (spread * kHeadRadius) * .5f; // half a clump in side units
+
+    Lock wisp;
+    wisp.kind = LockKind::Bang;
+    wisp.group = 1; // a wisp: turns away from its clump
+    wisp.side = std::clamp(clumpSide(clump) + out * edge * .85f * m_config.bangsWidth, -1.f, 1.f);
+    wisp.angle = out;
+    wisp.length = m_config.bangsLength * kWispLength * (.9f + .25f * random(rng));
+    wisp.width = kWispWidth * std::min(m_config.bangsWidth, 1.f);
+    wisp.curl = 0.f;
+    wisp.depth = .45f;
+    m_locks.push_back(wisp);
+  }
+
+  // The hair under the clumps, in the gaps between them: shorter and darker, drawn first
+  if (m_config.bangsFill)
+  {
+    for (int i = 0; i + 1 < count; ++i)
+    {
+      Lock fill;
+      fill.kind = LockKind::Bang;
+      fill.group = 2;
+      fill.side = (clumpSide(i) + clumpSide(i + 1)) * .5f;
+      fill.length = m_config.bangsLength * kClumpLength * kFillLength * (.9f + .2f * random(rng));
+      fill.width = share * kFillWidth * std::max(m_config.bangsWidth, .5f);
+      fill.curl = 0.f;
+      fill.depth = .3f;
+      m_locks.push_back(fill);
+    }
+  }
+
+  // The outer clumps first, the middle one on top
+  std::vector<int> order(static_cast<size_t>(count));
+  for (int i = 0; i < count; ++i)
+    order[static_cast<size_t>(i)] = i;
+  std::sort(order.begin(), order.end(), [&](int a, int b)
+            { return std::abs(clumpSide(a)) > std::abs(clumpSide(b)); });
+  for (int i : order)
+  {
+    float const side = clumpSide(i);
+    Lock lock;
+    lock.kind = LockKind::Bang;
+    lock.side = side;
+    // The middle clump is the longest, the outer ones a bit shorter
+    lock.length = m_config.bangsLength * kClumpLength * (1.f - .1f * std::abs(side)) * (.94f + .12f * random(rng));
+    lock.width = share * kClumpOverlap * m_config.bangsWidth;
+    lock.curl = 0.f;
+    lock.depth = .65f + .35f * random(rng);
+    m_locks.push_back(lock);
   }
 }
 
@@ -615,6 +698,7 @@ void HairNode::updateMotion(float dt, CCPoint const &headCenter, bool snap)
   if (snap)
   {
     m_motion = 0.f;
+    m_airFlow = 0.f;
     return;
   }
 
@@ -623,8 +707,18 @@ void HairNode::updateMotion(float dt, CCPoint const &headCenter, bool snap)
   float const speed = std::abs(velocity.cross(down));
   // The air flow combing the hair: the movement scaled by the wind, plus the breeze, all gusty
   float const flow = speed / (kFullCombSpeed * m_simScale) * m_config.windMultiplier + m_config.breeze;
+  m_airFlow = approach(m_airFlow, flow * m_gust, kMotionResponse * 2.f * dt);
   float const target = std::clamp(flow * m_gust, 0.f, 1.f);
   m_motion = approach(m_motion, target, kMotionResponse * dt);
+}
+
+HairNode::AirFlow HairNode::airFlow() const
+{
+  // The movement air and the breeze both flow from the front to the back
+  CCPoint up;
+  CCPoint back;
+  this->gravityAxes(up, back);
+  return AirFlow{normalized(back, {-1.f, 0.f}), m_airFlow, m_gust, m_config.flutter, m_time};
 }
 
 void HairNode::updateGust(float dt)
@@ -779,11 +873,12 @@ void HairNode::buildFrontTarget(Lock const &lock, HairStrandTarget &target, CCPo
     // On a steep arc the bangs fall away from it, like hair along a round hairline
     float const slope = t > 0.f ? m_config.bangsArcSize * exponent * std::pow(t, exponent - 1.f) / (spread * kHeadRadius) : 0.f;
     float const arcTurn = std::min(std::atan(slope) * 180.f / kPi, kMaxArcTurn);
-    float const arc = lock.side < 0.f ? -arcTurn : arcTurn;
+    // Bangs fan out scales the turn to the sides: 0 makes every lock fall straight down
+    float const arc = (lock.side < 0.f ? -arcTurn : arcTurn) * m_config.bangsFan;
 
     // Where the lock points at the root and at the tip, degrees from down towards `across`:
     // combed bangs leave the hairline sideways and fall down towards the tips
-    float rootAngle = lock.side * kBangFan;
+    float rootAngle = lock.side * kBangFan * m_config.bangsFan;
     float tipAngle = rootAngle;
     float const toward = m_config.bangsRight ? -1.f : 1.f;
     switch (m_config.bangsStyle)
@@ -806,6 +901,15 @@ void HairNode::buildFrontTarget(Lock const &lock, HairStrandTarget &target, CCPo
     default:
       break;
     }
+    // Clumps: the tips of the side ones curl to the middle; a wisp turns away from its clump
+    if (m_config.bangsStyle == BangsStyle::Clumps && lock.group == 1)
+    {
+      float const away = lock.angle < 0.f ? -1.f : 1.f;
+      rootAngle += away * kWispTurn * .4f;
+      tipAngle += away * kWispTurn;
+    }
+    else if (m_config.bangsStyle == BangsStyle::Clumps)
+      tipAngle = -lock.side * kClumpCurl;
     for (int k = 0; k < segments; ++k)
     {
       // Eases out: most of the turn happens near the root

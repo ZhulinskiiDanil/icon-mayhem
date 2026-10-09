@@ -57,6 +57,21 @@ namespace
 
   // Hitbox helpers, remembered between openings
   constexpr char const *kHitboxesSave = "customizer-hitboxes";
+  constexpr char const *kWindSave = "customizer-wind";
+
+  // Wind view
+  constexpr size_t kMaxStreaks = 60;
+  constexpr float kStreakRate = 30.f;     // streaks / s at full flow
+  constexpr float kMoteRate = 9.f;        // motes of dust / s at full flow
+  constexpr float kStreakSlow = 60.f;     // panel units / s at no flow
+  constexpr float kStreakFast = 330.f;    // panel units / s more at full flow
+  constexpr float kFlutterWave = 7.f;     // panel units the streaks wave at flutter 1
+  constexpr float kCurlGust = 1.12f;      // gusts above this curl some near streaks
+  constexpr float kHeadAir = 22.f;        // panel units: the air flows around the head this far out
+  constexpr float kMeterWidth = 24.f;
+  constexpr float kToolX = 16.f;          // the tool column on the left of the preview
+  constexpr float kToolTop = 148.f;
+  constexpr float kToolStep = 28.f;
   // Open blocks, remembered between openings
   constexpr char const *kOpenSave = "customizer-open-groups";
   constexpr char const *kNeverSaved = "@never";
@@ -214,6 +229,9 @@ bool CustomizerPopup::initCustomizer()
   // Undo starts from the look the popup opened with
   m_stable = presets::capture("Undo");
   m_seenVersion = HairConfig::version();
+
+  // The icon in the preview has a preset linked: that's the look to edit, Main switches back
+  this->startIconEdit(false);
   return true;
 }
 
@@ -235,10 +253,23 @@ void CustomizerPopup::buildPreview()
   ground->setPosition({8.f, groundY});
   panel->addChild(ground);
 
+  m_wind = CCDrawNode::create();
+  m_wind->setID("wind-view");
+  panel->addChild(m_wind);
+  m_windFront = CCDrawNode::create();
+  m_windFront->setID("wind-view-front");
+  m_windHint = CCLabelBMFont::create("Run, or set a breeze, to see the wind", "bigFont.fnt");
+  m_windHint->limitLabelWidth(kPreviewSize.width - 20.f, .22f, .1f);
+  m_windHint->setOpacity(160);
+  m_windHint->setPosition({kPreviewSize.width / 2.f, groundY - 8.f});
+  panel->addChild(m_windHint);
+
   m_stage = CCNode::create();
   m_stage->setPosition(kStagePosition);
   m_stage->setID("stage");
   panel->addChild(m_stage);
+  // The near air passes in front of the icon
+  panel->addChild(m_windFront);
 
   // What the hitbox helper colors mean
   m_legend = CCNode::create();
@@ -320,6 +351,19 @@ void CustomizerPopup::buildPreview()
   menu->addChild(run);
 
   // Main | Icon, when the icon in the preview has a look of its own
+  // Tools on the left of the icon, one under the other: the wind view
+  m_showWind = Mod::get()->getSavedValue<bool>(kWindSave, false);
+  auto wind = CCMenuItemToggler::create(iconButton("wind", CircleBaseColor::Gray, 22.f), iconButton("wind", CircleBaseColor::Cyan, 22.f),
+                                        this, menu_selector(CustomizerPopup::onWind));
+  wind->toggle(m_showWind);
+  wind->setID("wind-toggle");
+  wind->setPosition({kToolX, kToolTop});
+  menu->addChild(wind);
+  m_windMeter = CCDrawNode::create();
+  m_windMeter->setID("wind-meter");
+  m_windMeter->setPosition({kToolX, kToolTop - 17.f});
+  panel->addChild(m_windMeter);
+
   m_lookSwitch = CCMenu::create();
   m_lookSwitch->setPosition({0.f, 0.f});
   m_lookSwitch->setContentSize(kPreviewSize);
@@ -367,6 +411,7 @@ void CustomizerPopup::updatePreviewIcon()
 void CustomizerPopup::update(float dt)
 {
   this->trackUndo(dt);
+  this->updateWind(dt);
   if (m_rebuildPending)
   {
     m_rebuildPending = false;
@@ -898,6 +943,190 @@ void CustomizerPopup::onJump(CCObject *)
     m_jumpTime = 0.f;
 }
 
+void CustomizerPopup::onWind(CCObject *sender)
+{
+  // The toggler flips its state after the callback
+  m_showWind = !static_cast<CCMenuItemToggler *>(sender)->isToggled();
+  Mod::get()->setSavedValue(kWindSave, m_showWind);
+  if (!m_showWind)
+  {
+    m_streaks.clear();
+    m_wind->clear();
+    m_windFront->clear();
+    m_windMeter->clear();
+  }
+}
+
+void CustomizerPopup::updateWind(float dt)
+{
+  auto hair = getSimplePlayerHair(m_player).icon;
+  m_windHint->setVisible(false);
+  if (!m_showWind || !hair)
+    return;
+
+  auto const air = hair->airFlow();
+  float const strength = std::clamp(air.strength, 0.f, 2.f);
+  float const flow = std::min(strength, 1.f);
+  CCPoint const toward = air.toward;
+  CCPoint const across = {-toward.y, toward.x};
+  m_windHint->setVisible(strength < .03f && m_streaks.empty());
+
+  // The draw nodes blend premultiplied colors: the alpha has to be in the color too
+  auto tint = [](float r, float g, float b, float a)
+  { return ccColor4F{r * a, g * a, b * a, a}; };
+
+  auto random = [this]
+  {
+    m_windSeed = m_windSeed * 1664525u + 1013904223u;
+    return static_cast<float>(m_windSeed >> 8) / static_cast<float>(1u << 24);
+  };
+
+  // New air comes in on the windward edge, as much as the flow is strong: streaks at every
+  // depth, and motes of dust it carries
+  auto spawn = [&](bool mote)
+  {
+    if (m_streaks.size() >= kMaxStreaks)
+      return;
+    WindStreak streak;
+    streak.depth = random();
+    streak.length = mote ? 0.f : (10.f + 16.f * random() + 16.f * flow) * (.7f + .5f * streak.depth);
+    float const y = 18.f + (kPreviewSize.height - 50.f) * random();
+    float const margin = streak.length + 4.f;
+    streak.position = CCPoint{toward.x < 0.f ? kPreviewSize.width + margin : -margin, y};
+    streak.phase = random() * 6.28f;
+    streak.speed = (.8f + .4f * random()) * (.65f + .55f * streak.depth);
+    if (!mote && air.gust > kCurlGust && streak.depth > .55f && random() < .35f)
+      streak.curl = random() < .5f ? -1.f : 1.f;
+    m_streaks.push_back(streak);
+  };
+  m_windSpawn += strength * kStreakRate * dt;
+  while (m_windSpawn >= 1.f)
+  {
+    m_windSpawn -= 1.f;
+    spawn(random() < kMoteRate / kStreakRate);
+  }
+
+  // The air flows with the wind, faster when it is strong
+  float const speed = kStreakSlow + kStreakFast * std::min(strength, 1.5f);
+  for (auto &streak : m_streaks)
+    streak.position = streak.position + toward * (speed * streak.speed * dt);
+  std::erase_if(m_streaks, [](WindStreak const &streak)
+                {
+                  float const margin = streak.length * 2.f + 10.f;
+                  return streak.position.x < -margin || streak.position.x > kPreviewSize.width + margin;
+                });
+
+  // Around the head: the air parts above and below it, behind it there is a calm wake
+  CCPoint const head = m_stage->getPosition() + m_player->getPosition();
+  float const reach = kHeadAir * 1.9f;
+  auto around = [&](CCPoint const &point, float &shade, bool inFront)
+  {
+    CCPoint const r = point - head;
+    float const distance = std::max(r.getLength(), 1.f);
+    shade = 1.f;
+    if (distance > reach * 1.6f)
+      return point;
+    // Like the flow around a ball: pushed out the more the closer, smoothly, and nothing on the
+    // line through the middle (that air goes behind the icon, or fades in front of it)
+    float const sideways = r.dot(across);
+    float const falloff = std::clamp(1.f - distance / (reach * 1.6f), 0.f, 1.f);
+    float const near2 = std::max(distance, kHeadAir) * std::max(distance, kHeadAir);
+    float const push = std::clamp(sideways * kHeadAir * kHeadAir / near2 * falloff * falloff, -kHeadAir * .9f, kHeadAir * .9f);
+    CCPoint const moved = point + across * push;
+    // In the wake, right behind the head, the air is weaker
+    float const behind = r.dot(toward);
+    if (behind > 0.f && std::abs(sideways) < kHeadAir)
+      shade = std::clamp(.35f + behind / (kHeadAir * 5.f), .35f, 1.f);
+    if (inFront && (moved - head).getLength() < kHeadAir * .95f)
+      shade *= .25f;
+    return moved;
+  };
+
+  m_wind->clear();
+  m_windFront->clear();
+  float const wave = air.flutter * kFlutterWave * flow;
+  float const bright = std::clamp(.22f + .3f * strength * air.gust, .12f, .65f);
+  for (auto const &streak : m_streaks)
+  {
+    auto node = streak.depth > .6f ? m_windFront : m_wind;
+    float const alpha = bright * (.45f + .55f * streak.depth) * (streak.depth > .6f ? .8f : 1.f);
+    float const width = .35f + .75f * streak.depth;
+    auto edgeFade = [](CCPoint const &point)
+    {
+      float const edge = std::min(std::min(point.x, kPreviewSize.width - point.x), std::min(point.y, kPreviewSize.height - point.y));
+      return std::clamp(edge / 14.f, 0.f, 1.f);
+    };
+
+    if (streak.length <= 0.f)
+    {
+      // A mote of dust: tumbling with the flutter
+      float shade = 1.f;
+      CCPoint const wobble = across * (std::sin(streak.phase + air.time * 11.f) * (1.5f + wave * .6f));
+      CCPoint const point = around(streak.position + wobble, shade, streak.depth > .6f);
+      float const fade = edgeFade(point) * shade;
+      if (fade > 0.f)
+        node->drawDot(point, .6f + .7f * streak.depth, tint(1.f, .97f, .92f, alpha * 1.3f * fade));
+      continue;
+    }
+
+    // A streak in pieces: thin at both ends, waving with the flutter, bent around the head
+    constexpr int kPieces = 8;
+    std::array<CCPoint, kPieces + 1> points;
+    std::array<float, kPieces + 1> shades;
+    for (int i = 0; i <= kPieces; ++i)
+    {
+      float const t = static_cast<float>(i) / kPieces;
+      float const offset = std::sin(streak.phase + air.time * 9.f + t * 3.2f) * wave * (.3f + t);
+      points[i] = around(streak.position - toward * (streak.length * t) + across * offset, shades[i], streak.depth > .6f);
+    }
+    for (int i = 1; i <= kPieces; ++i)
+    {
+      float const t = (static_cast<float>(i) - .5f) / kPieces;
+      float const taper = std::sin(t * 3.14159f);
+      float const fade = edgeFade(points[i]) * shades[i] * (1.f - t * .35f);
+      if (fade <= 0.f)
+        continue;
+      // A soft glow under the near ones
+      if (streak.depth > .6f)
+        node->drawSegment(points[i - 1], points[i], width * 2.4f * taper, tint(.75f, .9f, 1.f, alpha * .18f * fade));
+      node->drawSegment(points[i - 1], points[i], std::max(width * taper, .2f), tint(1.f, 1.f, 1.f, alpha * fade));
+    }
+
+    // A strong gust curls the front of some near streaks, like wind in anime
+    if (streak.curl != 0.f)
+    {
+      float const radius = 3.f + 3.f * streak.depth;
+      CCPoint const center = points[0] + across * (streak.curl * radius);
+      CCPoint previous = points[0];
+      for (int i = 1; i <= 6; ++i)
+      {
+        float const angle = static_cast<float>(i) / 6.f * 4.4f;
+        CCPoint const radial = across * (-streak.curl * std::cos(angle)) + toward * std::sin(angle);
+        CCPoint const point = center + radial * (radius * (1.f - .12f * static_cast<float>(i) / 6.f));
+        float const fade = edgeFade(point) * (1.f - static_cast<float>(i) / 8.f);
+        if (fade > 0.f)
+          node->drawSegment(previous, point, width * .8f, tint(1.f, 1.f, 1.f, alpha * fade));
+        previous = point;
+      }
+    }
+  }
+
+  // The meter: how strong the flow is, the tick where it combs the hair fully
+  m_windMeter->clear();
+  float const half = kMeterWidth / 2.f;
+  std::array<CCPoint, 4> back = {CCPoint{-half, -1.5f}, CCPoint{half, -1.5f}, CCPoint{half, 1.5f}, CCPoint{-half, 1.5f}};
+  m_windMeter->drawPolygon(back.data(), 4, tint(0.f, 0.f, 0.f, .45f), 0.f, tint(0.f, 0.f, 0.f, 0.f));
+  float const filled = -half + kMeterWidth * std::clamp(strength / 1.5f, 0.f, 1.f);
+  if (filled > -half + .5f)
+  {
+    std::array<CCPoint, 4> bar = {CCPoint{-half, -1.f}, CCPoint{filled, -1.f}, CCPoint{filled, 1.f}, CCPoint{-half, 1.f}};
+    auto const color = strength >= 1.f ? tint(.55f, 1.f, .65f, .95f) : tint(.45f, .9f, 1.f, .95f);
+    m_windMeter->drawPolygon(bar.data(), 4, color, 0.f, color);
+  }
+  float const tick = -half + kMeterWidth / 1.5f;
+  m_windMeter->drawSegment(CCPoint{tick, -2.5f}, CCPoint{tick, 2.5f}, .4f, tint(1.f, 1.f, 1.f, .8f));
+}
+
 void CustomizerPopup::onRun(CCObject *)
 {
   m_running = !m_running;
@@ -956,13 +1185,19 @@ void CustomizerPopup::onLookSwitch(CCObject *sender)
     return;
   }
 
+  this->startIconEdit(true);
+}
+
+bool CustomizerPopup::startIconEdit(bool tell)
+{
   auto const mode = gameModeOf(kModes[m_mode].type);
   std::string const name = looks::linkedLook(mode);
   auto preset = name.empty() ? std::nullopt : presets::find(name);
   if (!preset)
   {
-    Notification::create("This icon has no look of its own", NotificationIcon::Info)->show();
-    return;
+    if (tell)
+      Notification::create("This icon has no look of its own", NotificationIcon::Info)->show();
+    return false;
   }
 
   // The main look waits aside, the icon look goes in to be edited: Save keeps it in its preset
@@ -976,7 +1211,9 @@ void CustomizerPopup::onLookSwitch(CCObject *sender)
   m_rebuildPending = true;
   this->refreshLookSwitch();
   this->refreshLookLabel();
-  Notification::create(fmt::format("Editing the look of this icon, \"{}\"", name), NotificationIcon::Info)->show();
+  if (tell)
+    Notification::create(fmt::format("Editing the look of this icon, \"{}\"", name), NotificationIcon::Info)->show();
+  return true;
 }
 
 void CustomizerPopup::endIconEdit(std::function<void()> then)

@@ -11,6 +11,7 @@
 #include <Geode/modify/PlayLayer.hpp>
 
 #include <optional>
+#include <map>
 #include <set>
 #include <unordered_map>
 
@@ -183,6 +184,8 @@ namespace
 
     auto look = presets::compact(settings);
     look["enabled"] = Mod::get()->getSettingValue<bool>("enabled");
+    // Which look goes out: the main one, or the preset of the icon or the mode (its saved file)
+    log::info("Globed: our look is {}", name.empty() ? "the main look" : fmt::format("the preset \"{}\" (as saved)", name));
     payload = look.dump(matjson::NO_INDENTATION);
     payloadName = name;
     payloadVersion = HairConfig::version();
@@ -210,6 +213,7 @@ namespace
           continue;
         }
         log::info("Globed: got the look of player {} ({} bytes)", sender, whole->size());
+        log::debug("Globed: the look of player {}: {}", sender, *whole);
         looks::setRemote(sender, std::move(look).unwrap());
       }
       else if (name == kEmoteEvent && payload.size() == 1)
@@ -257,7 +261,9 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
   struct Fields
   {
     std::vector<Ref<HairNode>> m_remoteHair;
-    std::set<int> m_attached; // player id * 2 + second icon
+    // player id * 2 + second icon -> the icon we dressed: Globed can drop a player for a moment
+    // and make a new icon for them, that one gets dressed again
+    std::map<int, WeakRef<CCNode>> m_attached;
     std::set<int> m_seen;     // players we already sent our look for
     std::string m_sentLook;
     bool m_wasActive = false;
@@ -301,6 +307,10 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
       log::info("Globed: {} players in the session", ids.size());
     }
 
+    // Players who left: when they come back they get our look again
+    std::erase_if(fields->m_seen, [&](int id)
+                  { return std::find(ids.begin(), ids.end(), id) == ids.end(); });
+
     // Globed can list us too (its own copy of our icon): our icon already has its rigs
     int const self = GJAccountManager::get()->m_accountID;
     bool newPlayer = false;
@@ -320,8 +330,16 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
       {
         int const key = id * 2 + (second ? 1 : 0);
         auto visual = second ? table->player->getSecond(remote) : table->player->getFirst(remote);
-        if (!visual || fields->m_attached.contains(key))
+        if (!visual)
           continue;
+        if (auto it = fields->m_attached.find(key); it != fields->m_attached.end())
+        {
+          auto dressed = it->second.lock();
+          if (dressed && dressed.data() == static_cast<CCNode *>(visual) && dressed->getParent())
+            continue;
+          log::info("Globed: player {} has a new icon, dressing it again", id);
+          fields->m_attached.erase(it);
+        }
 
         // The sender of a look is an account id, Globed lists player ids: wear whichever has a look
         std::vector<Ref<HairNode>> rigs;
@@ -332,7 +350,7 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
           log::warn("Globed: can't dress player {} (account {}), its icon isn't in the level yet", id, account);
           continue;
         }
-        fields->m_attached.insert(key);
+        fields->m_attached[key] = WeakRef<CCNode>(static_cast<CCNode *>(visual));
         log::info("Globed: dressed player {} (account {}, {} icon, {} rigs)", id, account, second ? "second" : "first", rigs.size());
         for (auto &rig : rigs)
         {

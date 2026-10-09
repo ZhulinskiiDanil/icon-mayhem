@@ -8,7 +8,7 @@
 	},
 	"id": "zhulis.icon-mayhem",
 	"name": "Icon Mayhem",
-	"version": "v1.6.0",
+	"version": "v1.7.0",
 	"developer": "Zhulis",
 	"description": "Cute and crazy icon customizations: physics-based hair, accessories, wings, a pet and effects",
 	"repository": "https://github.com/ZhulinskiiDanil/icon-mayhem",
@@ -382,14 +382,42 @@
 		},
 		"bangs-style": {
 			"name": "Bangs style",
-			"description": "Straight: a neat fringe. Parted: combed to both sides from a part in the middle, like Frieren. Side swept: all combed to one side, longer there. One side: hair only on one side of the face",
+			"description": "Straight: a neat fringe. Parted: combed to both sides from a part in the middle, like Frieren. Side swept: all combed to one side, longer there. One side: hair only on one side of the face. Clumps: a few wide pointed clumps like in anime, three for Yor's",
 			"type": "string",
 			"default": "Straight",
-			"one-of": ["Straight", "Parted", "Side swept", "One side"]
+			"one-of": ["Straight", "Parted", "Side swept", "One side", "Clumps"]
+		},
+		"bangs-clumps": {
+			"name": "Bangs clumps",
+			"description": "Clumps: how many pointed clumps the bangs are parted into",
+			"type": "int",
+			"default": 3,
+			"min": 2,
+			"max": 5,
+			"control": {
+				"slider": true
+			}
+		},
+		"bangs-fill": {
+			"name": "Locks between clumps",
+			"description": "Clumps: shorter, darker locks in the gaps between the clumps, the hair under them",
+			"type": "bool",
+			"default": false
+		},
+		"bangs-wisps": {
+			"name": "Bangs wisps",
+			"description": "Clumps: thin strands sticking out beside the clumps, the first one by the middle clump on the bangs side",
+			"type": "int",
+			"default": 1,
+			"min": 0,
+			"max": 3,
+			"control": {
+				"slider": true
+			}
 		},
 		"bangs-side": {
 			"name": "Bangs side",
-			"description": "The side Side swept combs to and One side covers",
+			"description": "The side Side swept combs to, One side covers and the first wisp of Clumps sticks out on",
 			"type": "string",
 			"default": "Right",
 			"one-of": ["Left", "Right"]
@@ -435,6 +463,28 @@
 			"default": 0.8,
 			"min": 0.1,
 			"max": 1.2,
+			"control": {
+				"slider": true
+			}
+		},
+		"bangs-width": {
+			"name": "Bangs width",
+			"description": "How wide each lock of the bangs is. Narrower clumps leave little gaps between them, like in anime",
+			"type": "float",
+			"default": 1,
+			"min": 0.3,
+			"max": 1.5,
+			"control": {
+				"slider": true
+			}
+		},
+		"bangs-fan": {
+			"name": "Bangs fan out",
+			"description": "How much the bangs turn out to the sides with the spread and the arc. 0 makes them all fall straight down",
+			"type": "float",
+			"default": 1,
+			"min": 0,
+			"max": 1.5,
 			"control": {
 				"slider": true
 			}

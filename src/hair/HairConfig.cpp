@@ -274,6 +274,8 @@ namespace
       return BangsStyle::SideSwept;
     if (value == "One side")
       return BangsStyle::OneSide;
+    if (value == "Clumps")
+      return BangsStyle::Clumps;
     return BangsStyle::Straight;
   }
 
@@ -412,11 +414,16 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.bangsSpread = number("bangs-spread");
   cfg.bangsArcSize = number("bangs-arc-size");
   cfg.bangsArcSoftness = number("bangs-arc-softness");
+  cfg.bangsFan = number("bangs-fan");
+  cfg.bangsWidth = number("bangs-width");
   cfg.bangsInsetX = number("bangs-inset-x");
   cfg.bangsInsetY = number("bangs-inset-y");
   cfg.bangsStyle = parseBangsStyle(text("bangs-style"));
   cfg.bangsRight = text("bangs-side") != "Left";
   cfg.bangsTransition = number("bangs-transition");
+  cfg.bangsClumps = std::clamp(integer("bangs-clumps"), 2, 5);
+  cfg.bangsWisps = std::clamp(integer("bangs-wisps"), 0, 3);
+  cfg.bangsFill = flag("bangs-fill");
   cfg.bangsColorSource = parseColorSource(text("bangs-color"));
   cfg.bangsColor = color("bangs-custom-color");
 
