@@ -35,6 +35,11 @@ cmake --build build
 
 The build packages the mod into `build/zhulis.icon-mayhem.geode` and installs it into your Geode profile.
 
+## Builds
+
+- **Every push** is built for Windows and Android on Railway by [icon-mayhem-builder](https://github.com/ZhulinskiiDanil/icon-mayhem-builder): the `railway/build` check on the commit links to the build page with the `.geode`. All builds: https://icon-mayhem-builder-production.up.railway.app
+- **Releases** add macOS and iOS: publishing a release runs the GitHub workflow, which builds them on Apple runners, merges them with the Railway build of the same commit and attaches the `.geode` for all five platforms to the release.
+
 ## Project layout
 
 - `src/hair/`: the icon rig

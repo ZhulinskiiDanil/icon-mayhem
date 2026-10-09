@@ -1,10 +1,16 @@
-name: Build Geode Mod
+name: Release build
+
+# Windows and Android are built on Railway on every push (icon-mayhem-builder, the "railway/build"
+# check on each commit). macOS and iOS need Apple's runners: they are built here for releases only,
+# then merged with the Railway build of the same commit into one .geode for all five platforms.
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
-  push:
-    branches:
-      - "**"
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -12,23 +18,12 @@ jobs:
       fail-fast: false
       matrix:
         config:
-        - name: Windows
-          os: windows-latest
-
         - name: macOS
           os: macos-latest
 
         - name: iOS
           os: macos-latest
           target: iOS
-
-        - name: Android32
-          os: ubuntu-latest
-          target: Android32
-
-        - name: Android64
-          os: ubuntu-latest
-          target: Android64
 
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
@@ -43,15 +38,51 @@ jobs:
           target: ${{ matrix.config.target }}
 
   package:
-    name: Package builds
+    name: All platforms
     runs-on: ubuntu-latest
     needs: ['build']
 
     steps:
-      - uses: geode-sdk/build-geode-mod/combine@main
-        id: build
+      - name: macOS and iOS builds
+        uses: actions/download-artifact@v7
+        with:
+          pattern: geode-build-*
+          path: artifacts
+
+      - name: Windows and Android from Railway
+        env:
+          BUILDER: ${{ vars.BUILDER_URL }}
+          SHA: ${{ github.sha }}
+        run: |
+          # The push of this commit is built on Railway already, or about to be
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s -H "accept: application/json" "$BUILDER/builds/$SHA" | jq -r '.status // "missing"')
+            echo "Railway build: $STATUS"
+            [ "$STATUS" = "success" ] && break
+            if [ "$STATUS" = "failure" ]; then echo "The Railway build failed: $BUILDER/builds/$SHA"; exit 1; fi
+            sleep 20
+          done
+          [ "$STATUS" = "success" ] || { echo "No Railway build of $SHA"; exit 1; }
+          mkdir -p railway
+          curl -fsSL -o railway/zhulis.icon-mayhem.geode "$BUILDER/builds/$SHA/zhulis.icon-mayhem.geode"
+
+      - name: Setup the Geode CLI
+        uses: geode-sdk/cli/.github/actions/setup@main
+
+      - name: Merge all five
+        run: |
+          mkdir -p output
+          cp railway/zhulis.icon-mayhem.geode output/zhulis.icon-mayhem.geode
+          geode package merge output/zhulis.icon-mayhem.geode $(find artifacts -name '*.geode' -type f)
+          unzip -l output/zhulis.icon-mayhem.geode | grep -E '\.(dll|so|dylib|ios\.dylib)$' || true
 
       - uses: actions/upload-artifact@v7
         with:
           name: Build Output
-          path: ${{ steps.build.outputs.build-output }}
+          path: output/zhulis.icon-mayhem.geode
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" output/zhulis.icon-mayhem.geode --clobber --repo "${{ github.repository }}"
