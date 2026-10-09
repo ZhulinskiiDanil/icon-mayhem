@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## v1.9.0
 
-- Custom icons on Globed: players see each other's custom icons, from More Icons or from a texture pack, even without More Icons themselves. Every mode: the cube, vehicles (with the UFO dome), robots and spiders. Your icons go up to the Icon Mayhem server once and only the players you meet in a level get them. Switches in General (Online): share yours, see theirs. Report an icon in Players: it turns plain for you right away, and enough reports hide it for everyone
+### Custom icons on Globed
+- Players see each other's custom icons, from More Icons or from a texture pack, even without More Icons themselves. Every mode: the cube, vehicles (with the UFO dome), robots and spiders.
+- Your icons go up to the Icon Mayhem server once, and only the players you meet in a level get them. Switches in General (Online): share yours, see theirs.
+- Report an icon in Players: it turns plain for you right away, and enough reports hide it for everyone.
+
+### Builds
+- Every release now has the mod for all five platforms: Windows and Android are built on the Icon Mayhem builder, macOS and iOS on GitHub.
 
 ## v1.8.0
 
