@@ -291,6 +291,18 @@ float focusSignal(PlayerObject *player)
 
 // ! --- Emotes --- !
 
+void levelHairEmote(HairNode::Emote emote)
+{
+  auto playLayer = static_cast<HairPlayLayer *>(PlayLayer::get());
+  if (!playLayer)
+    return;
+  for (auto &hair : playLayer->m_fields->m_hair)
+  {
+    if (hair->player() == playLayer->m_player1)
+      hair->emote(emote);
+  }
+}
+
 $on_mod(Loaded)
 {
   static constexpr std::array<std::pair<char const *, HairNode::Emote>, 4> kKeys = {{

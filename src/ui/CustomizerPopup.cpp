@@ -1,4 +1,5 @@
 #include "CustomizerPopup.hpp"
+#include "GalleryPopup.hpp"
 #include "LinkerPopup.hpp"
 #include "LooksPopup.hpp"
 
@@ -70,7 +71,7 @@ namespace
   constexpr float kHeadAir = 22.f;        // panel units: the air flows around the head this far out
   constexpr float kMeterWidth = 24.f;
   constexpr float kToolX = 16.f;          // the tool column on the left of the preview
-  constexpr float kToolTop = 148.f;
+  constexpr float kToolTop = 136.f;
   constexpr float kToolStep = 28.f;
   // Open blocks, remembered between openings
   constexpr char const *kOpenSave = "customizer-open-groups";
@@ -193,26 +194,27 @@ bool CustomizerPopup::initCustomizer()
   auto presetsButton = CCMenuItemSpriteExtra::create(textButton("Presets", 70), this,
                                                      menu_selector(CustomizerPopup::onPresets));
   presetsButton->setID("presets-button");
-  m_buttonMenu->addChildAtPosition(presetsButton, Anchor::BottomLeft, {kListOrigin.x + 37.f, 19.f});
+  m_buttonMenu->addChildAtPosition(presetsButton, Anchor::BottomLeft, {kListOrigin.x + 37.f, 23.f});
 
   // One tap saves the look into the preset it came from
-  auto save = CCMenuItemSpriteExtra::create(iconButton("save", CircleBaseColor::Green), this,
+  auto save = CCMenuItemSpriteExtra::create(iconButton("save", CircleBaseColor::Green, 24.f, "Save"), this,
                                             menu_selector(CustomizerPopup::onSave));
   save->setID("save-button");
-  m_buttonMenu->addChildAtPosition(save, Anchor::BottomLeft, {kListOrigin.x + 92.f, 19.f});
+  m_buttonMenu->addChildAtPosition(save, Anchor::BottomLeft, {kListOrigin.x + 92.f, 25.f});
 
   // Hitbox helpers: gray off, cyan on
   m_showHitboxes = Mod::get()->getSavedValue<bool>(kHitboxesSave, false);
-  auto hitboxes = CCMenuItemToggler::create(iconButton("hitboxes", CircleBaseColor::Gray), iconButton("hitboxes", CircleBaseColor::Cyan),
-                                            this, menu_selector(CustomizerPopup::onHitboxes));
+  auto hitboxes = CCMenuItemToggler::create(iconButton("hitboxes", CircleBaseColor::Gray, 24.f, "Hitboxes"),
+                                            iconButton("hitboxes", CircleBaseColor::Cyan, 24.f, "Hitboxes"), this,
+                                            menu_selector(CustomizerPopup::onHitboxes));
   hitboxes->toggle(m_showHitboxes);
   hitboxes->setID("hitboxes-toggle");
-  m_buttonMenu->addChildAtPosition(hitboxes, Anchor::BottomLeft, {kListOrigin.x + kListSize.width - 47.f, 19.f});
+  m_buttonMenu->addChildAtPosition(hitboxes, Anchor::BottomLeft, {kListOrigin.x + kListSize.width - 50.f, 25.f});
 
-  auto reset = CCMenuItemSpriteExtra::create(iconButton("reset", CircleBaseColor::Gray), this,
+  auto reset = CCMenuItemSpriteExtra::create(iconButton("reset", CircleBaseColor::Gray, 24.f, "Reset"), this,
                                              menu_selector(CustomizerPopup::onReset));
   reset->setID("reset-button");
-  m_buttonMenu->addChildAtPosition(reset, Anchor::BottomLeft, {kListOrigin.x + kListSize.width - 14.f, 19.f});
+  m_buttonMenu->addChildAtPosition(reset, Anchor::BottomLeft, {kListOrigin.x + kListSize.width - 14.f, 25.f});
 
   // Top right: the preset the look came from, and whether it is saved
   presets::adoptMatchingPreset();
@@ -312,48 +314,48 @@ void CustomizerPopup::buildPreview()
     sprite->setFlipX(dir < 0);
     auto arrow = CCMenuItemSpriteExtra::create(sprite, this, menu_selector(CustomizerPopup::onMode));
     arrow->setTag(dir);
-    arrow->setPosition({kPreviewSize.width / 2.f + dir * 55.f, 62.f});
+    arrow->setPosition({kPreviewSize.width / 2.f + dir * 55.f, 66.f});
     menu->addChild(arrow);
   }
 
   m_modeLabel = CCLabelBMFont::create("", "bigFont.fnt");
   m_modeLabel->setScale(.45f);
-  m_modeLabel->setPosition({kPreviewSize.width / 2.f, 62.f});
+  m_modeLabel->setPosition({kPreviewSize.width / 2.f, 66.f});
   panel->addChild(m_modeLabel);
 
   // Quick actions in a row on the top of the preview: undo, a random look (the dice), random
   // colors (the palette), every part in the hair color (the drops)
-  auto quick = [&](char const *icon, CircleBaseColor color, char const *id, SEL_MenuHandler handler, float x)
+  auto quick = [&](char const *icon, CircleBaseColor color, char const *caption, char const *id, SEL_MenuHandler handler, float x)
   {
-    auto button = CCMenuItemSpriteExtra::create(iconButton(icon, color, 24.f), this, handler);
+    auto button = CCMenuItemSpriteExtra::create(iconButton(icon, color, 22.f, caption), this, handler);
     button->setID(id);
-    button->setPosition({x, kPreviewSize.height - 16.f});
+    button->setPosition({x, kPreviewSize.height - 15.f});
     menu->addChild(button);
   };
-  float const step = 30.f;
+  float const step = 36.f;
   float const first = kPreviewSize.width / 2.f - step * 1.5f;
-  quick("undo", CircleBaseColor::Gray, "undo-button", menu_selector(CustomizerPopup::onUndo), first);
-  quick("dice", CircleBaseColor::Pink, "surprise-button", menu_selector(CustomizerPopup::onSurprise), first + step);
-  quick("palette", CircleBaseColor::Blue, "colors-button", menu_selector(CustomizerPopup::onColors), first + step * 2.f);
-  quick("match", CircleBaseColor::Cyan, "match-button", menu_selector(CustomizerPopup::onMatch), first + step * 3.f);
+  quick("undo", CircleBaseColor::Gray, "Undo", "undo-button", menu_selector(CustomizerPopup::onUndo), first);
+  quick("dice", CircleBaseColor::Pink, "Random", "surprise-button", menu_selector(CustomizerPopup::onSurprise), first + step);
+  quick("palette", CircleBaseColor::Blue, "Colors", "colors-button", menu_selector(CustomizerPopup::onColors), first + step * 2.f);
+  quick("match", CircleBaseColor::Cyan, "Same color", "match-button", menu_selector(CustomizerPopup::onMatch), first + step * 3.f);
 
   // Jump and run under the icon
-  auto jump = CCMenuItemSpriteExtra::create(iconButton("jump", CircleBaseColor::Green), this, menu_selector(CustomizerPopup::onJump));
+  auto jump = CCMenuItemSpriteExtra::create(iconButton("jump", CircleBaseColor::Green, 22.f, "Jump"), this, menu_selector(CustomizerPopup::onJump));
   jump->setID("jump-button");
-  jump->setPosition({kPreviewSize.width / 2.f - 18.f, 19.f});
+  jump->setPosition({kPreviewSize.width / 2.f - 18.f, 24.f});
   menu->addChild(jump);
 
   // Run, and stop while running
-  auto run = CCMenuItemToggler::create(iconButton("run", CircleBaseColor::Green), iconButton("stop", CircleBaseColor::Pink), this,
-                                       menu_selector(CustomizerPopup::onRun));
+  auto run = CCMenuItemToggler::create(iconButton("run", CircleBaseColor::Green, 22.f, "Run"), iconButton("stop", CircleBaseColor::Pink, 22.f, "Stop"),
+                                       this, menu_selector(CustomizerPopup::onRun));
   run->setID("run-button");
-  run->setPosition({kPreviewSize.width / 2.f + 18.f, 19.f});
+  run->setPosition({kPreviewSize.width / 2.f + 18.f, 24.f});
   menu->addChild(run);
 
   // Main | Icon, when the icon in the preview has a look of its own
   // Tools on the left of the icon, one under the other: the wind view
   m_showWind = Mod::get()->getSavedValue<bool>(kWindSave, false);
-  auto wind = CCMenuItemToggler::create(iconButton("wind", CircleBaseColor::Gray, 22.f), iconButton("wind", CircleBaseColor::Cyan, 22.f),
+  auto wind = CCMenuItemToggler::create(iconButton("wind", CircleBaseColor::Gray, 22.f, "Wind"), iconButton("wind", CircleBaseColor::Cyan, 22.f, "Wind"),
                                         this, menu_selector(CustomizerPopup::onWind));
   wind->toggle(m_showWind);
   wind->setID("wind-toggle");
@@ -361,7 +363,7 @@ void CustomizerPopup::buildPreview()
   menu->addChild(wind);
   m_windMeter = CCDrawNode::create();
   m_windMeter->setID("wind-meter");
-  m_windMeter->setPosition({kToolX, kToolTop - 17.f});
+  m_windMeter->setPosition({kToolX, kToolTop - 24.f});
   panel->addChild(m_windMeter);
 
   m_lookSwitch = CCMenu::create();
@@ -376,7 +378,7 @@ void CustomizerPopup::buildPreview()
     auto segment = CCMenuItemSpriteExtra::create(i == 0 ? m_mainSprite : m_iconSprite, this, menu_selector(CustomizerPopup::onLookSwitch));
     segment->setTag(i);
     segment->setID(i == 0 ? "main-look-button" : "icon-look-button");
-    segment->setPosition({kPreviewSize.width / 2.f + (i == 0 ? -27.f : 27.f), 42.f});
+    segment->setPosition({kPreviewSize.width / 2.f + (i == 0 ? -27.f : 27.f), 48.f});
     m_lookSwitch->addChild(segment);
   }
 
@@ -733,6 +735,11 @@ void CustomizerPopup::addRow(char const *key)
   if (std::string_view(key) == "@looks")
   {
     m_list->m_contentLayer->addChild(createLooksRow(kListSize.width));
+    return;
+  }
+  if (std::string_view(key) == "@gallery")
+  {
+    m_list->m_contentLayer->addChild(createGalleryRow(kListSize.width));
     return;
   }
   if (std::string_view(key) == "@linker")

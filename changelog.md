@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.8.0
+
+### Looks of everyone
+- Gallery: looks shared by everyone (Top, New, Mine, search), each on your own icon, alive. Wear one in a tap (it lands in your presets), keep it, like it, report it; share your own look with a name. Your Geometry Dash account is checked with Argon, the password never leaves the game. From the presets window (the globe) and General
+- Players in the pause menu (on Globed): everybody in the level in their look. Save it to your presets, try it on until the level ends (the others see it on you too), like it (hearts burst on their icon and they are told), or gift them your look (it waits for them in their Players window)
+
+### Customizer
+- Every icon button has a little caption under it (Undo, Random, Colors, Same color, Jump, Run, Wind, Save, Hitboxes, Reset, New empty, Paste, Import, Folder, Gallery, Save here, Rename, Copy, To file, Delete...)
+
 ## v1.7.0
 
 ### Bangs

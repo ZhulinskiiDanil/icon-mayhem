@@ -47,6 +47,11 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Trail**: a long silky ribbon tied at the back of the head, or little hearts, stars or sparkles left behind as you go
 - **Emotes**: press a key and a heart, a note, "!" or "?" pops up in a bubble above your icon, your pet answers
 
+## Looks of everyone
+
+- **Gallery**: looks shared by everyone, the most liked and the newest, each on your own icon, alive. Wear one in a tap, keep it in your presets, like it. Share yours with a name. Your Geometry Dash account is checked with Argon once, your password never leaves the game
+- **Friends on Globed**: Players in the pause menu shows everybody in the level in their look. Save a look you like, try it on until the level ends (they see it on you too), like it (hearts burst on their icon), or gift them yours
+
 ## Customizer and presets
 
 - **Open it anywhere**: from the pause menu or from the garage, no level needed

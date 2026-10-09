@@ -14,7 +14,7 @@ if (WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
-project(icon-mayhem VERSION 1.5.2)
+project(icon-mayhem VERSION 1.8.0)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
@@ -28,3 +28,7 @@ endif()
 add_subdirectory($ENV{GEODE_SDK} ${CMAKE_CURRENT_BINARY_DIR}/geode)
 
 setup_geode_mod(${PROJECT_NAME})
+
+# Argon proves the Geometry Dash account to the gallery server, without its password
+CPMAddPackage("gh:GlobedGD/argon@1.5.1")
+target_link_libraries(${PROJECT_NAME} argon)

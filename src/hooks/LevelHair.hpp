@@ -18,6 +18,9 @@ GameMode gameModeOf(PlayerObject *player);
 // How hard the moment is for a player, 0..1: faster speed portals and busy clicking
 float focusSignal(PlayerObject *player);
 
+// An emote on your own icon in the level (a like from another player: hearts)
+void levelHairEmote(HairNode::Emote emote);
+
 // `focusOf` is the player whose moment drives the focus mode (other players' rigs follow yours)
 bool attachLevelHair(PlayerObject *player, bool playerTwo, std::vector<geode::Ref<HairNode>> &nodes,
                      std::function<std::string()> look = {}, PlayerObject *focusOf = nullptr);

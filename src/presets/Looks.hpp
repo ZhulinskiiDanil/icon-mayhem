@@ -70,4 +70,12 @@ namespace looks
   bool hasRemote(int player);
   void setRemote(int player, matjson::Value look);
   void clearRemotes();
+  // Looks from elsewhere (a gift, the gallery) the same way, by a key: worn as "@remote:<key>"
+  std::string setRemoteLook(std::string const &key, matjson::Value look);
+  // The look behind a "@remote:" name, as it was sent (the settings that differ from the defaults)
+  std::optional<matjson::Value> remoteLook(std::string const &name);
+
+  // Trying on another look (a friend's, a gift): player 1 wears it until the level ends. "" none
+  void setTryOn(std::string const &name);
+  std::string const &tryOn();
 }

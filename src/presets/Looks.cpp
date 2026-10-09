@@ -6,6 +6,7 @@
 #include <hiimjustin000.more_icons/include/MoreIcons.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <array>
 #include <map>
 #include <optional>
@@ -280,6 +281,10 @@ GameMode looks::linkModeOf(GameMode mode)
 
 std::string looks::wornLook(bool playerTwo, GameMode mode)
 {
+  // A look tried on covers everything, for player 1
+  if (!playerTwo && !tryOn().empty())
+    return tryOn();
+
   GameMode const linked = linkModeOf(mode);
   // The icon link of the rider, then the look of the mode itself
   if (mode != linked)
@@ -421,5 +426,47 @@ void looks::setRemote(int player, matjson::Value look)
 
 void looks::clearRemotes()
 {
-  remoteLooks().clear();
+  // Gifts and the gallery stay, the players of the level are gone
+  std::erase_if(remoteLooks(), [](auto const &entry)
+                {
+                  auto const key = std::string_view(entry.first).substr(kRemotePrefix.size());
+                  return !key.empty() && std::isdigit(static_cast<unsigned char>(key.front()));
+                });
+}
+
+std::string looks::setRemoteLook(std::string const &key, matjson::Value look)
+{
+  std::string const name = fmt::format("{}{}", kRemotePrefix, key);
+  remoteLooks()[name] = std::move(look);
+  HairConfig::bumpVersion();
+  return name;
+}
+
+std::optional<matjson::Value> looks::remoteLook(std::string const &name)
+{
+  auto const &remotes = remoteLooks();
+  auto it = remotes.find(name);
+  if (it == remotes.end())
+    return std::nullopt;
+  return it->second;
+}
+
+namespace
+{
+  std::string &tryOnName()
+  {
+    static std::string name;
+    return name;
+  }
+}
+
+void looks::setTryOn(std::string const &name)
+{
+  tryOnName() = name;
+  HairConfig::bumpVersion();
+}
+
+std::string const &looks::tryOn()
+{
+  return tryOnName();
 }

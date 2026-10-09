@@ -303,11 +303,60 @@ def wind():
     return finish(m)
 
 
+def people():
+    # Two friends: heads and shoulders, the front one over the back one
+    back = canvas(); b = ImageDraw.Draw(back)
+    b.ellipse((206, 70, 300, 164), fill=255)
+    b.pieslice((170, 176, 336, 342), 180, 360, fill=255)
+    b.rectangle((170, 258, 336, 300), fill=255)
+    front = canvas(); f = ImageDraw.Draw(front)
+    f.ellipse((92, 96, 200, 204), fill=255)
+    f.pieslice((52, 212, 240, 400), 180, 360, fill=255)
+    f.rectangle((52, 304, 240, 326), fill=255)
+    edge = front.filter(ImageFilter.MaxFilter(RADIUS * 2 + 1))
+    return finish(ImageChops.lighter(back, front), [(ImageChops.subtract(ImageChops.multiply(edge, back), front), OUTLINE)])
+
+
+def heart():
+    m = canvas(); d = ImageDraw.Draw(m)
+    d.ellipse((60, 84, 204, 228), fill=255)
+    d.ellipse((180, 84, 324, 228), fill=255)
+    d.polygon([(70, 180), (314, 180), (192, 330)], fill=255)
+    tint = canvas(); ImageDraw.Draw(tint).ellipse((96, 116, 150, 170), fill=255)
+    return finish(m, [(tint, (255, 255, 255, 255))])
+
+
+def gift():
+    m = canvas(); d = ImageDraw.Draw(m)
+    d.rounded_rectangle((70, 160, 314, 330), radius=18, fill=255)
+    d.rounded_rectangle((56, 118, 328, 170), radius=16, fill=255)
+    # the bow on top
+    d.ellipse((110, 56, 196, 132), fill=255)
+    d.ellipse((188, 56, 274, 132), fill=255)
+    ribbon = canvas(); r = ImageDraw.Draw(ribbon)
+    r.rectangle((172, 118, 212, 330), fill=255)
+    r.ellipse((136, 78, 180, 118), fill=255)
+    r.ellipse((204, 78, 248, 118), fill=255)
+    return finish(m, [(ribbon, (255, 111, 145, 255))])
+
+
+def globe():
+    m = canvas(); d = ImageDraw.Draw(m)
+    d.ellipse((56, 56, 328, 328), fill=255)
+    lines = canvas(); l = ImageDraw.Draw(lines)
+    l.ellipse((132, 64, 252, 320), outline=255, width=16)
+    l.line((64, 192, 320, 192), fill=255, width=16)
+    l.arc((40, 110, 344, 200), 200, 340, fill=255, width=14)
+    l.arc((40, 184, 344, 274), 20, 160, fill=255, width=14)
+    mask = canvas(); ImageDraw.Draw(mask).ellipse((70, 70, 314, 314), fill=255)
+    return finish(m, [(ImageChops.multiply(lines, mask), (79, 163, 224, 255))])
+
+
 ICONS = {
     'undo': undo, 'reset': reset, 'dice': dice, 'palette': palette, 'match': match, 'jump': jump, 'run': run,
     'stop': stop, 'save': save, 'save-as': save_as, 'hitboxes': hitboxes, 'empty': empty, 'paste': paste,
     'import': import_, 'export': export, 'folder': folder, 'copy': copy, 'rename': rename, 'link': link,
-    'target': target, 'trash': trash, 'wind': wind,
+    'target': target, 'trash': trash, 'wind': wind, 'people': people, 'heart': heart, 'gift': gift, 'globe': globe,
 }
 
 if __name__ == '__main__':

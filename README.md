@@ -14,6 +14,7 @@ A [Geode](https://geode-sdk.org) mod for Geometry Dash with cute and crazy custo
 - **Focus mode** for hard levels: what floats around the icon fades in hard parts, nothing covers your view
 - **Everywhere**: a look per icon and per game mode, your profile and the main menu, emotes, and other players' looks on Globed (from Globed 2.2.3)
 - **Presets**: built-in looks, your own saved looks, sharing through the clipboard or files, looks per game mode and for player 2
+- **Social**: the community gallery of looks (share yours, wear and like others'), and on Globed: save, try on and like other players' looks, gift them yours
 
 See [about.md](about.md) for the full description and every setting, and [changelog.md](changelog.md) for what changed.
 
@@ -44,4 +45,5 @@ The build packages the mod into `build/zhulis.icon-mayhem.geode` and installs it
 - `src/hooks/`: game hooks (level, garage, pause menu, icon previews, profile and menu, Globed)
 - `src/ui/`: the customizer and presets popups
 - `src/presets/`: saving, loading and sharing presets, looks per mode and for player 2
+- `src/gallery/`: the client of the gallery server, [icon-mayhem-server](https://github.com/ZhulinskiiDanil/icon-mayhem-server) (Express, Postgres; accounts checked with [Argon](https://github.com/GlobedGD/argon))
 - `resources/`: sprites and the built-in presets

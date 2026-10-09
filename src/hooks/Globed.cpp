@@ -9,7 +9,9 @@
 
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/ui/Notification.hpp>
 
+#include <chrono>
 #include <optional>
 #include <map>
 #include <set>
@@ -27,6 +29,10 @@ namespace
 {
   constexpr char const *kLookEvent = "zhulis.icon-mayhem/look";
   constexpr char const *kEmoteEvent = "zhulis.icon-mayhem/emote";
+  constexpr char const *kLikeEvent = "zhulis.icon-mayhem/like";
+  constexpr char const *kGiftEvent = "zhulis.icon-mayhem/gift";
+  constexpr float kGiftEvery = 60.f; // s between two gifts to the same player
+  constexpr float kLikeQuiet = 10.f; // s: likes from the same player closer than this are dropped
   constexpr float kScanEvery = .5f; // s between looking for new players and look changes
 
   // The Globed server drops events over 1024 bytes and counts every started 512 bytes as one more
@@ -34,13 +40,25 @@ namespace
   constexpr size_t kLookPart = 500;
   constexpr uint8_t kLookFormat = 1; // first header byte; a whole JSON look (v1.5.1) starts with '{'
 
-  // Parts of a look still arriving, by sender
+  // Parts of a look still arriving, by sender (and whether it is a gift: sender * 2 + 1)
   struct PendingLook
   {
     uint8_t id = 0;
     std::vector<std::optional<std::string>> parts;
   };
   std::unordered_map<int, PendingLook> s_pendingLooks;
+
+  // Friends: who we liked in this level, when we last gifted whom, gifts waiting for us
+  std::set<int> s_liked;
+  std::unordered_map<int, double> s_lastGift;
+  std::unordered_map<int, double> s_lastLikeFrom;
+  std::vector<GlobedGift> s_gifts;
+  int s_giftCount = 0;
+
+  double now()
+  {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  }
 
   // Rigs of the other players in the current level, by their player id
   std::unordered_map<int, std::vector<WeakRef<HairNode>>> s_remoteRigs;
@@ -86,7 +104,24 @@ namespace
     s_registered = true;
     table->net->registerEvent(kLookEvent, globed::EventServer::Game);
     table->net->registerEvent(kEmoteEvent, globed::EventServer::Game);
-    log::info("Globed: looks and emotes are shared with other players");
+    table->net->registerEvent(kLikeEvent, globed::EventServer::Game);
+    table->net->registerEvent(kGiftEvent, globed::EventServer::Game);
+    log::info("Globed: looks, emotes, likes and gifts are shared with other players");
+  }
+
+  // The name of a player by their player or account id, as events give them
+  std::string playerName(int sender)
+  {
+    auto table = globedTable();
+    if (!table || !table->game || !table->player)
+      return "A player";
+    for (int id : table->game->getPlayerIds())
+    {
+      auto remote = table->game->getPlayer(id);
+      if (remote && (id == sender || table->player->getAccountId(remote) == sender))
+        return table->player->getUsername(remote);
+    }
+    return "A player";
   }
 
   bool globedActive()
@@ -98,7 +133,7 @@ namespace
   void send(char const *event, std::string const &payload, std::vector<int32_t> targets = {});
 
   // Header: format, look id, part index, part count; then the part of the JSON
-  void sendLook(std::string const &look)
+  void sendLook(std::string const &look, char const *event = kLookEvent, std::vector<int32_t> targets = {})
   {
     static uint8_t lookId = 0;
     ++lookId;
@@ -111,7 +146,7 @@ namespace
       part += static_cast<char>(i);
       part += static_cast<char>(count);
       part += look.substr(i * kLookPart, kLookPart);
-      send(kLookEvent, part);
+      send(event, part, targets);
     }
   }
 
@@ -173,7 +208,15 @@ namespace
       return payload;
 
     auto settings = presets::capture("").settings;
-    if (!name.empty())
+    bool enabled = Mod::get()->getSettingValue<bool>("enabled");
+    if (auto remote = name.starts_with("@remote:") ? looks::remoteLook(name) : std::nullopt)
+    {
+      // A look tried on: the others see it too
+      settings = presets::withDefaults(*remote);
+      if (auto value = remote->get("enabled"); value && value.unwrap().isBool())
+        enabled = value.unwrap().asBool().unwrap();
+    }
+    else if (!name.empty())
     {
       if (auto preset = looks::presetSettings(name))
       {
@@ -183,7 +226,7 @@ namespace
     }
 
     auto look = presets::compact(settings);
-    look["enabled"] = Mod::get()->getSettingValue<bool>("enabled");
+    look["enabled"] = enabled;
     // Which look goes out: the main one, or the preset of the icon or the mode (its saved file)
     log::info("Globed: our look is {}", name.empty() ? "the main look" : fmt::format("the preset \"{}\" (as saved)", name));
     payload = look.dump(matjson::NO_INDENTATION);
@@ -201,9 +244,34 @@ namespace
       int const sender = event.options.sender;
       std::string const payload(event.data.begin(), event.data.end());
 
-      if (name == kLookEvent)
+      if (name == kGiftEvent)
       {
-        auto whole = receiveLookPart(sender, payload);
+        auto whole = receiveLookPart(sender * 2 + 1, payload);
+        if (!whole)
+          continue;
+        auto look = matjson::parse(*whole);
+        if (!look || !look.unwrap().isObject())
+          continue;
+        std::string const who = playerName(sender);
+        auto const lookName = looks::setRemoteLook(fmt::format("gift-{}", ++s_giftCount), std::move(look).unwrap());
+        s_gifts.push_back(GlobedGift{who, lookName});
+        log::info("Globed: {} gifted us their look", who);
+        Notification::create(fmt::format("{} gifted you their look! Players, in the pause menu", who), NotificationIcon::Success)->show();
+      }
+      else if (name == kLikeEvent)
+      {
+        // Hearts on our icon, and who liked it
+        double const at = now();
+        auto &last = s_lastLikeFrom[sender];
+        if (at - last < kLikeQuiet)
+          continue;
+        last = at;
+        levelHairEmote(HairNode::Emote::Heart);
+        Notification::create(fmt::format("{} likes your look!", playerName(sender)), NotificationIcon::Success)->show();
+      }
+      else if (name == kLookEvent)
+      {
+        auto whole = receiveLookPart(sender * 2, payload);
         if (!whole)
           continue;
         auto look = matjson::parse(*whole);
@@ -254,6 +322,83 @@ void globedSendEmote(HairNode::Emote emote)
   send(kEmoteEvent, std::string(1, static_cast<char>(emote)));
 }
 
+// ! --- Friends --- !
+
+std::vector<GlobedPeer> globedPeers()
+{
+  std::vector<GlobedPeer> out;
+  auto table = globedTable();
+  if (!globedActive() || !table->player)
+    return out;
+
+  int const self = GJAccountManager::get()->m_accountID;
+  for (int id : table->game->getPlayerIds())
+  {
+    auto remote = table->game->getPlayer(id);
+    if (!remote)
+      continue;
+    int const account = table->player->getAccountId(remote);
+    if (id == self || account == self)
+      continue;
+
+    GlobedPeer peer;
+    peer.id = id;
+    peer.account = account;
+    peer.name = table->player->getUsername(remote);
+    if (looks::hasRemote(account))
+      peer.look = looks::remoteName(account);
+    else if (looks::hasRemote(id))
+      peer.look = looks::remoteName(id);
+    if (auto icons = table->player->getIcons(remote))
+    {
+      auto const &data = icons.unwrap();
+      peer.cube = std::max<int>(1, data.cube);
+      peer.color1 = data.color1.asColor();
+      peer.color2 = data.color2.asColor();
+      peer.glow = !data.glowColor.isNone();
+      if (peer.glow)
+        peer.glowColor = data.glowColor.asColor();
+    }
+    peer.liked = s_liked.contains(id);
+    out.push_back(std::move(peer));
+  }
+  return out;
+}
+
+bool globedLike(GlobedPeer const &peer)
+{
+  if (!globedActive() || !s_liked.insert(peer.id).second)
+    return false;
+  send(kLikeEvent, "", {peer.id});
+  // Hearts on their icon here too
+  for (int key : {peer.id, peer.account})
+  {
+    for (auto &rig : s_remoteRigs[key])
+    {
+      if (auto hair = rig.lock())
+        hair->emote(HairNode::Emote::Heart);
+    }
+  }
+  return true;
+}
+
+bool globedGift(GlobedPeer const &peer)
+{
+  double const at = now();
+  auto it = s_lastGift.find(peer.id);
+  if (!globedActive() || (it != s_lastGift.end() && at - it->second < kGiftEvery))
+    return false;
+  s_lastGift[peer.id] = at;
+  sendLook(currentLookPayload(), kGiftEvent, {peer.id});
+  log::info("Globed: gifted our look to {}", peer.name);
+  return true;
+}
+
+std::vector<GlobedGift> &globedGifts()
+{
+  return s_gifts;
+}
+
 // ! --- Level --- !
 
 class $modify(GlobedHairPlayLayer, PlayLayer)
@@ -274,7 +419,9 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
   {
     s_remoteRigs.clear();
     s_pendingLooks.clear();
+    s_liked.clear();
     looks::clearRemotes();
+    looks::setTryOn("");
     if (!PlayLayer::init(level, useReplay, dontCreateObjects))
       return false;
 

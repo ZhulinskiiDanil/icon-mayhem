@@ -140,7 +140,7 @@ bool LinkerPopup::initLinker(GameMode mode)
   m_mainLayer->addChildAtPosition(m_pageLabel, Anchor::BottomLeft, {pagerX, kPagerY});
 
   // Back to the icon you wear
-  auto mine = CCMenuItemSpriteExtra::create(iconButton("target", CircleBaseColor::Gray, 24.f), this,
+  auto mine = CCMenuItemSpriteExtra::create(iconButton("target", CircleBaseColor::Gray, 22.f, "My icon"), this,
                                             menu_selector(LinkerPopup::onMyIcon));
   mine->setID("my-icon-button");
   m_buttonMenu->addChildAtPosition(mine, Anchor::BottomLeft, {kGridOrigin.x + kGridSize.width - 14.f, kPagerY});

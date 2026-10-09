@@ -8,6 +8,7 @@
 #include "../hooks/SimplePlayerHair.hpp"
 #include "../presets/Looks.hpp"
 #include "Buttons.hpp"
+#include "GalleryPopup.hpp"
 #include "Confirm.hpp"
 #include "SaveLook.hpp"
 
@@ -36,10 +37,10 @@ namespace
   // Left: tabs, search, the list, buttons to add looks
   constexpr float kTabsY = 205.f;
   constexpr float kSearchY = 182.f;
-  constexpr CCPoint kListOrigin = {15.f, 40.f};
-  constexpr CCSize kListSize = {205.f, 128.f};
+  constexpr CCPoint kListOrigin = {15.f, 46.f};
+  constexpr CCSize kListSize = {205.f, 122.f};
   constexpr float kRowHeight = 24.f;
-  constexpr float kAddY = 21.f;
+  constexpr float kAddY = 27.f;
 
   // Right: the selected preset
   constexpr CCPoint kDetailOrigin = {240.f, 15.f};
@@ -146,18 +147,26 @@ bool PresetsPopup::initPresets(std::function<void()> onApplied)
   m_mainLayer->addChildAtPosition(m_search, Anchor::BottomLeft, {kListOrigin.x + kListSize.width / 2.f, kSearchY});
 
   // Add looks: from nothing, the clipboard, a file
-  auto addButton = [&](char const *icon, char const *id, SEL_MenuHandler handler, float x, CircleBaseColor color)
+  auto addButton = [&](char const *icon, char const *caption, char const *id, SEL_MenuHandler handler, float x, CircleBaseColor color)
   {
-    auto button = CCMenuItemSpriteExtra::create(iconButton(icon, color), this, handler);
+    auto button = CCMenuItemSpriteExtra::create(iconButton(icon, color, 24.f, caption), this, handler);
     button->setID(id);
     m_buttonMenu->addChildAtPosition(button, Anchor::BottomLeft, {x, kAddY});
   };
   // A new empty look, paste from the clipboard, import a file, the folder of the presets
   float const addX = kListOrigin.x + kListSize.width / 2.f;
-  addButton("empty", "empty-button", menu_selector(PresetsPopup::onEmpty), addX - 51.f, CircleBaseColor::Pink);
-  addButton("paste", "paste-button", menu_selector(PresetsPopup::onPaste), addX - 17.f, CircleBaseColor::Blue);
-  addButton("import", "import-button", menu_selector(PresetsPopup::onImportFile), addX + 17.f, CircleBaseColor::Blue);
-  addButton("folder", "folder-button", menu_selector(PresetsPopup::onFolder), addX + 51.f, CircleBaseColor::Gray);
+  addButton("empty", "New empty", "empty-button", menu_selector(PresetsPopup::onEmpty), addX - 68.f, CircleBaseColor::Pink);
+  addButton("paste", "Paste", "paste-button", menu_selector(PresetsPopup::onPaste), addX - 34.f, CircleBaseColor::Blue);
+  addButton("import", "Import", "import-button", menu_selector(PresetsPopup::onImportFile), addX, CircleBaseColor::Blue);
+  addButton("folder", "Folder", "folder-button", menu_selector(PresetsPopup::onFolder), addX + 34.f, CircleBaseColor::Gray);
+  // Looks of everyone
+  auto galleryButton = CCMenuItemExt::createSpriteExtra(iconButton("globe", CircleBaseColor::Cyan, 24.f, "Gallery"), [](auto)
+                                                        {
+                                                          if (auto popup = GalleryPopup::create())
+                                                            popup->show();
+                                                        });
+  galleryButton->setID("gallery-button");
+  m_buttonMenu->addChildAtPosition(galleryButton, Anchor::BottomLeft, {addX + 68.f, kAddY});
 
   this->buildCurrentBar();
   this->buildDetail();
@@ -199,12 +208,12 @@ void PresetsPopup::buildCurrentBar()
   m_mainLayer->addChildAtPosition(m_currentStatus, Anchor::BottomLeft, {kBarOrigin.x + 8.f, kBarOrigin.y + 9.f});
 
   float const y = kBarOrigin.y + kBarSize.height / 2.f;
-  auto save = CCMenuItemSpriteExtra::create(iconButton("save", CircleBaseColor::Green), this,
+  auto save = CCMenuItemSpriteExtra::create(iconButton("save", CircleBaseColor::Green, 24.f, "Save"), this,
                                             menu_selector(PresetsPopup::onSaveCurrent));
   save->setID("save-button");
   m_buttonMenu->addChildAtPosition(save, Anchor::BottomLeft, {kBarOrigin.x + kBarSize.width - 50.f, y});
 
-  auto saveAs = CCMenuItemSpriteExtra::create(iconButton("save-as", CircleBaseColor::Blue), this,
+  auto saveAs = CCMenuItemSpriteExtra::create(iconButton("save-as", CircleBaseColor::Blue, 24.f, "Save as"), this,
                                               menu_selector(PresetsPopup::onSaveAs));
   saveAs->setID("save-as-button");
   m_buttonMenu->addChildAtPosition(saveAs, Anchor::BottomLeft, {kBarOrigin.x + kBarSize.width - 18.f, y});
@@ -532,30 +541,32 @@ void PresetsPopup::refreshDetail()
   {
     char const *icon;
     CircleBaseColor color;
+    char const *caption;
     char const *id;
     std::function<void()> action;
   };
   std::vector<Tool> tools;
   if (!preset.builtIn)
   {
-    tools.push_back({"save", CircleBaseColor::Blue, "save-here-button", [this, preset]
+    tools.push_back({"save", CircleBaseColor::Blue, "Save here", "save-here-button", [this, preset]
                      { this->saveOver(preset); }});
-    tools.push_back({"rename", CircleBaseColor::Gray, "rename-button", [this, preset]
+    tools.push_back({"rename", CircleBaseColor::Gray, "Rename", "rename-button", [this, preset]
                      { this->rename(preset); }});
   }
-  tools.push_back({"copy", CircleBaseColor::Gray, "copy-button", [this, preset]
+  tools.push_back({"copy", CircleBaseColor::Gray, "Copy", "copy-button", [this, preset]
                    { this->copy(preset); }});
-  tools.push_back({"export", CircleBaseColor::Gray, "file-button", [this, preset]
+  tools.push_back({"export", CircleBaseColor::Gray, "To file", "file-button", [this, preset]
                    { this->exportFile(preset); }});
   if (!preset.builtIn)
   {
-    tools.push_back({"trash", CircleBaseColor::Red, "delete-button", [this, preset]
+    tools.push_back({"trash", CircleBaseColor::Red, "Delete", "delete-button", [this, preset]
                      { this->remove(preset); }});
   }
-  float const step = 33.f;
+  float const step = 35.f;
   float const first = kDetailX - step * static_cast<float>(tools.size() - 1) / 2.f;
   for (size_t i = 0; i < tools.size(); ++i)
-    button(iconButton(tools[i].icon, tools[i].color), first + step * static_cast<float>(i), 50.f, tools[i].id, std::move(tools[i].action));
+    button(iconButton(tools[i].icon, tools[i].color, 24.f, tools[i].caption), first + step * static_cast<float>(i), 52.f, tools[i].id,
+           std::move(tools[i].action));
 }
 
 // ! --- Preset actions --- !

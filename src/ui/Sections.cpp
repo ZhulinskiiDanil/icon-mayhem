@@ -34,6 +34,7 @@ std::vector<CustomizerSection> const &customizerSections()
            "mode-jetpack",
            "@looks",
            "@linker",
+           "@gallery",
            "emotes-title",
            "@emote-keys",
        }},
