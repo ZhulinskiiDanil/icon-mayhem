@@ -48,4 +48,9 @@ namespace gallery
   void like(int id, bool on, Done<int> done);
   void report(int id, Done<bool> done);
   void remove(int id, Done<bool> done);
+
+  // Custom icons (see CustomIcons.hpp): `icon` is {type, quality, png (base64), frames}, the answer its hash
+  void uploadIcon(matjson::Value const &icon, Done<std::string> done);
+  void fetchIcon(std::string const &hash, Done<matjson::Value> done);
+  void reportIcon(std::string const &hash, Done<bool> done);
 }

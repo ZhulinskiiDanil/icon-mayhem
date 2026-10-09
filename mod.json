@@ -151,6 +151,22 @@
 			"type": "bool",
 			"default": true
 		},
+		"online-title": {
+			"type": "title",
+			"name": "Online"
+		},
+		"share-icons": {
+			"name": "Share my custom icons",
+			"description": "Players with Icon Mayhem on Globed see your custom icons (from More Icons or a texture pack) instead of the game's. They go up to the Icon Mayhem server once; only players you were in a level with get them",
+			"type": "bool",
+			"default": true
+		},
+		"show-icons": {
+			"name": "See others' custom icons",
+			"description": "Other players' More Icons icons on their Globed icons",
+			"type": "bool",
+			"default": true
+		},
 		"emotes-title": {
 			"type": "title",
 			"name": "Emotes",

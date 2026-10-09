@@ -1,6 +1,8 @@
 #include "PlayersPopup.hpp"
 
+#include "../gallery/GalleryApi.hpp"
 #include "../hooks/Globed.hpp"
+#include "../icons/CustomIcons.hpp"
 #include "../hooks/SimplePlayerHair.hpp"
 #include "../presets/Looks.hpp"
 #include "../presets/Presets.hpp"
@@ -138,15 +140,15 @@ void PlayersPopup::rebuild()
 
     auto name = CCLabelBMFont::create(title.c_str(), "bigFont.fnt");
     name->setAnchorPoint({0.f, .5f});
-    name->limitLabelWidth(150.f, .45f, .1f);
-    name->setPosition({66.f, kRowHeight / 2.f + 7.f});
+    name->limitLabelWidth(115.f, .45f, .1f);
+    name->setPosition({66.f, kRowHeight / 2.f + 10.f});
     node->addChild(name);
 
     auto state = CCLabelBMFont::create(status.c_str(), "bigFont.fnt");
     state->setAnchorPoint({0.f, .5f});
-    state->limitLabelWidth(150.f, .26f, .1f);
+    state->limitLabelWidth(115.f, .26f, .1f);
     state->setColor(statusColor);
-    state->setPosition({66.f, kRowHeight / 2.f - 9.f});
+    state->setPosition({66.f, kRowHeight / 2.f - 3.f});
     node->addChild(state);
 
     auto menu = CCMenu::create();
@@ -200,6 +202,37 @@ void PlayersPopup::rebuild()
     bool const wearing = hasLook && looks::tryOn() == peer.look;
     std::string const status = !hasLook ? "No Icon Mayhem look yet" : wearing ? "Their look is on you now" : "Icon Mayhem look";
     auto [node, menu] = row(preview, peer.name, status, hasLook ? ccColor3B{130, 255, 140} : ccColor3B{170, 170, 170});
+
+    // Their custom icon can be reported: it turns plain here right away
+    if (auto hashes = custom_icons::hashesOf(peer.account); !hashes.empty())
+    {
+      auto report = CCMenuItemExt::createSpriteExtra(textButton("Report icon", 52.f, "GJ_button_06.png", 14.f), [this, peer, hashes](auto)
+                                                     {
+                                                       createQuickPopup("Report icon",
+                                                                        fmt::format("Report the custom icon of <cy>{}</c>? You won't see it again, and enough reports hide it for everyone",
+                                                                                    peer.name),
+                                                                        "Cancel", "Report",
+                                                                        [self = Ref(this), peer, hashes](FLAlertLayer *, bool confirmed)
+                                                                        {
+                                                                          if (!confirmed)
+                                                                            return;
+                                                                          for (auto const &hash : hashes)
+                                                                          {
+                                                                            custom_icons::block(hash);
+                                                                            gallery::reportIcon(hash, [](Result<bool, std::string> result)
+                                                                                                {
+                                                                                                  if (!result)
+                                                                                                    log::warn("Custom icons: report failed: {}", result.unwrapErr());
+                                                                                                });
+                                                                          }
+                                                                          globedRestoreIcons(peer.id);
+                                                                          notify("Reported. Their icon is plain for you now", NotificationIcon::Success);
+                                                                          self->rebuildSoon();
+                                                                        });
+                                                     });
+      report->setPosition({92.f, 9.f});
+      menu->addChild(report);
+    }
 
     // Gift them yours, like theirs; with a look of their own: keep it, try it on
     button(menu, iconButton("gift", CircleBaseColor::Green, 22.f, "Gift yours"), right, [this, peer]

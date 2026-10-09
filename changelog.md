@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Custom icons on Globed: players see each other's custom icons, from More Icons or from a texture pack, even without More Icons themselves. Every mode: the cube, vehicles (with the UFO dome), robots and spiders. Your icons go up to the Icon Mayhem server once and only the players you meet in a level get them. Switches in General (Online): share yours, see theirs. Report an icon in Players: it turns plain for you right away, and enough reports hide it for everyone
+
 ## v1.8.0
 
 ### Looks of everyone

@@ -265,6 +265,39 @@ void gallery::report(int id, Done<bool> done)
               });
 }
 
+void gallery::uploadIcon(matjson::Value const &icon, Done<std::string> done)
+{
+  withAccount("POST", "/v1/icons", icon, [done](Reply reply)
+              {
+                if (!reply.error.empty())
+                  done(Err(reply.error));
+                else
+                  done(Ok(reply.json["hash"].asString().unwrapOr("")));
+              });
+}
+
+void gallery::fetchIcon(std::string const &hash, Done<matjson::Value> done)
+{
+  request("GET", fmt::format("/v1/icons/{}", hash), std::nullopt, "", [done](Reply reply)
+          {
+            if (!reply.error.empty())
+              done(Err(reply.error));
+            else
+              done(Ok(std::move(reply.json)));
+          });
+}
+
+void gallery::reportIcon(std::string const &hash, Done<bool> done)
+{
+  withAccount("POST", fmt::format("/v1/icons/{}/report", hash), matjson::Value::object(), [done](Reply reply)
+              {
+                if (!reply.error.empty())
+                  done(Err(reply.error));
+                else
+                  done(Ok(true));
+              });
+}
+
 void gallery::remove(int id, Done<bool> done)
 {
   // A moderator removes through the admin route (it also works for looks that are not theirs)

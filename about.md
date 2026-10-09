@@ -50,6 +50,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 ## Looks of everyone
 
 - **Gallery**: looks shared by everyone, the most liked and the newest, each on your own icon, alive. Wear one in a tap, keep it in your presets, like it. Share yours with a name. Your Geometry Dash account is checked with Argon once, your password never leaves the game
+- **Your custom icons on Globed**: the others see your custom icons (from More Icons or a texture pack) instead of the game's, even without More Icons, and you see theirs. Turn it off in General if you like
 - **Friends on Globed**: Players in the pause menu shows everybody in the level in their look. Save a look you like, try it on until the level ends (they see it on you too), like it (hearts burst on their icon), or gift them yours
 
 ## Customizer and presets

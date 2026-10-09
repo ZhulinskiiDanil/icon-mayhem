@@ -37,3 +37,9 @@ struct GlobedGift
   std::string look; // worn as this look name ("@remote:gift-...")
 };
 std::vector<GlobedGift> &globedGifts();
+
+// ! --- Custom icons --- !
+// The account of a Globed player's icon (its copy in our level), 0 for any other icon
+int globedAccountOf(PlayerObject *player);
+// Their own game icons back on a player (after reporting their custom icon)
+void globedRestoreIcons(int playerId);

@@ -1,6 +1,7 @@
 #include "Globed.hpp"
 #include "LevelHair.hpp"
 #include "../presets/Looks.hpp"
+#include "../icons/CustomIcons.hpp"
 #include "../presets/Presets.hpp"
 
 #include <dankmeme.globed2/include/globed/soft-link/API.hpp>
@@ -31,6 +32,7 @@ namespace
   constexpr char const *kEmoteEvent = "zhulis.icon-mayhem/emote";
   constexpr char const *kLikeEvent = "zhulis.icon-mayhem/like";
   constexpr char const *kGiftEvent = "zhulis.icon-mayhem/gift";
+  constexpr char const *kIconsEvent = "zhulis.icon-mayhem/icons";
   constexpr float kGiftEvery = 60.f; // s between two gifts to the same player
   constexpr float kLikeQuiet = 10.f; // s: likes from the same player closer than this are dropped
   constexpr float kScanEvery = .5f; // s between looking for new players and look changes
@@ -106,6 +108,7 @@ namespace
     table->net->registerEvent(kEmoteEvent, globed::EventServer::Game);
     table->net->registerEvent(kLikeEvent, globed::EventServer::Game);
     table->net->registerEvent(kGiftEvent, globed::EventServer::Game);
+    table->net->registerEvent(kIconsEvent, globed::EventServer::Game);
     log::info("Globed: looks, emotes, likes and gifts are shared with other players");
   }
 
@@ -244,7 +247,12 @@ namespace
       int const sender = event.options.sender;
       std::string const payload(event.data.begin(), event.data.end());
 
-      if (name == kGiftEvent)
+      if (name == kIconsEvent)
+      {
+        // Their custom icons: downloaded by hash, then drawn on their icon
+        custom_icons::setPlayerIcons(sender, payload);
+      }
+      else if (name == kGiftEvent)
       {
         auto whole = receiveLookPart(sender * 2 + 1, payload);
         if (!whole)
@@ -399,6 +407,48 @@ std::vector<GlobedGift> &globedGifts()
   return s_gifts;
 }
 
+// ! --- Custom icons --- !
+
+int globedAccountOf(PlayerObject *player)
+{
+  auto table = globedTable();
+  if (!player || !table || !table->player || !globedActive() || !table->player->isGlobedPlayer(player))
+    return 0;
+  auto remote = table->player->getRemote(static_cast<globed::VisualPlayer *>(player));
+  if (!remote)
+    return 0;
+  int const account = table->player->getAccountId(remote);
+  return account == GJAccountManager::get()->m_accountID ? 0 : account;
+}
+
+void globedRestoreIcons(int playerId)
+{
+  auto table = globedTable();
+  if (!globedActive() || !table->player)
+    return;
+  auto remote = table->game->getPlayer(playerId);
+  if (!remote)
+    return;
+  auto icons = table->player->getIcons(remote);
+  if (!icons)
+    return;
+  auto const &data = icons.unwrap();
+  for (bool second : {false, true})
+  {
+    auto visual = second ? table->player->getSecond(remote) : table->player->getFirst(remote);
+    if (!visual)
+      continue;
+    auto player = static_cast<PlayerObject *>(visual);
+    player->updatePlayerFrame(std::max<int>(1, data.cube));
+    player->updatePlayerShipFrame(std::max<int>(1, data.ship));
+    player->updatePlayerRollFrame(std::max<int>(1, data.ball));
+    player->updatePlayerBirdFrame(std::max<int>(1, data.ufo));
+    player->updatePlayerDartFrame(std::max<int>(1, data.wave));
+    player->updatePlayerSwingFrame(std::max<int>(1, data.swing));
+    player->updatePlayerJetpackFrame(std::max<int>(1, data.jetpack));
+  }
+}
+
 // ! --- Level --- !
 
 class $modify(GlobedHairPlayLayer, PlayLayer)
@@ -411,6 +461,8 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     std::map<int, WeakRef<CCNode>> m_attached;
     std::set<int> m_seen;     // players we already sent our look for
     std::string m_sentLook;
+    std::string m_sentIcons;
+    std::map<int, int> m_iconModes; // player id * 2 + second icon -> what it showed when last dressed
     bool m_wasActive = false;
     size_t m_lastCount = 0;
   };
@@ -421,6 +473,7 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     s_pendingLooks.clear();
     s_liked.clear();
     looks::clearRemotes();
+    custom_icons::forgetPlayers();
     looks::setTryOn("");
     if (!PlayLayer::init(level, useReplay, dontCreateObjects))
       return false;
@@ -498,6 +551,7 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
           continue;
         }
         fields->m_attached[key] = WeakRef<CCNode>(static_cast<CCNode *>(visual));
+        fields->m_iconModes.erase(key);
         log::info("Globed: dressed player {} (account {}, {} icon, {} rigs)", id, account, second ? "second" : "first", rigs.size());
         for (auto &rig : rigs)
         {
@@ -507,6 +561,42 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
           fields->m_remoteHair.push_back(rig);
         }
       }
+    }
+
+    // Their custom icons: dressed again when one arrives or what their icon shows changes
+    bool const dirty = custom_icons::takeDirty();
+    for (int id : ids)
+    {
+      auto remote = table->game->getPlayer(id);
+      if (!remote)
+        continue;
+      int const account = table->player->getAccountId(remote);
+      for (bool second : {false, true})
+      {
+        auto visual = second ? table->player->getSecond(remote) : table->player->getFirst(remote);
+        if (!visual)
+          continue;
+        auto player = static_cast<PlayerObject *>(visual);
+        int const mode = player->m_isShip | player->m_isBird << 1 | player->m_isBall << 2 | player->m_isDart << 3 |
+                         player->m_isRobot << 4 | player->m_isSpider << 5 | player->m_isSwing << 6;
+        int const key = id * 2 + (second ? 1 : 0);
+        auto known = fields->m_iconModes.find(key);
+        if (!dirty && known != fields->m_iconModes.end() && known->second == mode)
+          continue;
+        fields->m_iconModes[key] = mode;
+        if (account != GJAccountManager::get()->m_accountID)
+          custom_icons::apply(player, account);
+      }
+    }
+
+    // Ours go up once somebody is here to see them; their hashes go out like the look
+    if (newPlayer)
+      custom_icons::refresh();
+    if (!fields->m_seen.empty() && (custom_icons::payload() != fields->m_sentIcons || newPlayer) && !custom_icons::payload().empty())
+    {
+      fields->m_sentIcons = custom_icons::payload();
+      send(kIconsEvent, fields->m_sentIcons);
+      log::info("Globed: sent our custom icons ({} bytes)", fields->m_sentIcons.size());
     }
 
     // Our look goes to everybody in the level when it changes and when somebody new shows up

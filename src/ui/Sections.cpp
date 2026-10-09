@@ -35,6 +35,9 @@ std::vector<CustomizerSection> const &customizerSections()
            "@looks",
            "@linker",
            "@gallery",
+           "online-title",
+           "share-icons",
+           "show-icons",
            "emotes-title",
            "@emote-keys",
        }},
@@ -412,7 +415,7 @@ std::vector<std::string_view> const &lookSettingKeys()
         std::string_view("focus-mode"), std::string_view("focus-opacity"), std::string_view("focus-hair"), std::string_view("mode-cube"),
         std::string_view("mode-ship"), std::string_view("mode-ball"), std::string_view("mode-ufo"),
         std::string_view("mode-wave"), std::string_view("mode-robot"), std::string_view("mode-spider"),
-        std::string_view("mode-swing"), std::string_view("mode-jetpack")};
+        std::string_view("mode-swing"), std::string_view("mode-jetpack"), std::string_view("share-icons"), std::string_view("show-icons")};
 
     std::vector<std::string_view> list;
     for (auto const &section : customizerSections())
