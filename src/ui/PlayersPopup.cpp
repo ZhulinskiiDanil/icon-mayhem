@@ -8,6 +8,8 @@
 #include "../presets/Presets.hpp"
 #include "Buttons.hpp"
 
+#include <hiimjustin000.more_icons/include/MoreIcons.hpp>
+
 #include <Geode/ui/NineSlice.hpp>
 #include <Geode/ui/Notification.hpp>
 #include <Geode/ui/Scrollbar.hpp>
@@ -94,13 +96,16 @@ void PlayersPopup::update(float dt)
 }
 
 CCNode *PlayersPopup::createPreview(int cube, ccColor3B color1, ccColor3B color2, bool glow, ccColor3B glowColor,
-                                   std::string const &look)
+                                   std::string const &look, bool yours)
 {
   // Their icon, alive in the look; the rig's sim space is this holder
   auto holder = CCNode::create();
   holder->setContentSize({50.f, kRowHeight});
   auto player = SimplePlayer::create(cube);
   player->updatePlayerFrame(cube, IconType::Cube);
+  // Your own cube as you wear it, a More Icons icon too
+  if (yours)
+    more_icons::updateSimplePlayer(player, IconType::Cube);
   player->setColor(color1);
   player->setSecondColor(color2);
   if (glow)
@@ -172,7 +177,7 @@ void PlayersPopup::rebuild()
   {
     auto const gift = gifts[i];
     auto preview = this->createPreview(gm->getPlayerFrame(), gm->colorForIdx(gm->getPlayerColor()), gm->colorForIdx(gm->getPlayerColor2()),
-                                       gm->getPlayerGlow(), gm->colorForIdx(gm->getPlayerGlowColor()), gift.look);
+                                       gm->getPlayerGlow(), gm->colorForIdx(gm->getPlayerGlowColor()), gift.look, true);
     bool const wearing = looks::tryOn() == gift.look;
     auto [node, menu] = row(preview, fmt::format("Gift from {}", gift.name), wearing ? "On you now, until the level ends" : "Their look, on your icon",
                             {255, 190, 220});

@@ -235,6 +235,30 @@ IconType looks::iconTypeOf(GameMode mode)
   }
 }
 
+std::optional<std::pair<int, std::string>> looks::cubeLinkedTo(std::string const &preset)
+{
+  if (preset.empty())
+    return std::nullopt;
+  // The cube worn now first
+  int const worn = equippedIcon(GameMode::Cube);
+  std::string const wornCustom = equippedCustomIcon(GameMode::Cube);
+  if (linkedLook(GameMode::Cube) == preset)
+    return std::pair{worn, wornCustom};
+
+  auto const links = Mod::get()->getSavedValue<matjson::Value>(kIconLooksSave, matjson::Value::object());
+  for (auto const &[key, value] : links)
+  {
+    if (value.asString().unwrapOr("") != preset || !key.starts_with("cube:"))
+      continue;
+    std::string_view const icon = std::string_view(key).substr(5);
+    if (icon.starts_with("mi:"))
+      return std::pair{worn, std::string(icon.substr(3))};
+    if (auto number = utils::numFromString<int>(icon))
+      return std::pair{number.unwrap(), std::string()};
+  }
+  return std::nullopt;
+}
+
 std::string looks::forCustomIcon(GameMode mode, std::string const &name)
 {
   if (mode == GameMode::Count || name.empty())

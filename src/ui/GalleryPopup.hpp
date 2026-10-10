@@ -30,7 +30,8 @@ private:
   void showPage();
   void refreshDetail();
   cocos2d::CCNode *createCard(gallery::Look const &look, size_t index);
-  cocos2d::CCNode *createPreview(std::string const &lookName, float scale);
+  // On the icon of the gallery view (the author's, yours or the plain one), `look` gives the author's
+  cocos2d::CCNode *createPreview(std::string const &lookName, float scale, gallery::Look const *look);
   std::string lookName(gallery::Look const &look) const;
 
   void onShare(cocos2d::CCObject *sender);
@@ -60,7 +61,12 @@ private:
 
   cocos2d::CCNode *m_detail = nullptr;
   cocos2d::CCMenu *m_detailMenu = nullptr;
+  CCMenuItemSpriteExtra *m_iconToggle = nullptr; // your icon or the vanilla one
 };
 
 // The General tab row that opens the gallery
 cocos2d::CCNode *createGalleryRow(float width);
+
+// Shares a look in the gallery on a cube (the game's number, and a More Icons icon by its name or
+// ""): asks for its name first, `suggestion` filled in; `done` after it is in
+void shareToGallery(std::string const &suggestion, matjson::Value look, int cube, std::string const &customCube, std::function<void()> done);

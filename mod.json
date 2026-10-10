@@ -8,7 +8,7 @@
 	},
 	"id": "zhulis.icon-mayhem",
 	"name": "Icon Mayhem",
-	"version": "v1.11.0",
+	"version": "v1.11.1",
 	"developer": "Zhulis",
 	"description": "Cute and crazy icon customizations: physics-based hair, accessories, wings, a pet and effects",
 	"repository": "https://github.com/ZhulinskiiDanil/icon-mayhem",
@@ -23,6 +23,10 @@
 		},
 		"hiimjustin000.more_icons": {
 			"version": ">=v2.0.0",
+			"required": false
+		},
+		"geode.texture-loader": {
+			"version": ">=v1.7.0",
 			"required": false
 		}
 	},

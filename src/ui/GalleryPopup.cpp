@@ -1,11 +1,14 @@
 #include "GalleryPopup.hpp"
 
 #include "../hooks/SimplePlayerHair.hpp"
+#include "../icons/CustomIcons.hpp"
 #include "../presets/Looks.hpp"
 #include "../presets/Presets.hpp"
 #include "../settings/Settings.hpp"
 #include "Buttons.hpp"
 #include "SaveLook.hpp"
+
+#include <hiimjustin000.more_icons/include/MoreIcons.hpp>
 
 #include <Geode/ui/NineSlice.hpp>
 #include <Geode/ui/Notification.hpp>
@@ -29,6 +32,15 @@ namespace
   constexpr float kDetailX = kDetailOrigin.x + kDetailSize.width / 2.f;
 
   constexpr float kSearchDelay = .6f; // s after the last key before the search runs
+  // Which icon the looks are shown on: the author's (as they shared it), yours, or the game's first cube
+  constexpr char const *kIconModeSave = "gallery-icon-mode";
+  enum class IconMode
+  {
+    Author,
+    Yours,
+    Vanilla,
+  };
+  constexpr std::array<char const *, 3> kIconModeNames{"Author's icon", "Your icon", "Vanilla"};
 
   void notify(std::string const &text, NotificationIcon icon)
   {
@@ -36,10 +48,40 @@ namespace
   }
 
   // Your own icon, for the previews: a look reads best on the icon you wear
-  void dressAsYou(SimplePlayer *player)
+  IconMode iconMode()
+  {
+    return static_cast<IconMode>(std::clamp(Mod::get()->getSavedValue<int>(kIconModeSave, 0), 0, 2));
+  }
+
+  // A look is made for an icon: shown on the author's (their custom cube too, downloaded), on yours
+  // as you wear it (a More Icons or texture pack icon too), or on the game's first cube
+  void dressFor(SimplePlayer *player, gallery::Look const *look)
   {
     auto gm = GameManager::get();
+    auto const mode = iconMode();
+    if (mode == IconMode::Author && look && look->icon)
+    {
+      auto const &icon = *look->icon;
+      player->updatePlayerFrame(icon.cube, IconType::Cube);
+      player->setColor(icon.color1);
+      player->setSecondColor(icon.color2);
+      if (icon.glow)
+        player->setGlowOutline(icon.glowColor);
+      else
+        player->disableGlowOutline();
+      custom_icons::dressPreview(player, icon.custom);
+      return;
+    }
+    if (mode != IconMode::Yours)
+    {
+      player->updatePlayerFrame(1, IconType::Cube);
+      player->setColor(gm->colorForIdx(0));
+      player->setSecondColor(gm->colorForIdx(3));
+      player->disableGlowOutline();
+      return;
+    }
     player->updatePlayerFrame(gm->getPlayerFrame(), IconType::Cube);
+    more_icons::updateSimplePlayer(player, IconType::Cube);
     player->setColor(gm->colorForIdx(gm->getPlayerColor()));
     player->setSecondColor(gm->colorForIdx(gm->getPlayerColor2()));
     if (gm->getPlayerGlow())
@@ -96,6 +138,19 @@ bool GalleryPopup::initGallery()
     arrow->setTag(dir);
     m_buttonMenu->addChildAtPosition(arrow, Anchor::BottomLeft, {pagerX + dir * 36.f, kPagerY});
   }
+  // Your icon, or the game's plain one
+  // The author's icon, yours, or the plain one: each tap goes to the next
+  m_iconToggle = CCMenuItemExt::createSpriteExtra(textButton(kIconModeNames[static_cast<int>(iconMode())], 74.f, "GJ_button_04.png", 18.f),
+                                                  [this](auto)
+                                                  {
+                                                    int const next = (static_cast<int>(iconMode()) + 1) % 3;
+                                                    Mod::get()->setSavedValue(kIconModeSave, next);
+                                                    m_iconToggle->setNormalImage(textButton(kIconModeNames[next], 74.f, "GJ_button_04.png", 18.f));
+                                                    this->showPage();
+                                                  });
+  m_iconToggle->setID("icon-toggle");
+  m_buttonMenu->addChildAtPosition(m_iconToggle, Anchor::BottomLeft, {kGridOrigin.x + 39.f, kPagerY});
+
   m_pageLabel = CCLabelBMFont::create("", "bigFont.fnt");
   m_mainLayer->addChildAtPosition(m_pageLabel, Anchor::BottomLeft, {pagerX, kPagerY});
 
@@ -232,11 +287,11 @@ std::string GalleryPopup::lookName(gallery::Look const &look) const
   return fmt::format("@remote:gallery-{}", look.id);
 }
 
-CCNode *GalleryPopup::createPreview(std::string const &name, float scale)
+CCNode *GalleryPopup::createPreview(std::string const &name, float scale, gallery::Look const *look)
 {
   auto holder = CCNode::create();
   auto player = SimplePlayer::create(1);
-  dressAsYou(player);
+  dressFor(player, look);
   player->setScale(scale);
   holder->addChild(player);
   attachSimplePlayerHair(player, PreviewPlace::Presets);
@@ -264,7 +319,7 @@ CCNode *GalleryPopup::createCard(gallery::Look const &look, size_t index)
   bg->setAnchorPoint({0.f, 0.f});
   card->addChild(bg);
 
-  auto preview = this->createPreview(this->lookName(look), .8f);
+  auto preview = this->createPreview(this->lookName(look), .8f, &look);
   preview->setPosition({width / 2.f, height / 2.f + 12.f});
   card->addChild(preview);
 
@@ -375,7 +430,7 @@ void GalleryPopup::refreshDetail()
   size_t const index = *m_selected;
 
   // The detail lives in m_mainLayer's space: the preview's rig simulates there
-  auto preview = this->createPreview(this->lookName(look), 1.15f);
+  auto preview = this->createPreview(this->lookName(look), 1.15f, &look);
   preview->setPosition({kDetailX, 182.f});
   m_detail->addChild(preview);
 
@@ -559,29 +614,57 @@ void GalleryPopup::onShare(CCObject *)
     notify("The gallery opens soon!", NotificationIcon::Info);
     return;
   }
-  // The look you wear: the settings that differ from the defaults, the hair on or off
+  // The look you wear: the settings that differ from the defaults, the hair on or off, on the cube
+  // you wear
   std::string const current = presets::current();
-  std::string const suggestion = current.empty() ? "My look" : current;
-  auto prompt = NamePrompt::create("Share your look", suggestion, "Share", [self = Ref(this)](std::string const &name)
+  auto look = presets::compact(presets::capture("").settings);
+  look["enabled"] = settings::flag("enabled");
+  shareToGallery(current.empty() ? "My look" : current, look, looks::equippedIcon(GameMode::Cube), looks::equippedCustomIcon(GameMode::Cube),
+                 [self = Ref(this)]
+                 {
+                   if (!self->getParent())
+                     return;
+                   self->m_sort = "mine";
+                   self->m_page = 0;
+                   self->buildTabs();
+                   self->load();
+                 });
+}
+
+void shareToGallery(std::string const &suggestion, matjson::Value look, int cube, std::string const &customCube, std::function<void()> done)
+{
+  if (!gallery::available())
+  {
+    notify("The gallery opens soon!", NotificationIcon::Info);
+    return;
+  }
+  auto prompt = NamePrompt::create("Share in the gallery", suggestion, "Share", [look, cube, customCube, done](std::string const &name)
                                    {
-                                     auto look = presets::compact(presets::capture("").settings);
-                                     look["enabled"] = settings::flag("enabled");
                                      notify("Sharing your look...", NotificationIcon::Loading);
-                                     gallery::publish(name, look, [self](Result<gallery::Look, std::string> result)
-                                                      {
-                                                        if (!result)
-                                                        {
-                                                          notify(result.unwrapErr(), NotificationIcon::Error);
-                                                          return;
-                                                        }
-                                                        notify(fmt::format("\"{}\" is in the gallery!", result.unwrap().name), NotificationIcon::Success);
-                                                        if (!self->getParent())
-                                                          return;
-                                                        self->m_sort = "mine";
-                                                        self->m_page = 0;
-                                                        self->buildTabs();
-                                                        self->load();
-                                                      });
+                                     // The cube goes along: everybody sees the look on it, a custom
+                                     // cube too (it goes up to the server first)
+                                     custom_icons::cubeIconHash(cube, customCube, [name, look, cube, done](std::string custom)
+                                                                {
+                                                                  auto gm = GameManager::get();
+                                                                  gallery::AuthorIcon icon;
+                                                                  icon.cube = cube > 0 ? cube : 1;
+                                                                  icon.color1 = gm->colorForIdx(gm->getPlayerColor());
+                                                                  icon.color2 = gm->colorForIdx(gm->getPlayerColor2());
+                                                                  icon.glow = gm->getPlayerGlow();
+                                                                  icon.glowColor = gm->colorForIdx(gm->getPlayerGlowColor());
+                                                                  icon.custom = std::move(custom);
+                                                                  gallery::publish(name, look, icon, [done](Result<gallery::Look, std::string> result)
+                                                                                   {
+                                                                                     if (!result)
+                                                                                     {
+                                                                                       notify(result.unwrapErr(), NotificationIcon::Error);
+                                                                                       return;
+                                                                                     }
+                                                                                     notify(fmt::format("\"{}\" is in the gallery!", result.unwrap().name), NotificationIcon::Success);
+                                                                                     if (done)
+                                                                                       done();
+                                                                                   });
+                                                                });
                                    });
   if (prompt)
     prompt->show();

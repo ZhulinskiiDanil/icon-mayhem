@@ -25,7 +25,7 @@ private:
   std::string signature() const;
 
   cocos2d::CCNode *createPreview(int cube, cocos2d::ccColor3B color1, cocos2d::ccColor3B color2, bool glow,
-                                 cocos2d::ccColor3B glowColor, std::string const &look);
+                                 cocos2d::ccColor3B glowColor, std::string const &look, bool yours = false);
   void saveLook(std::string const &look, std::string const &owner);
   void toggleTryOn(std::string const &look);
 

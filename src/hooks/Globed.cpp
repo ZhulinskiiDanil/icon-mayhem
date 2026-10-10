@@ -45,6 +45,9 @@ namespace
   constexpr char const *kIconsEvent = "zhulis.icon-mayhem/icons";
   constexpr char const *kLookHashEvent = "zhulis.icon-mayhem/look-hash";
   constexpr char const *kGiftHashEvent = "zhulis.icon-mayhem/gift-hash";
+  // "I'm here": sent on entering a level, the others send their look and icons again (they may
+  // not have noticed we left and came back, and we forgot theirs)
+  constexpr char const *kHelloEvent = "zhulis.icon-mayhem/hello";
   constexpr char const *kPairEvent = "zhulis.icon-mayhem/pair"; // "ask:#rrggbb", "yes:#rrggbb", "end"
   constexpr float kPairHeartsEvery = 4.f; // s between hearts while the pair is close
   constexpr float kPairClose = 120.f;     // level units: this close the pair sends hearts
@@ -128,6 +131,7 @@ namespace
     table->net->registerEvent(kLookHashEvent, globed::EventServer::Game);
     table->net->registerEvent(kGiftHashEvent, globed::EventServer::Game);
     table->net->registerEvent(kPairEvent, globed::EventServer::Game);
+    table->net->registerEvent(kHelloEvent, globed::EventServer::Game);
     log::info("Globed: looks, emotes, likes and gifts are shared with other players");
   }
 
@@ -215,6 +219,7 @@ namespace
     ccColor3B accent;
     bool second = false; // we accepted: our bow sits on the other side
   };
+  bool s_resendAll = false; // somebody said hello: our look and icons go out again
   std::optional<Pair> s_pair;
   std::unordered_map<int, Pair> s_pairAsks; // they asked us, by the id the ask came from
   std::set<int> s_pairAsked;                // we asked them, player and account ids
@@ -479,6 +484,10 @@ namespace
                     log::info("Globed: {} gifted us their look", who);
                     Notification::create(fmt::format("{} gifted you their look! Players, in the customizer", who), NotificationIcon::Success)->show();
                   });
+      }
+      else if (name == kHelloEvent)
+      {
+        s_resendAll = true;
       }
       else if (name == kPairEvent)
       {
@@ -766,6 +775,7 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     std::string m_sentLook;
     bool m_lookWaiting = false; // changed, not sent yet (going up to the server)
     float m_pairHearts = 0.f;   // s since the pair last sent hearts
+    bool m_saidHello = false;
     std::string m_sentIcons;
     std::map<int, int> m_iconModes; // player id * 2 + second icon -> what it showed when last dressed
     bool m_wasActive = false;
@@ -824,7 +834,8 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
 
     // Globed can list us too (its own copy of our icon): our icon already has its rigs
     int const self = GJAccountManager::get()->m_accountID;
-    bool newPlayer = false;
+    bool newPlayer = s_resendAll;
+    s_resendAll = false;
     for (int id : ids)
     {
       if (id == self)
@@ -892,7 +903,7 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
                          player->m_isRobot << 4 | player->m_isSpider << 5 | player->m_isSwing << 6;
         int const key = id * 2 + (second ? 1 : 0);
         auto known = fields->m_iconModes.find(key);
-        if (!dirty && known != fields->m_iconModes.end() && known->second == mode)
+        if (!dirty && known != fields->m_iconModes.end() && known->second == mode && custom_icons::isDressed(player, account))
           continue;
         fields->m_iconModes[key] = mode;
         if (account != GJAccountManager::get()->m_accountID)
@@ -908,6 +919,13 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
       fields->m_sentIcons = custom_icons::payload();
       send(kIconsEvent, fields->m_sentIcons);
       log::info("Globed: sent our custom icons ({} bytes)", fields->m_sentIcons.size());
+    }
+
+    // Just here with somebody else: hello to everybody, so they send theirs again
+    if (!fields->m_saidHello && !fields->m_seen.empty())
+    {
+      fields->m_saidHello = true;
+      send(kHelloEvent, "");
     }
 
     // A crowd: the other players' rigs get simpler (yours stays)

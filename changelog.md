@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.11.1
+
+### Gallery
+- A shared look takes the icon you wore along: its number, colors, glow and your custom cube (More Icons or a texture pack), so everybody sees it on the icon it was made for, even without your pack
+- The button at the bottom left shows the looks on the author's icon, on yours (as you wear it) or on the game's plain first cube
+- Share any preset from the presets window ("Share in the gallery"): it goes on the cube it is linked to in the Linker, so each of your looks shows on its own cube
+
+### Fixed
+- Custom icons on Globed: the icons of texture packs (Texture Loader) and the More Icons icons that come from a pack are shared now, the one you actually wear
+- Custom icons on Globed were drawn four times too small (a little lump instead of the icon)
+- Their custom icon is put back when Globed puts the game's icon over it
+- Coming back into a level, the others send their looks and icons again (they stayed plain until they changed something)
+
 ## v1.11.0
 
 ### On your icon

@@ -3,6 +3,7 @@
 #include <Geode/Geode.hpp>
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,17 @@
 
 namespace gallery
 {
+  // The icon a look was shared on: the cube, its colors and glow, and the author's custom cube
+  struct AuthorIcon
+  {
+    int cube = 1;
+    cocos2d::ccColor3B color1 = {255, 255, 255};
+    cocos2d::ccColor3B color2 = {255, 255, 255};
+    bool glow = false;
+    cocos2d::ccColor3B glowColor = {255, 255, 255};
+    std::string custom; // its hash, "" for the game's cube
+  };
+
   struct Look
   {
     int id = 0;
@@ -26,6 +38,7 @@ namespace gallery
     bool mine = false;
     bool hidden = false;
     matjson::Value look; // the settings that differ from the defaults
+    std::optional<AuthorIcon> icon; // looks shared before v1.11.1 have none
   };
 
   struct Page
@@ -44,7 +57,8 @@ namespace gallery
 
   // `sort`: "top", "new", "mine" or "following" (the authors you follow)
   void list(std::string const &sort, std::string const &query, int page, Done<Page> done);
-  void publish(std::string const &name, matjson::Value const &look, Done<Look> done);
+  // `icon`: the icon it is made on (see AuthorIcon), shown with it in the gallery
+  void publish(std::string const &name, matjson::Value const &look, std::optional<AuthorIcon> const &icon, Done<Look> done);
   // The like count after it
   void like(int id, bool on, Done<int> done);
   void report(int id, Done<bool> done);

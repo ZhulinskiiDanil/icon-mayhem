@@ -570,6 +570,7 @@ void PresetsPopup::refreshDetail()
                    { this->copy(preset); }});
   tools.push_back({"export", CircleBaseColor::Gray, "To file", "file-button", [this, preset]
                    { this->exportFile(preset); }});
+
   if (!preset.builtIn)
   {
     tools.push_back({"trash", CircleBaseColor::Red, "Delete", "delete-button", [this, preset]
@@ -580,6 +581,15 @@ void PresetsPopup::refreshDetail()
   for (size_t i = 0; i < tools.size(); ++i)
     button(iconButton(tools[i].icon, tools[i].color, 24.f, tools[i].caption), first + step * static_cast<float>(i), 52.f, tools[i].id,
            std::move(tools[i].action));
+
+  // In the gallery, on the cube it is linked to in the Linker (else the one you wear)
+  button(textButton("Share in the gallery", 130.f, "GJ_button_02.png", 18.f), kDetailX, 24.f, "gallery-button", [preset]
+         {
+           auto const name = preset.builtIn ? looks::builtInLook(preset.name) : preset.name;
+           auto const cube = looks::cubeLinkedTo(name).value_or(std::pair{looks::equippedIcon(GameMode::Cube), looks::equippedCustomIcon(GameMode::Cube)});
+           auto look = presets::compact(presets::withDefaults(preset.settings));
+           shareToGallery(preset.name, look, cube.first, cube.second, nullptr);
+         });
 }
 
 // ! --- Preset actions --- !

@@ -2,6 +2,8 @@
 
 #include <Geode/Geode.hpp>
 
+#include <functional>
+
 #include <string>
 #include <vector>
 
@@ -28,9 +30,19 @@ namespace custom_icons
   void forgetPlayers();
   // Dresses a player's icon (a Globed copy) in their custom icons of what it shows now
   void apply(PlayerObject *player, int account);
+  // Its icon sprite draws their custom icon (when they have one for what it shows); false when the game
+  // or Globed put its own frame back and it should be dressed again
+  bool isDressed(PlayerObject *player, int account);
   // What a player shows, for the Report button; a blocked hash is never drawn again
   std::vector<std::string> hashesOf(int account);
   void block(std::string const &hash);
   // True once after a download finished: the players should be dressed again
   bool takeDirty();
+
+  // The custom icon of a cube of ours (the game's number, or a More Icons icon by its name), for a
+  // look shared in the gallery: its hash once it is on the server, "" when it is the game's own
+  // cube (or custom icons aren't shared)
+  void cubeIconHash(int number, std::string const &custom, std::function<void(std::string)> done);
+  // A preview wears the custom cube of that hash, now or once it is downloaded
+  void dressPreview(SimplePlayer *player, std::string const &hash);
 }

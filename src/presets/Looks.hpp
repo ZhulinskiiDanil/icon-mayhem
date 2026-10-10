@@ -41,6 +41,9 @@ namespace looks
   std::string equippedCustomIcon(GameMode mode, bool dual = false);
   // The preset linked to the icon worn in a mode: its More Icons icon, or its game icon
   std::string linkedLook(GameMode mode);
+  // A cube the preset is linked to: the one worn now if it is, else the first one. The game's number
+  // and the More Icons name ("" for a game cube); nothing when no cube wears it
+  std::optional<std::pair<int, std::string>> cubeLinkedTo(std::string const &preset);
   // Ships, UFOs and jetpacks carry the cube: the hair sits on it, so its link counts there
   GameMode linkModeOf(GameMode mode);
   // The look a player wears now in a mode: the link of the icon (the cube in a vehicle), then the

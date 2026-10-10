@@ -176,6 +176,24 @@ namespace
     look.likes = json["likes"].asInt().unwrapOr(0);
     look.liked = json["liked"].asBool().unwrapOr(false);
     look.following = json["author"]["following"].asBool().unwrapOr(false);
+    if (auto const &icon = json["icon"]; icon.isObject())
+    {
+      auto color = [&](char const *key)
+      {
+        auto text = icon[key].asString().unwrapOr("#ffffff");
+        if (!text.empty() && text.front() == '#')
+          text.erase(0, 1);
+        return cc3bFromHexString(text, true).unwrapOr(ccColor3B{255, 255, 255});
+      };
+      gallery::AuthorIcon author;
+      author.cube = static_cast<int>(icon["cube"].asInt().unwrapOr(1));
+      author.color1 = color("color1");
+      author.color2 = color("color2");
+      author.glow = icon["glow"].asBool().unwrapOr(false);
+      author.glowColor = color("glowColor");
+      author.custom = icon["custom"].asString().unwrapOr("");
+      look.icon = author;
+    }
     look.mine = json["mine"].asBool().unwrapOr(false);
     look.hidden = json["hidden"].asBool().unwrapOr(false);
     look.look = json["look"].isObject() ? json["look"] : matjson::Value::object();
@@ -231,11 +249,23 @@ void gallery::list(std::string const &sort, std::string const &query, int page, 
     request("GET", path, std::nullopt, savedSession(), handle);
 }
 
-void gallery::publish(std::string const &name, matjson::Value const &look, Done<Look> done)
+void gallery::publish(std::string const &name, matjson::Value const &look, std::optional<AuthorIcon> const &icon, Done<Look> done)
 {
   auto body = matjson::Value::object();
   body["name"] = name;
   body["look"] = look;
+  if (icon)
+  {
+    auto json = matjson::Value::object();
+    json["cube"] = icon->cube;
+    json["color1"] = "#" + cc3bToHexString(icon->color1);
+    json["color2"] = "#" + cc3bToHexString(icon->color2);
+    json["glow"] = icon->glow;
+    json["glowColor"] = "#" + cc3bToHexString(icon->glowColor);
+    if (!icon->custom.empty())
+      json["custom"] = icon->custom;
+    body["icon"] = json;
+  }
   withAccount("POST", "/v1/looks", body, [done](Reply reply)
               {
                 if (!reply.error.empty())

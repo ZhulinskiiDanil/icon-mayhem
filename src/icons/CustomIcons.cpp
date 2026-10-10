@@ -5,19 +5,23 @@
 
 // More Icons is optional: its functions are reached through Geode events, without linking to it
 #define MORE_ICONS_EVENTS
+#include <geode.texture-loader/include/TextureLoader.hpp>
 #include <hiimjustin000.more_icons/include/MoreIcons.hpp>
 
 #include <Geode/binding/CCPartAnimSprite.hpp>
 #include <Geode/binding/GJRobotSprite.hpp>
 #include <Geode/binding/GJSpiderSprite.hpp>
 #include <Geode/binding/PlayerObject.hpp>
+#include <Geode/binding/SimplePlayer.hpp>
 #include <Geode/utils/base64.hpp>
 #include <Geode/utils/file.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <set>
 #include <unordered_map>
+#include <vector>
 
 using namespace geode::prelude;
 
@@ -183,24 +187,93 @@ namespace
     return fmt::format("{}|{}|{}", utils::string::pathToString(source.png), texture, sheet);
   }
 
+  // A path to compare: forward slashes, lower case, no doubled or trailing slashes. Geode and cocos
+  // write the same folder differently on Windows (\ and /)
+  std::string comparablePath(std::string text)
+  {
+    std::replace(text.begin(), text.end(), '\\', '/');
+    text = utils::string::toLower(text);
+    std::string out;
+    for (char c : text)
+    {
+      if (c == '/' && !out.empty() && out.back() == '/')
+        continue;
+      out += c;
+    }
+    while (!out.empty() && out.back() == '/')
+      out.pop_back();
+    return out;
+  }
+
+  // The file the game draws an icon from, in the texture quality it uses. Asked with the quality in
+  // the name like the game does: a pack that only has the "-uhd" file is found that way (asked
+  // without it, the game finds its own plain file first and adds "-uhd" there)
+  // The quality endings of the game's files, the one it draws with first
+  std::vector<char const *> qualitySuffixes()
+  {
+    float const scale = CCDirector::sharedDirector()->getContentScaleFactor();
+    if (scale >= 4.f)
+      return {"-uhd", "-hd", ""};
+    if (scale >= 2.f)
+      return {"-hd", ""};
+    return {""};
+  }
+
+  // The file of the texture packs applied in Texture Loader, the first pack that has it wins
+  // (the top of its list). Asked from the packs themselves: the game's own file lookup doesn't
+  // always see them
+  std::string appliedPackFile(std::string const &base, char const *extension)
+  {
+    if (!texture_loader::isLoaded())
+      return "";
+    for (auto const &pack : texture_loader::getAppliedPacks())
+    {
+      for (auto suffix : qualitySuffixes())
+      {
+        auto const path = pack.resourcesPath / fmt::format("{}{}{}", base, suffix, extension);
+        std::error_code error;
+        if (std::filesystem::is_regular_file(path, error))
+          return utils::string::pathToString(path);
+      }
+    }
+    return "";
+  }
+
+  std::string iconFile(std::string const &base, char const *extension)
+  {
+    auto files = CCFileUtils::sharedFileUtils();
+    for (auto suffix : qualitySuffixes())
+    {
+      std::string const full = files->fullPathForFilename(fmt::format("{}{}{}", base, suffix, extension).c_str(), true);
+      if (!full.empty() && files->isFileExist(full))
+        return full;
+    }
+    return "";
+  }
+
   // The game icon we wear, when a texture pack draws it (its files are not the game's own: everybody
   // else sees the game's icon of that number)
-  std::optional<Source> packSource(Kind const &kind)
+  std::optional<Source> packSource(Kind const &kind, int number)
   {
-    int const number = looks::equippedIcon(kind.mode);
     if (number <= 0)
       return std::nullopt;
     std::string const base = fmt::format("icons/{}{:02}", kind.file, number);
-    auto files = CCFileUtils::sharedFileUtils();
-    std::string const png = files->fullPathForFilename((base + ".png").c_str(), false);
-    std::string const plist = files->fullPathForFilename((base + ".plist").c_str(), false);
-    if (png.empty() || plist.empty())
-      return std::nullopt;
 
-    // Packs and mods live in Geode's folder, the game's own icons don't
-    auto const geode = utils::string::toLower(utils::string::pathToString(dirs::getGeodeDir()));
-    if (!utils::string::toLower(png).starts_with(geode))
-      return std::nullopt;
+    // A pack of Texture Loader that has it, else the file the game finds when it is in Geode's
+    // folder (packs and mods live there, the game's own icons don't)
+    std::string png = appliedPackFile(base, ".png");
+    std::string plist = appliedPackFile(base, ".plist");
+    if (png.empty() || plist.empty())
+    {
+      png = iconFile(base, ".png");
+      plist = iconFile(base, ".plist");
+      auto const geode = comparablePath(utils::string::pathToString(dirs::getGeodeDir())) + "/";
+      if (png.empty() || plist.empty() || !comparablePath(png).starts_with(geode))
+      {
+        log::debug("Custom icons: {} {} is the game's own ({})", kind.name, number, png);
+        return std::nullopt;
+      }
+    }
 
     Source source;
     source.type = kind.type;
@@ -211,13 +284,19 @@ namespace
     return source;
   }
 
-  // The icon we wear for a kind: More Icons first, then a texture pack
-  std::optional<Source> sourceOf(Kind const &kind)
+  // A More Icons icon, when its files are plain files that aren't the game's own
+  std::optional<Source> moreIconsSource(Kind const &kind, IconInfo *info)
   {
-    if (auto info = more_icons::activeIcon(kind.type, false))
+    if (info)
     {
-      // Icons from zipped packs stay ours: their files aren't plain files
-      if (!info->isZipped() && !info->isVanilla() && !info->getTexture().empty() && !info->getSheet().empty())
+      // Icons from zipped packs stay ours: their files aren't plain files. An icon of a texture pack
+      // named like a game icon counts as "vanilla" for More Icons but is the pack's picture: it is
+      // shared when its file is not the game's own
+      auto const geode = comparablePath(utils::string::pathToString(dirs::getGeodeDir())) + "/";
+      bool const ownFile = !info->isVanilla() || comparablePath(utils::string::pathToString(info->getTexture())).starts_with(geode);
+      std::error_code error;
+      if (!info->isZipped() && ownFile && std::filesystem::is_regular_file(info->getTexture(), error) &&
+          std::filesystem::is_regular_file(info->getSheet(), error))
       {
         Source source;
         source.type = kind.type;
@@ -229,7 +308,15 @@ namespace
         return source;
       }
     }
-    return packSource(kind);
+    return std::nullopt;
+  }
+
+  // The icon we wear for a kind: More Icons first, then a texture pack
+  std::optional<Source> sourceOf(Kind const &kind)
+  {
+    if (auto source = moreIconsSource(kind, more_icons::activeIcon(kind.type, false)))
+      return source;
+    return packSource(kind, looks::equippedIcon(kind.mode));
   }
 
   // The body the server takes for an icon
@@ -361,8 +448,9 @@ namespace
     if (!texture)
       return false;
 
-    // Points are the sheet's pixels over its quality: the size is the same at any texture quality
-    float const q = static_cast<float>(quality);
+    // A sprite frame takes the pixels of its texture: the sheet's pixels scaled like the texture
+    // (sheet quality to the device's), so the icon is the same size at any texture quality
+    float const q = static_cast<float>(quality) / CCDirector::sharedDirector()->getContentScaleFactor();
     Loaded loaded;
     loaded.texture = texture;
     for (auto const &frame : json["frames"])
@@ -385,9 +473,25 @@ namespace
     }
     if (loaded.frames.empty())
       return false;
+
+    // What came, to see why an icon looks wrong for someone
+    std::string roles;
+    for (auto const &[role, sprite] : loaded.frames)
+    {
+      auto const rect = sprite->getRect();
+      roles += fmt::format("{}'{}' {:.0f},{:.0f} {:.0f}x{:.0f}", roles.empty() ? "" : ", ", role, rect.origin.x, rect.origin.y, rect.size.width,
+                           rect.size.height);
+    }
+    log::info("Custom icons: {} is a {} at quality {}, picture {}x{} px drawn at {}x{} (device scale {}), frames {}", hash.substr(0, 8),
+              json["type"].asString().unwrapOr("?"), quality, texture->getPixelsWide(), texture->getPixelsHigh(),
+              texture->getContentSize().width, texture->getContentSize().height, CCDirector::sharedDirector()->getContentScaleFactor(), roles);
     s_loaded[hash] = std::move(loaded);
     return true;
   }
+
+  // Previews waiting for a custom cube to download
+  std::unordered_map<std::string, std::vector<WeakRef<SimplePlayer>>> s_waitingPreviews;
+  void dressWaiting(std::string const &hash);
 
   void fetch(std::string const &hash)
   {
@@ -400,6 +504,7 @@ namespace
       if (load(hash, cached.unwrap()))
       {
         s_dirty = true;
+        dressWaiting(hash);
         return;
       }
     }
@@ -422,25 +527,84 @@ namespace
                          (void)file::createDirectoryAll(cacheFile(hash).parent_path());
                          (void)file::writeStringSafe(cacheFile(hash), json.dump(matjson::NO_INDENTATION));
                          s_dirty = true;
+                         dressWaiting(hash);
                        });
   }
 
-  Loaded const *loadedFor(int account, IconType type)
+  Loaded const *loadedFor(int account, IconType type, std::string *why = nullptr)
   {
     auto player = s_players.find(account);
     if (player == s_players.end())
+    {
+      if (why)
+        *why = "they sent no custom icons";
       return nullptr;
+    }
     auto hash = player->second.find(kindName(type));
-    if (hash == player->second.end() || blocked().contains(hash->second))
+    if (hash == player->second.end())
+    {
+      if (why)
+        *why = "they have none of this kind";
       return nullptr;
+    }
+    if (blocked().contains(hash->second))
+    {
+      if (why)
+        *why = "you reported it";
+      return nullptr;
+    }
     auto loaded = s_loaded.find(hash->second);
-    return loaded == s_loaded.end() ? nullptr : &loaded->second;
+    if (loaded == s_loaded.end())
+    {
+      if (why)
+        *why = s_failed.contains(hash->second) ? "it couldn't be downloaded" : "it is still downloading";
+      return nullptr;
+    }
+    return &loaded->second;
   }
 
   CCSpriteFrame *frameOf(Loaded const &icon, std::string const &role)
   {
     auto it = icon.frames.find(role);
     return it == icon.frames.end() ? nullptr : it->second.data();
+  }
+
+  // A preview of the gallery in a custom cube: the layers of the icon, like a player's
+  void dressSimple(SimplePlayer *player, Loaded const &icon)
+  {
+    auto first = frameOf(icon, "");
+    if (!player || !player->m_firstLayer || !first)
+      return;
+    player->m_firstLayer->setDisplayFrame(first);
+    CCPoint const center = player->m_firstLayer->getContentSize() / 2.f;
+    auto layer = [&](CCSprite *sprite, char const *role)
+    {
+      auto frame = frameOf(icon, role);
+      if (!sprite)
+        return;
+      sprite->setVisible(frame != nullptr);
+      if (!frame)
+        return;
+      sprite->setDisplayFrame(frame);
+      sprite->setPosition(center);
+    };
+    layer(player->m_secondLayer, "2");
+    layer(player->m_outlineSprite, "glow");
+    layer(player->m_detailSprite, "extra");
+  }
+
+  void dressWaiting(std::string const &hash)
+  {
+    auto waiting = s_waitingPreviews.find(hash);
+    auto loaded = s_loaded.find(hash);
+    if (waiting == s_waitingPreviews.end() || loaded == s_loaded.end())
+      return;
+    for (auto &preview : waiting->second)
+    {
+      if (auto player = preview.lock())
+        dressSimple(player, loaded->second);
+    }
+    s_waitingPreviews.erase(waiting);
   }
 
   // ! --- Drawing them, as More Icons does (MoreIconsAPI.cpp, updatePlayerObject / updateRobotSprite) --- !
@@ -596,7 +760,25 @@ void custom_icons::refresh()
   }
   s_payload = payload;
   if (missing.empty())
+  {
+    // Once a session: nothing to share, and where the cube comes from (to see why)
+    static bool told = false;
+    if (payload.empty() && !told)
+    {
+      told = true;
+      int const cube = looks::equippedIcon(GameMode::Cube);
+      std::string const file = iconFile(fmt::format("icons/player_{:02}", cube), ".png");
+      std::string packs;
+      if (texture_loader::isLoaded())
+      {
+        for (auto const &pack : texture_loader::getAppliedPacks())
+          packs += fmt::format("{}{} ({})", packs.empty() ? "" : ", ", pack.name, utils::string::pathToString(pack.resourcesPath));
+      }
+      log::info("Custom icons: none of your icons is custom (the cube {} is {}; packs applied: {})", cube, file,
+                packs.empty() ? "none" : packs);
+    }
     return;
+  }
 
   // One at a time, then a look again: each one that gets up joins the payload
   auto const &source = missing.front();
@@ -676,8 +858,27 @@ void custom_icons::apply(PlayerObject *player, int account)
   }
 
   IconType const iconType = player->m_isBall ? IconType::Ball : player->m_isDart ? IconType::Wave : player->m_isSwing ? IconType::Swing : IconType::Cube;
-  if (auto icon = loadedFor(account, iconType))
+  std::string why;
+  if (auto icon = loadedFor(account, iconType, &why); !icon)
+  {
+    static std::set<std::string> toldWhy;
+    if (toldWhy.insert(fmt::format("{}|{}|{}", account, kindName(iconType), why)).second)
+      log::info("Custom icons: the {} of player {} stays the game's: {}", kindName(iconType), account, why);
+  }
+  else
+  {
     dressLayer(player, *icon, false, false);
+    // Once per player and kind: what their icon sprite is now, and where it lives
+    static std::set<std::string> told;
+    auto sprite = player->m_iconSprite;
+    if (sprite && told.insert(fmt::format("{}|{}", account, kindName(iconType))).second)
+    {
+      auto parent = sprite->getParent();
+      log::info("Custom icons: dressed the {} of player {}: sprite {:.0f}x{:.0f} at scale {:.2f}, visible {}, its parent is {}{}", kindName(iconType),
+                account, sprite->getContentSize().width, sprite->getContentSize().height, sprite->getScale(), sprite->isVisible(),
+                parent ? typeid(*parent).name() : "none", sprite->getBatchNode() ? " (in a batch node)" : "");
+    }
+  }
 
   if (player->m_isShip || player->m_isBird)
   {
@@ -685,6 +886,16 @@ void custom_icons::apply(PlayerObject *player, int account)
     if (auto icon = loadedFor(account, vehicle))
       dressLayer(player, *icon, true, vehicle == IconType::Ufo);
   }
+}
+
+bool custom_icons::isDressed(PlayerObject *player, int account)
+{
+  if (!player || player->m_isRobot || player->m_isSpider || !Mod::get()->getSettingValue<bool>("show-icons"))
+    return true;
+  IconType const iconType = player->m_isBall ? IconType::Ball : player->m_isDart ? IconType::Wave : player->m_isSwing ? IconType::Swing : IconType::Cube;
+  auto icon = loadedFor(account, iconType);
+  // Nothing of theirs to draw, or it is drawn (the game or Globed may put its own frame back)
+  return !icon || !player->m_iconSprite || player->m_iconSprite->getTexture() == icon->texture.data();
 }
 
 std::vector<std::string> custom_icons::hashesOf(int account)
@@ -715,4 +926,52 @@ bool custom_icons::takeDirty()
   bool const dirty = s_dirty;
   s_dirty = false;
   return dirty;
+}
+
+// ! --- Gallery previews --- !
+
+void custom_icons::cubeIconHash(int number, std::string const &custom, std::function<void(std::string)> done)
+{
+  if (!sharing())
+    return done("");
+  // That cube: a More Icons icon by its name, else the game's number drawn by a texture pack
+  auto source = custom.empty() ? std::nullopt : moreIconsSource(kKinds[0], more_icons::getIcon(custom, IconType::Cube));
+  if (!source)
+    source = packSource(kKinds[0], number);
+  if (!source)
+    return done("");
+  auto const key = uploadKey(*source);
+  auto uploads = Mod::get()->getSavedValue<matjson::Value>(kUploadsSave, matjson::Value::object());
+  if (auto hash = uploads.get(key); hash && hash.unwrap().isString())
+    return done(hash.unwrap().asString().unwrap());
+  auto body = iconBody(*source);
+  if (!body)
+    return done("");
+  log::info("Custom icons: sharing {} for the gallery", source->name);
+  gallery::uploadIcon(*body, [key, done = std::move(done)](Result<std::string, std::string> result)
+                      {
+                        if (!result || result.unwrap().empty())
+                        {
+                          log::warn("Custom icons: can't share the cube: {}", result ? "no hash" : result.unwrapErr());
+                          done("");
+                          return;
+                        }
+                        auto saved = Mod::get()->getSavedValue<matjson::Value>(kUploadsSave, matjson::Value::object());
+                        saved[key] = result.unwrap();
+                        Mod::get()->setSavedValue(kUploadsSave, saved);
+                        done(result.unwrap());
+                      });
+}
+
+void custom_icons::dressPreview(SimplePlayer *player, std::string const &hash)
+{
+  if (!player || hash.empty() || blocked().contains(hash))
+    return;
+  if (auto loaded = s_loaded.find(hash); loaded != s_loaded.end())
+  {
+    dressSimple(player, loaded->second);
+    return;
+  }
+  s_waitingPreviews[hash].emplace_back(player);
+  fetch(hash);
 }
