@@ -132,6 +132,7 @@ private:
     Ear,      // soft ear on top of the head
     ScarfEnd, // end of the scarf fluttering behind
     Trail,    // the long ribbon tied at the back of the head
+    FurTail,  // a furry tail at the back of the icon
   };
 
   // One lock of the hairstyle, generated once per config
@@ -340,6 +341,7 @@ private:
   size_t m_ahogeStart = 0;
   size_t m_earsStart = 0;
   size_t m_scarfStart = 0;
+  size_t m_furTailStart = 0;
   size_t m_trailStart = 0; // the ribbon, drawn as a flat band
   size_t m_frontStart = 0;
   size_t m_bangsStart = 0;

@@ -38,6 +38,7 @@ private:
   void wear(gallery::Look const &look);
   void keep(gallery::Look const &look);
   void toggleLike(size_t index);
+  void toggleFollow(size_t index);
   void report(gallery::Look const &look);
   void remove(gallery::Look const &look);
 

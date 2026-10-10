@@ -175,6 +175,7 @@ namespace
     look.author = json["author"]["username"].asString().unwrapOr("");
     look.likes = json["likes"].asInt().unwrapOr(0);
     look.liked = json["liked"].asBool().unwrapOr(false);
+    look.following = json["author"]["following"].asBool().unwrapOr(false);
     look.mine = json["mine"].asBool().unwrapOr(false);
     look.hidden = json["hidden"].asBool().unwrapOr(false);
     look.look = json["look"].isObject() ? json["look"] : matjson::Value::object();
@@ -222,8 +223,9 @@ void gallery::list(std::string const &sort, std::string const &query, int page, 
     page.hasMore = reply.json["hasMore"].asBool().unwrapOr(false);
     done(Ok(std::move(page)));
   };
-  // Your own looks need the account, the gallery doesn't (the session only marks your likes)
-  if (sort == "mine")
+  // Your own looks and the authors you follow need the account, the gallery doesn't (the session
+  // only marks your likes)
+  if (sort == "mine" || sort == "following")
     withAccount("GET", path, std::nullopt, handle);
   else
     request("GET", path, std::nullopt, savedSession(), handle);
@@ -251,6 +253,17 @@ void gallery::like(int id, bool on, Done<int> done)
                   done(Err(reply.error));
                 else
                   done(Ok(reply.json["likes"].asInt().unwrapOr(0)));
+              });
+}
+
+void gallery::follow(int accountId, bool on, Done<bool> done)
+{
+  withAccount(on ? "POST" : "DELETE", fmt::format("/v1/follows/{}", accountId), std::nullopt, [done](Reply reply)
+              {
+                if (!reply.error.empty())
+                  done(Err(reply.error));
+                else
+                  done(Ok(reply.json["following"].asBool().unwrapOr(false)));
               });
 }
 

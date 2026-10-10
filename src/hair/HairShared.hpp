@@ -134,6 +134,26 @@ namespace hair
   }
 
   // A filled circle. CCDrawNode::drawDot draws a square in GD, so circles are polygons
+  // A four-point glint that flashes for a moment once in a while: `clock` in seconds (shift it per gem)
+  inline void drawTwinkle(cocos2d::CCDrawNode *node, cocos2d::CCPoint const &center, float radius, float clock, float alpha)
+  {
+    constexpr float kEvery = 2.4f; // s between two glints of one gem
+    constexpr float kLasts = .45f; // s a glint lasts
+    float const t = std::fmod(std::max(clock, 0.f), kEvery);
+    if (t > kLasts || alpha <= 0.f)
+      return;
+    float const k = std::sin(3.14159265f * t / kLasts);
+    std::array<cocos2d::CCPoint, 8> points;
+    for (int i = 0; i < 8; ++i)
+    {
+      float const angle = 3.14159265f * .25f * static_cast<float>(i);
+      float const r = (i % 2 == 0 ? radius : radius * .22f) * k;
+      points[i] = center + cocos2d::CCPoint{std::cos(angle), std::sin(angle)} * r;
+    }
+    float const a = alpha * k;
+    node->drawPolygon(points.data(), 8, {a, a, a, a}, 0.f, {0.f, 0.f, 0.f, 0.f});
+  }
+
   inline void fillCircle(cocos2d::CCDrawNode *node, cocos2d::CCPoint const &center, float radius, cocos2d::ccColor4F const &color)
   {
     constexpr int kPoints = 18;

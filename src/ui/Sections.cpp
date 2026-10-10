@@ -19,6 +19,7 @@ std::vector<CustomizerSection> const &customizerSections()
            "customization",
            "show-in-garage",
            "show-in-menus",
+           "seasonal",
            "quality",
            "focus-title",
            "focus-mode",
@@ -38,9 +39,11 @@ std::vector<CustomizerSection> const &customizerSections()
            "@linker",
            "@gallery",
            "@look-file",
+           "@tour",
            "online-title",
            "share-icons",
            "show-icons",
+           "lighter-crowds",
            "emotes-title",
            "@emote-keys",
        }},
@@ -151,6 +154,14 @@ std::vector<CustomizerSection> const &customizerSections()
            "ear-color",
            "ear-custom-color",
            "ear-inner-color",
+           "fur-tail-title",
+           "fur-tail",
+           "fur-tail-length",
+           "fur-tail-size",
+           "fur-tail-curl",
+           "fur-tail-tip",
+           "fur-tail-color",
+           "fur-tail-custom-color",
            "headband-title",
            "headband",
            "headband-inset",
@@ -403,11 +414,11 @@ std::vector<std::string_view> const &lookSettingKeys()
     // Turning the mod on and off, also per game mode, isn't part of a look. Whether the hair is on is
     // (an empty look has none)
     static constexpr std::array kNotLook{
-        std::string_view("customization"), std::string_view("show-in-garage"), std::string_view("show-in-menus"), std::string_view("quality"),
+        std::string_view("customization"), std::string_view("show-in-garage"), std::string_view("show-in-menus"), std::string_view("seasonal"), std::string_view("quality"),
         std::string_view("focus-mode"), std::string_view("focus-opacity"), std::string_view("focus-hair"), std::string_view("mode-cube"),
         std::string_view("mode-ship"), std::string_view("mode-ball"), std::string_view("mode-ufo"),
         std::string_view("mode-wave"), std::string_view("mode-robot"), std::string_view("mode-spider"),
-        std::string_view("mode-swing"), std::string_view("mode-jetpack"), std::string_view("share-icons"), std::string_view("show-icons")};
+        std::string_view("mode-swing"), std::string_view("mode-jetpack"), std::string_view("share-icons"), std::string_view("show-icons"), std::string_view("lighter-crowds")};
 
     std::vector<std::string_view> list;
     for (auto const &section : customizerSections())

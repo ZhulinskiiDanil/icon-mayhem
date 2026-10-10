@@ -3,6 +3,7 @@
 #include "LinkerPopup.hpp"
 #include "LooksPopup.hpp"
 #include "PartsPopup.hpp"
+#include "Tour.hpp"
 #include "PlayersPopup.hpp"
 
 // More Icons is optional: its functions are reached through Geode events, without linking to it
@@ -26,6 +27,7 @@
 #include <Geode/ui/Scrollbar.hpp>
 
 #include <array>
+#include <ctime>
 #include <cmath>
 #include <numbers>
 
@@ -105,6 +107,12 @@ namespace
   // Hitbox helpers, remembered between openings
   constexpr char const *kHitboxesSave = "customizer-hitboxes";
   constexpr char const *kWindSave = "customizer-wind";
+  constexpr char const *kTourSave = "customizer-tour-done";
+
+  // Photos: the size of the picture (points; pixels follow the texture quality) and how big the icon is in it
+  constexpr CCSize kPhotoClear = {110.f, 110.f};
+  constexpr CCSize kPhotoCard = {120.f, 150.f};
+  constexpr float kPhotoZoom = 1.4f;
 
   // Wind view
   constexpr size_t kMaxStreaks = 60;
@@ -433,6 +441,10 @@ bool CustomizerPopup::initCustomizer()
 
   // The icon in the preview has a preset linked: that's the look to edit, Main switches back
   this->startIconEdit(false);
+
+  // The first time: a short tour, once the window has popped in
+  if (!Mod::get()->getSavedValue<bool>(kTourSave, false))
+    this->runAction(CCSequence::create(CCDelayTime::create(.7f), CCCallFunc::create(this, callfunc_selector(CustomizerPopup::startTour)), nullptr));
   return true;
 }
 
@@ -587,6 +599,12 @@ void CustomizerPopup::buildPreview()
   wind->setID("wind-toggle");
   wind->setPosition({kToolX, kToolTop});
   menu->addChild(wind);
+
+  auto photo = CCMenuItemSpriteExtra::create(iconButton("camera", CircleBaseColor::Blue, 22.f, "Photo"), this,
+                                             menu_selector(CustomizerPopup::onPhoto));
+  photo->setID("photo-button");
+  photo->setPosition({kPreviewSize.width - kToolX, kToolTop});
+  menu->addChild(photo);
   m_windMeter = CCDrawNode::create();
   m_windMeter->setID("wind-meter");
   m_windMeter->setPosition({kToolX, kToolTop - 24.f});
@@ -752,6 +770,148 @@ void CustomizerPopup::onPlayers(CCObject *)
 {
   if (auto popup = PlayersPopup::create())
     popup->show();
+}
+
+void CustomizerPopup::startTour()
+{
+  if (this->getChildByID("tour"_spr))
+    return;
+  auto button = [&](char const *id)
+  { return m_buttonMenu->getChildByID(id); };
+
+  std::vector<TourStep> steps{
+      {{m_panel}, "Your icon", "It moves like in a level: Jump and Run show the hair in motion. Tap a part of it (the bangs, a bow, the glasses) to open its settings."},
+      {{m_search, button("parts-button"), button("on-now-button")}, "Find anything",
+       "Search finds any setting by its name. Parts shows every part on one page, green when it's on. On now lists what you wear."},
+      {{m_list, m_tabMenu}, "The settings", "Each part folds into one line with its switch. Positions and small details wait under Fine tuning."},
+      {{button("smaller-button"), m_scaleLabel, button("bigger-button")}, "Rows", "Smaller rows show more settings at once, bigger ones are easier to tap."},
+      {{button("presets-button"), button("save-button")}, "Your looks",
+       "Presets keeps your looks: load, share, link them to icons. Save puts your changes back into the one you wear."},
+  };
+  auto tour = TourLayer::create(std::move(steps), []
+                                { Mod::get()->setSavedValue(kTourSave, true); });
+  if (tour)
+    this->addChild(tour, 1000);
+}
+
+CCNode *CustomizerPopup::createTourRow(float width)
+{
+  auto row = CCNode::create();
+  row->setContentSize({width, 30.f});
+
+  auto label = CCLabelBMFont::create("Tour of the customizer", "bigFont.fnt");
+  label->limitLabelWidth(width - 80.f, .4f, .1f);
+  label->setAnchorPoint({0.f, .5f});
+  label->setPosition({8.f, 15.f});
+  row->addChild(label);
+
+  auto menu = CCMenu::create();
+  menu->setPosition({0.f, 0.f});
+  menu->setContentSize(row->getContentSize());
+  row->addChild(menu);
+
+  auto button = CCMenuItemExt::createSpriteExtra(textButton("Show", 44.f, "GJ_button_01.png", 22.f), [self = Ref(this)](auto)
+                                                 {
+                                                   // Not from inside the touch of the list
+                                                   Loader::get()->queueInMainThread([self]
+                                                                                    { self->startTour(); });
+                                                 });
+  button->setPosition({width - 30.f, 15.f});
+  menu->addChild(button);
+  return row;
+}
+
+void CustomizerPopup::onPhoto(CCObject *)
+{
+  createQuickPopup("Photo",
+                   "A picture of your icon in this look, saved as a PNG. <cy>Clear</c> is just the icon, a <cy>Card</c> has a soft "
+                   "background and the name of the look",
+                   "Clear", "Card",
+                   [self = Ref(this)](FLAlertLayer *, bool card)
+                   {
+                     // After the question has gone
+                     Loader::get()->queueInMainThread([self, card]
+                                                      { self->takePhoto(card); });
+                   });
+}
+
+void CustomizerPopup::takePhoto(bool card)
+{
+  CCSize const size = card ? kPhotoCard : kPhotoClear;
+  auto texture = CCRenderTexture::create(static_cast<int>(size.width), static_cast<int>(size.height));
+  if (!texture)
+    return;
+
+  // The stage (the icon, its hair and particles) in the middle of the picture, bigger; the hair
+  // was simulated this frame, drawing it again only draws what it has
+  CCPoint const position = m_stage->getPosition();
+  float const scale = m_stage->getScale();
+  m_stage->setPosition({size.width / 2.f, card ? size.height * .56f : size.height * .45f});
+  m_stage->setScale(kPhotoZoom);
+
+  Ref<CCNode> background;
+  Ref<CCNode> name;
+  Ref<CCNode> brand;
+  if (card)
+  {
+    auto gradient = CCLayerGradient::create({255, 214, 232, 255}, {196, 186, 255, 255});
+    gradient->setContentSize(size);
+    background = gradient;
+
+    auto label = CCLabelBMFont::create(saveLook::currentName().c_str(), "bigFont.fnt");
+    label->limitLabelWidth(size.width - 16.f, .42f, .1f);
+    label->setPosition({size.width / 2.f, 24.f});
+    name = label;
+
+    auto mark = CCLabelBMFont::create("Icon Mayhem", "goldFont.fnt");
+    mark->setScale(.32f);
+    mark->setOpacity(200);
+    mark->setPosition({size.width / 2.f, 10.f});
+    brand = mark;
+  }
+
+  texture->beginWithClear(0.f, 0.f, 0.f, 0.f);
+  if (background)
+    background->visit();
+  m_stage->visit();
+  if (name)
+    name->visit();
+  if (brand)
+    brand->visit();
+  texture->end();
+
+  m_stage->setPosition(position);
+  m_stage->setScale(scale);
+
+  // photos/<look>-<date>-<time>.png
+  std::string look;
+  for (char c : saveLook::currentName())
+    look += std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' ? c : '_';
+  if (look.empty())
+    look = "look";
+  std::time_t const now = std::time(nullptr);
+  char stamp[32] = {};
+  std::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", std::localtime(&now));
+  auto const folder = Mod::get()->getSaveDir() / "photos";
+  (void)file::createDirectoryAll(folder);
+  auto const path = folder / fmt::format("{}-{}.png", look, stamp);
+
+  auto image = texture->newCCImage(true);
+  bool const saved = image && image->saveToFile(utils::string::pathToString(path).c_str(), false);
+  if (image)
+    image->release();
+
+  if (!saved)
+  {
+    Notification::create("Unable to save the photo", NotificationIcon::Error)->show();
+    return;
+  }
+  createQuickPopup("Photo", fmt::format("Saved as <cy>{}</c>", utils::string::pathToString(path.filename())), "OK", "Open folder",
+                   [folder](FLAlertLayer *, bool open)
+                   {
+                     if (open)
+                       file::openFolder(folder);
+                   });
 }
 
 void CustomizerPopup::onParts(CCObject *)
@@ -1204,6 +1364,11 @@ void CustomizerPopup::addRow(char const *key)
   if (std::string_view(key) == "@emote-keys")
   {
     this->addToList(createEmoteKeysRow(this->rowWidth()));
+    return;
+  }
+  if (std::string_view(key) == "@tour")
+  {
+    this->addToList(this->createTourRow(this->rowWidth()));
     return;
   }
   if (std::string_view(key) == "@look-file")
@@ -1742,6 +1907,22 @@ void CustomizerPopup::refreshLookLabel()
   m_lookLabel->setString(fmt::format("{}{}", saveLook::currentName(), changed ? " *" : "").c_str());
   m_lookLabel->setColor(changed ? ccColor3B{255, 205, 80} : ccColor3B{130, 255, 140});
   m_lookLabel->limitLabelWidth(120.f, .32f, .1f);
+
+  // Seasonal touches are on today: say why a hat showed up
+  auto const season = HairConfig::season();
+  if (!m_seasonLabel)
+  {
+    m_seasonLabel = CCLabelBMFont::create("", "bigFont.fnt");
+    m_seasonLabel->setAnchorPoint({1.f, .5f});
+    m_seasonLabel->setOpacity(190);
+    m_seasonLabel->setID("season-label");
+    m_mainLayer->addChildAtPosition(m_seasonLabel, Anchor::TopRight, {-16.f, -28.f});
+  }
+  m_seasonLabel->setString(season == HairConfig::Season::Halloween ? "Halloween: a pumpkin on looks without a hat"
+                           : season == HairConfig::Season::Winter  ? "Winter: a Santa hat and snow on looks without a hat"
+                                                                   : "");
+  m_seasonLabel->setColor(season == HairConfig::Season::Halloween ? ccColor3B{255, 170, 80} : ccColor3B{170, 220, 255});
+  m_seasonLabel->limitLabelWidth(150.f, .2f, .05f);
 }
 
 void CustomizerPopup::onReset(CCObject *)

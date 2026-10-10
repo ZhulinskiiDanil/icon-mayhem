@@ -22,6 +22,7 @@ namespace gallery
     std::string author;
     int likes = 0;
     bool liked = false;
+    bool following = false; // we follow its author
     bool mine = false;
     bool hidden = false;
     matjson::Value look; // the settings that differ from the defaults
@@ -41,12 +42,14 @@ namespace gallery
   // A moderator account: can hide and delete any look
   bool isModerator();
 
-  // `sort`: "top", "new" or "mine"
+  // `sort`: "top", "new", "mine" or "following" (the authors you follow)
   void list(std::string const &sort, std::string const &query, int page, Done<Page> done);
   void publish(std::string const &name, matjson::Value const &look, Done<Look> done);
   // The like count after it
   void like(int id, bool on, Done<int> done);
   void report(int id, Done<bool> done);
+  // Follow an author: their looks show under Following
+  void follow(int accountId, bool on, Done<bool> done);
   void remove(int id, Done<bool> done);
 
   // Custom icons (see CustomIcons.hpp): `icon` is {type, quality, png (base64), frames}, the answer its hash

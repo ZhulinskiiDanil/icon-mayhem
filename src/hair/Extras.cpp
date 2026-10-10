@@ -98,6 +98,27 @@ namespace
   constexpr float kRibbonTwists = 1.5f;    // turns along the ribbon
   constexpr float kRibbonTwistSpeed = 3.f; // radians / s
 
+  // Furry tail: how wide at its widest, how far it bends up at full curl, how springy
+  constexpr float kFurTailCurl = 110.f;      // degrees at the end, curl 1 (a cat; the others half)
+  constexpr float kFurTailRise = 12.f;       // degrees it leaves the body upwards
+  constexpr float kFurTailStiffness = .55f;  // of the tail of a ponytail
+  constexpr float kFurTailStiffnessPower = 1.4f;
+
+  float furTailWidth(FurTailStyle style)
+  {
+    switch (style)
+    {
+    case FurTailStyle::Cat:
+      return 3.f;
+    case FurTailStyle::Fox:
+      return 7.5f;
+    case FurTailStyle::Fluffy:
+      return 6.f;
+    default:
+      return 0.f;
+    }
+  }
+
   EarShape const &earShape(EarStyle style)
   {
     switch (style)
@@ -123,7 +144,7 @@ namespace
 bool HairNode::extrasActive() const
 {
   return m_config.tails != TailStyle::None || m_config.ahoge > 0 || m_config.headBow || m_config.scarf ||
-         m_config.ears != EarStyle::None;
+         m_config.ears != EarStyle::None || m_config.furTail != FurTailStyle::None;
 }
 
 void HairNode::addExtraLocks(std::mt19937 &rng)
@@ -203,6 +224,19 @@ void HairNode::addEarAndScarfLocks()
       lock.depth = end == 0 ? 1.f : .8f;
       m_locks.push_back(lock);
     }
+  }
+
+  m_furTailStart = m_locks.size();
+  if (m_config.furTail != FurTailStyle::None && m_config.furTailLength > 0.f)
+  {
+    Lock lock;
+    lock.kind = LockKind::FurTail;
+    lock.angle = 0.f;
+    lock.length = m_config.furTailLength;
+    lock.width = furTailWidth(m_config.furTail) * m_config.furTailSize;
+    lock.curl = 0.f;
+    lock.depth = 1.f;
+    m_locks.push_back(lock);
   }
 
   m_trailStart = m_locks.size();
@@ -383,6 +417,24 @@ void HairNode::buildExtraTarget(Lock const &lock, HairStrandTarget &target, CCPo
     target.stiffnessPower = shape.stiffnessPower;
     stiffness = shape.stiffness;
   }
+  else if (lock.kind == LockKind::FurTail)
+  {
+    // From the back of the body, low, in the icon's own frame: out and then curling up
+    CCPoint const back = m_iconBack;
+    CCPoint const bodyUp = m_iconUp;
+    CCPoint const radial = normalized(back * .85f + bodyUp * -.5f, back);
+    target.root = headCenter + radial * (this->headEdge(radial) * .9f);
+    float const curl = m_config.furTailCurl * (m_config.furTail == FurTailStyle::Cat ? 1.f : .55f);
+    for (int k = 0; k < segments; ++k)
+    {
+      float const t = static_cast<float>(k + 1) / static_cast<float>(segments);
+      float const angle = radians(kFurTailRise + kFurTailCurl * curl * std::pow(t, 1.4f));
+      target.restDirs[k] = normalized(back * std::cos(angle) + bodyUp * std::sin(angle), back);
+    }
+    target.collide = false;
+    target.stiffnessPower = kFurTailStiffnessPower;
+    stiffness = kTailStiffness * kFurTailStiffness;
+  }
   else if (lock.kind == LockKind::Trail)
   {
     // Tied at the back of the head a bit above the middle, streaming back on its own
@@ -436,6 +488,21 @@ float HairNode::lockWidthAt(Lock const &lock, float along) const
   case LockKind::Ribbon:
   case LockKind::ScarfEnd:
     return 1.f - .3f * along;
+  case LockKind::FurTail:
+    switch (m_config.furTail)
+    {
+    case FurTailStyle::Fox:
+      // Narrow at the body, bushy in the middle, a pointed tip
+      return (.45f + .75f * std::sin(kPi * std::min(along * 1.1f, 1.f))) * (1.f - std::pow(along, 3.f));
+    case FurTailStyle::Fluffy:
+      return (.8f + .3f * std::sin(kPi * along)) * (1.f - std::pow(along, 6.f));
+    default:
+    {
+      // Even all along, a round end
+      float const end = along > .88f ? std::sqrt(std::max(0.f, 1.f - std::pow((along - .88f) / .12f, 2.f))) : 1.f;
+      return (1.f - .15f * along) * std::max(end, .2f);
+    }
+    }
   case LockKind::Ear:
     if (m_config.ears == EarStyle::Bunny)
       return (.85f + .3f * std::sin(kPi * along)) * (1.f - std::pow(along, 4.f));

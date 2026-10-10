@@ -58,6 +58,12 @@ private:
   // Shows the block `id` (its title key): its tab, unfolded, at the top of the list, flashing
   void jumpToGroup(std::string const &id);
   void onParts(cocos2d::CCObject *sender);
+  // A picture of the icon in this look, a PNG in the photos folder: clear, or on a little card
+  void onPhoto(cocos2d::CCObject *sender);
+  void takePhoto(bool card);
+  // The steps over the customizer, by itself the first time
+  void startTour();
+  cocos2d::CCNode *createTourRow(float width);
   // Players on Globed: their looks, likes and gifts
   void onPlayers(cocos2d::CCObject *sender);
   void onScale(cocos2d::CCObject *sender);
@@ -125,6 +131,7 @@ private:
   float m_windSpawn = 0.f;   // streaks owed, spawned when it reaches 1
   unsigned m_windSeed = 1;
   cocos2d::CCLabelBMFont *m_lookLabel = nullptr;
+  cocos2d::CCLabelBMFont *m_seasonLabel = nullptr; // why a pumpkin or a Santa hat showed up
   cocos2d::CCMenu *m_lookSwitch = nullptr;
   ButtonSprite *m_mainSprite = nullptr;
   ButtonSprite *m_iconSprite = nullptr;

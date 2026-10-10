@@ -159,11 +159,11 @@ void GalleryPopup::buildTabs()
     char const *sort;
     char const *text;
   };
-  constexpr std::array<Tab, 3> kTabs = {Tab{"top", "Top"}, Tab{"new", "New"}, Tab{"mine", "Mine"}};
+  constexpr std::array<Tab, 4> kTabs = {Tab{"top", "Top"}, Tab{"new", "New"}, Tab{"following", "Following"}, Tab{"mine", "Mine"}};
   for (size_t i = 0; i < kTabs.size(); ++i)
   {
     bool const on = m_sort == kTabs[i].sort;
-    auto tab = CCMenuItemExt::createSpriteExtra(textButton(kTabs[i].text, 50.f, on ? "GJ_button_01.png" : "GJ_button_04.png", 22.f),
+    auto tab = CCMenuItemExt::createSpriteExtra(textButton(kTabs[i].text, 44.f, on ? "GJ_button_01.png" : "GJ_button_04.png", 22.f),
                                                 [this, sort = std::string(kTabs[i].sort)](auto)
                                                 {
                                                   if (m_sort == sort)
@@ -173,7 +173,7 @@ void GalleryPopup::buildTabs()
                                                   this->buildTabs();
                                                   this->load();
                                                 });
-    tab->setPosition({kGridOrigin.x + 26.f + static_cast<float>(i) * 54.f, kTopY});
+    tab->setPosition({kGridOrigin.x + 21.f + static_cast<float>(i) * 46.f, kTopY});
     m_tabMenu->addChild(tab);
   }
 }
@@ -335,7 +335,10 @@ void GalleryPopup::showPage()
   }
   if (m_looks.empty() && !m_loading && !m_status->isVisible())
   {
-    m_status->setString(m_sort == "mine" ? "You haven't shared a look yet" : !m_query.empty() ? "Nothing found" : "No looks yet: share yours!");
+    m_status->setString(m_sort == "mine"        ? "You haven't shared a look yet"
+                        : m_sort == "following" ? "Follow authors you like: their new looks show here"
+                        : !m_query.empty()      ? "Nothing found"
+                                                : "No looks yet: share yours!");
     m_status->limitLabelWidth(kGridSize.width - 20.f, .35f, .1f);
     m_status->setVisible(true);
   }
@@ -378,12 +381,12 @@ void GalleryPopup::refreshDetail()
 
   auto name = CCLabelBMFont::create(look.name.c_str(), "bigFont.fnt");
   name->limitLabelWidth(kDetailSize.width - 12.f, .42f, .1f);
-  name->setPosition({kDetailX, 140.f});
+  name->setPosition({kDetailX, 144.f});
   m_detail->addChild(name);
   auto by = CCLabelBMFont::create(fmt::format("by {}", look.author).c_str(), "bigFont.fnt");
   by->limitLabelWidth(kDetailSize.width - 12.f, .28f, .1f);
   by->setOpacity(200);
-  by->setPosition({kDetailX, 126.f});
+  by->setPosition({kDetailX, 131.f});
   m_detail->addChild(by);
 
   auto button = [&](CCNode *sprite, float x, float y, std::function<void()> action)
@@ -393,7 +396,14 @@ void GalleryPopup::refreshDetail()
     item->setPosition({x, y});
     m_detailMenu->addChild(item);
   };
-  button(textButton("Wear", 110.f, "GJ_button_01.png", 26.f), kDetailX, 100.f, [this, look]
+  // Follow the author (not yourself): their new looks show under Following
+  if (!look.mine && look.authorId > 0)
+  {
+    button(textButton(look.following ? "Following" : "Follow", 64.f, look.following ? "GJ_button_04.png" : "GJ_button_02.png", 16.f),
+           kDetailX, 117.f, [this, index]
+           { this->toggleFollow(index); });
+  }
+  button(textButton("Wear", 110.f, "GJ_button_01.png", 26.f), kDetailX, 95.f, [this, look]
          { this->wear(look); });
 
   // Keep it, like it, report it (or delete yours)
@@ -474,6 +484,33 @@ void GalleryPopup::toggleLike(size_t index)
                   if (self->getParent())
                     self->showPage();
                 });
+}
+
+void GalleryPopup::toggleFollow(size_t index)
+{
+  if (index >= m_looks.size())
+    return;
+  int const author = m_looks[index].authorId;
+  std::string const name = m_looks[index].author;
+  bool const on = !m_looks[index].following;
+  gallery::follow(author, on, [self = Ref(this), author, name, on](Result<bool, std::string> result)
+                  {
+                    if (!result)
+                    {
+                      notify(result.unwrapErr(), NotificationIcon::Error);
+                      return;
+                    }
+                    // Every look of theirs on the page
+                    for (auto &look : self->m_looks)
+                    {
+                      if (look.authorId == author)
+                        look.following = on;
+                    }
+                    notify(on ? fmt::format("Following {}: their new looks show under Following", name) : fmt::format("Not following {} anymore", name),
+                           NotificationIcon::Success);
+                    if (self->getParent())
+                      self->showPage();
+                  });
 }
 
 void GalleryPopup::report(gallery::Look const &look)

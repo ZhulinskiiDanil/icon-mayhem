@@ -24,11 +24,12 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 ## Accessories
 
 - **Ears**: cat, bunny or fox ears that twitch now and then and fold back in the wind
+- **Tails**: a cat, fox or fluffy tail that swings with every jump
 - **Bows** on the head with ribbons fluttering in the wind, **hair clips** (stars, hearts, X pins, bars) riding the bangs
 - A **scarf** with its ends fluttering behind, a **headband** with a bow or little ears
 - **Flowers** in the hair or a flower crown, a floating **halo**
 - **Wings**: angel, fairy or bat wings that flap on every jump
-- **Hats**: a beret, a beanie with a bouncy pom-pom or a witch hat with a bending tip
+- **Hats**: a beret, a beanie with a bouncy pom-pom, a witch hat with a bending tip, a crown or a tiara with glinting gems, a Santa hat and a little pumpkin. At Halloween and in winter they show up by themselves on looks without a hat
 - **Headphones**, plain or with cat ears, their lights glow to the level music
 - **Glasses**: round, heart or star shaped, with tinted lenses
 - **Earrings** and a **cat bell** on a collar that swing when you jump
@@ -48,8 +49,9 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 
 ## Looks of everyone
 
-- **Gallery**: looks shared by everyone, the most liked and the newest, each on your own icon, alive. Wear one in a tap, keep it in your presets, like it. Share yours with a name. Your Geometry Dash account is checked with Argon once, your password never leaves the game
+- **Gallery**: looks shared by everyone, the most liked and the newest, each on your own icon, alive. Wear one in a tap, keep it in your presets, like it, follow its author to see their new looks under Following. Share yours with a name. Your Geometry Dash account is checked with Argon once, your password never leaves the game
 - **Your custom icons on Globed**: the others see your custom icons (from More Icons or a texture pack) instead of the game's, even without More Icons, and you see theirs. Turn it off in General if you like
+- **Pairs on Globed**: pair up with a player and you both wear a matching bow and colors until the level ends
 - **Friends on Globed**: Players (in the customizer, when you play with others; the pause button shows a badge) shows everybody in the level in their look. Save a look you like, try it on until the level ends (they see it on you too), like it (hearts burst on their icon), or gift them yours
 
 ## Customizer and presets
@@ -62,6 +64,8 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Tidy blocks**: every part (Cape, Pet, Bangs, Glasses...) folds into one line with its switch right in it. A part that is off shows nothing more, turning it on opens its settings. Positions and fine detail wait under **Fine tuning**
 - **On now** shows everything you are wearing, from every tab, in one list
 - **Search** over all the settings
+- **Photo**: a PNG of your icon in its look, clear or on a card, to share anywhere
+- **Tour**: a few steps that show the customizer the first time
 - **Tap a part** of your icon in the preview (the bangs, a bow, the glasses, the pet...) and its settings open. **Parts** lists every part on one page
 - **The whole screen**: the customizer fills it, and − / + make the rows of settings smaller to see more of them at once
 - **Built-in presets**: Kitty, Sakura, Angel, Fairy, Ponytail, Short and Ahoge

@@ -15,6 +15,9 @@
 #include <Geode/ui/Notification.hpp>
 
 #include <chrono>
+#include <algorithm>
+#include <array>
+#include <random>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -42,9 +45,13 @@ namespace
   constexpr char const *kIconsEvent = "zhulis.icon-mayhem/icons";
   constexpr char const *kLookHashEvent = "zhulis.icon-mayhem/look-hash";
   constexpr char const *kGiftHashEvent = "zhulis.icon-mayhem/gift-hash";
+  constexpr char const *kPairEvent = "zhulis.icon-mayhem/pair"; // "ask:#rrggbb", "yes:#rrggbb", "end"
+  constexpr float kPairHeartsEvery = 4.f; // s between hearts while the pair is close
+  constexpr float kPairClose = 120.f;     // level units: this close the pair sends hearts
   constexpr float kGiftEvery = 60.f; // s between two gifts to the same player
   constexpr float kLikeQuiet = 10.f; // s: likes from the same player closer than this are dropped
   constexpr float kScanEvery = .5f; // s between looking for new players and look changes
+  constexpr size_t kCrowd = 6;      // players with us in the level from which their rigs get simpler
 
   // The Globed server drops events over 1024 bytes and counts every started 512 bytes as one more
   // event: a look goes in parts of at most this many bytes, each with a small header
@@ -120,6 +127,7 @@ namespace
     table->net->registerEvent(kIconsEvent, globed::EventServer::Game);
     table->net->registerEvent(kLookHashEvent, globed::EventServer::Game);
     table->net->registerEvent(kGiftHashEvent, globed::EventServer::Game);
+    table->net->registerEvent(kPairEvent, globed::EventServer::Game);
     log::info("Globed: looks, emotes, likes and gifts are shared with other players");
   }
 
@@ -195,6 +203,76 @@ namespace
     }
     s_pendingLooks.erase(sender);
     return whole;
+  }
+
+  // ! --- Pairs --- !
+
+  struct Pair
+  {
+    int id = 0;      // their player id (what events go to)
+    int account = 0; // their account id (what events come from)
+    std::string name;
+    ccColor3B accent;
+    bool second = false; // we accepted: our bow sits on the other side
+  };
+  std::optional<Pair> s_pair;
+  std::unordered_map<int, Pair> s_pairAsks; // they asked us, by the id the ask came from
+  std::set<int> s_pairAsked;                // we asked them, player and account ids
+
+  constexpr std::array<ccColor3B, 5> kPairAccents{ccColor3B{255, 111, 145}, ccColor3B{120, 190, 255}, ccColor3B{255, 200, 90},
+                                                  ccColor3B{150, 95, 220}, ccColor3B{126, 214, 105}};
+
+  // A matching bow (on the other side for the second one) and the accent on every accessory color
+  matjson::Value pairOverlay(ccColor3B accent, bool second)
+  {
+    std::string const hex = "#" + cc3bToHexString(accent);
+    auto overlay = matjson::Value::object();
+    overlay["head-bow"] = true;
+    overlay["bow-color"] = "Custom";
+    overlay["bow-custom-color"] = hex;
+    overlay["bow-position"] = second ? 35.0 : -35.0;
+    for (auto [source, custom] : {std::pair{"tie-color", "tie-custom-color"}, std::pair{"clip-color", "clip-custom-color"},
+                                  std::pair{"flower-color", "flower-custom-color"}, std::pair{"headband-color", "headband-custom-color"},
+                                  std::pair{"scarf-color", "scarf-custom-color"}, std::pair{"hat-color", "hat-custom-color"},
+                                  std::pair{"earring-color", "earring-custom-color"}})
+    {
+      overlay[source] = "Custom";
+      overlay[custom] = hex;
+    }
+    overlay["streak-color"] = hex;
+    overlay["headphones-light"] = hex;
+    return overlay;
+  }
+
+  std::optional<ccColor3B> parseAccent(std::string_view text)
+  {
+    if (text.size() != 7 || text.front() != '#')
+      return std::nullopt;
+    if (auto color = cc3bFromHexString(std::string(text.substr(1)), true))
+      return color.unwrap();
+    return std::nullopt;
+  }
+
+  void startPair(Pair pair)
+  {
+    looks::setPairOverlay(pairOverlay(pair.accent, pair.second));
+    s_pair = std::move(pair);
+    s_pairAsks.clear();
+    s_pairAsked.clear();
+  }
+
+  void clearPair()
+  {
+    s_pair.reset();
+    s_pairAsks.clear();
+    s_pairAsked.clear();
+    if (looks::pairOverlay().size() > 0)
+      looks::setPairOverlay(matjson::Value::object());
+  }
+
+  bool isPeer(GlobedPeer const &peer, int sender)
+  {
+    return sender == peer.id || sender == peer.account;
   }
 
   // ! --- Looks through the server --- !
@@ -402,6 +480,43 @@ namespace
                     Notification::create(fmt::format("{} gifted you their look! Players, in the customizer", who), NotificationIcon::Success)->show();
                   });
       }
+      else if (name == kPairEvent)
+      {
+        std::string_view const text = payload;
+        if (text.starts_with("ask:"))
+        {
+          auto accent = parseAccent(text.substr(4));
+          if (!accent || s_pair)
+            continue;
+          std::string const who = playerName(sender);
+          s_pairAsks[sender] = Pair{0, sender, who, *accent, true};
+          Notification::create(fmt::format("{} wants to pair up: matching bows and colors! Players, in the customizer", who),
+                               NotificationIcon::Info, 3.f)
+              ->show();
+        }
+        else if (text.starts_with("yes:") && s_pairAsked.contains(sender))
+        {
+          auto accent = parseAccent(text.substr(4));
+          if (!accent)
+            continue;
+          // The player id we asked goes with the account the answer came from
+          int id = sender;
+          for (auto const &peer : globedPeers())
+          {
+            if (isPeer(peer, sender))
+              id = peer.id;
+          }
+          std::string const who = playerName(sender);
+          startPair(Pair{id, sender, who, *accent, false});
+          Notification::create(fmt::format("Paired with {}!", who), NotificationIcon::Success)->show();
+        }
+        else if (text == "end" && s_pair && (sender == s_pair->account || sender == s_pair->id))
+        {
+          std::string const who = s_pair->name;
+          clearPair();
+          Notification::create(fmt::format("{} ended the pair", who), NotificationIcon::Info)->show();
+        }
+      }
       else if (name == kLookEvent)
       {
         // In parts (their server was out of reach, or an older Icon Mayhem)
@@ -539,6 +654,62 @@ std::vector<GlobedGift> &globedGifts()
   return s_gifts;
 }
 
+bool globedAskPair(GlobedPeer const &peer)
+{
+  if (!globedActive() || s_pair)
+    return false;
+  // Our accent: one of a few cute colors, the same for both once they say yes
+  std::uniform_int_distribution<size_t> pick(0, kPairAccents.size() - 1);
+  static std::mt19937 random(std::random_device{}());
+  auto const accent = kPairAccents[pick(random)];
+  send(kPairEvent, "ask:#" + cc3bToHexString(accent), {peer.id});
+  s_pairAsked.insert(peer.id);
+  s_pairAsked.insert(peer.account);
+  return true;
+}
+
+bool globedAcceptPair(GlobedPeer const &peer)
+{
+  if (!globedActive())
+    return false;
+  for (auto const &[sender, ask] : s_pairAsks)
+  {
+    if (!isPeer(peer, sender))
+      continue;
+    Pair pair = ask;
+    pair.id = peer.id;
+    pair.account = peer.account;
+    pair.name = peer.name;
+    send(kPairEvent, "yes:#" + cc3bToHexString(pair.accent), {peer.id});
+    startPair(std::move(pair));
+    return true;
+  }
+  return false;
+}
+
+void globedEndPair()
+{
+  if (s_pair && globedActive())
+    send(kPairEvent, "end", {s_pair->id});
+  clearPair();
+}
+
+bool globedPairedWith(GlobedPeer const &peer)
+{
+  return s_pair && (s_pair->id == peer.id || s_pair->account == peer.account);
+}
+
+bool globedPairAsked(GlobedPeer const &peer)
+{
+  return std::any_of(s_pairAsks.begin(), s_pairAsks.end(), [&](auto const &ask)
+                     { return isPeer(peer, ask.first); });
+}
+
+bool globedPairPending(GlobedPeer const &peer)
+{
+  return s_pairAsked.contains(peer.id) || s_pairAsked.contains(peer.account);
+}
+
 // ! --- Custom icons --- !
 
 int globedAccountOf(PlayerObject *player)
@@ -594,6 +765,7 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     std::set<int> m_seen;     // players we already sent our look for
     std::string m_sentLook;
     bool m_lookWaiting = false; // changed, not sent yet (going up to the server)
+    float m_pairHearts = 0.f;   // s since the pair last sent hearts
     std::string m_sentIcons;
     std::map<int, int> m_iconModes; // player id * 2 + second icon -> what it showed when last dressed
     bool m_wasActive = false;
@@ -606,6 +778,8 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     s_pendingLooks.clear();
     s_liked.clear();
     // A new level: the server may be back, what failed is tried again
+    HairConfig::setCrowded(false);
+    clearPair();
     s_wantedLook.clear();
     s_uploadFailed.clear();
     s_fetchFailed.clear();
@@ -734,6 +908,47 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
       fields->m_sentIcons = custom_icons::payload();
       send(kIconsEvent, fields->m_sentIcons);
       log::info("Globed: sent our custom icons ({} bytes)", fields->m_sentIcons.size());
+    }
+
+    // A crowd: the other players' rigs get simpler (yours stays)
+    HairConfig::setCrowded(fields->m_seen.size() >= kCrowd);
+
+    // The pair: it ends when they leave; close together, hearts float on both now and then
+    if (s_pair)
+    {
+      bool const here = std::find(ids.begin(), ids.end(), s_pair->id) != ids.end();
+      if (!here)
+      {
+        Notification::create(fmt::format("{} left, the pair ended", s_pair->name), NotificationIcon::Info)->show();
+        clearPair();
+      }
+      else
+      {
+        fields->m_pairHearts += kScanEvery;
+        if (fields->m_pairHearts >= kPairHeartsEvery)
+        {
+          fields->m_pairHearts = 0.f;
+          for (int key : {s_pair->id, s_pair->account})
+          {
+            for (auto &rig : s_remoteRigs[key])
+            {
+              auto hair = rig.lock();
+              auto them = hair ? hair->player() : nullptr;
+              if (!them || !m_player1)
+                continue;
+              CCPoint const a = m_player1->convertToWorldSpace(CCPointZero);
+              CCPoint const b = them->convertToWorldSpace(CCPointZero);
+              float const scale = std::max(m_objectLayer ? m_objectLayer->getScale() : 1.f, .01f);
+              if (a.getDistance(b) / scale < kPairClose)
+              {
+                hair->emote(HairNode::Emote::Heart);
+                levelHairEmote(HairNode::Emote::Heart);
+              }
+              break;
+            }
+          }
+        }
+      }
     }
 
     // Our look goes to everybody in the level when it changes and when somebody new shows up

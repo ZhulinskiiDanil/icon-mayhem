@@ -88,6 +88,14 @@ bool HairNode::decorActive() const
 
 ccColor4F HairNode::lockColorAt(Lock const &lock, ccColor4F const &base, float along) const
 {
+  // A furry tail can have a white tip
+  if (lock.kind == LockKind::FurTail)
+  {
+    if (!m_config.furTailTip)
+      return base;
+    return mixed(base, {base.a, base.a, base.a, base.a}, smoothstep(.7f, .88f, along));
+  }
+
   bool const isHair = lock.kind == LockKind::Back || lock.kind == LockKind::FaceLock || lock.kind == LockKind::Bang ||
                       lock.kind == LockKind::Tail || lock.kind == LockKind::Ahoge;
   if (!isHair)
@@ -207,12 +215,14 @@ void HairNode::drawClips(CCDrawNode *node)
         drawStar(node, center, up, size + outline * 1.6f, size * .45f + outline, outlineColor);
       drawStar(node, center, up, size, size * .45f, color);
       fillCircle(node, center + up * (size * .15f) + perpendicular(up) * (size * .12f), size * .12f, shine);
+      drawTwinkle(node, center + up * (size * .55f) + perpendicular(up) * (size * .35f), size * .7f, m_time + static_cast<float>(i) * .9f, color.a);
       break;
     case ClipStyle::Heart:
       if (outline > 0.f)
         drawHeart(node, center, up, size + outline * 1.4f, outlineColor);
       drawHeart(node, center, up, size, color);
       fillCircle(node, center + up * (size * .4f) + perpendicular(up) * (size * .5f), size * .14f, shine);
+      drawTwinkle(node, center + up * (size * .6f) + perpendicular(up) * (size * .55f), size * .7f, m_time + static_cast<float>(i) * .9f, color.a);
       break;
     case ClipStyle::XPin:
       for (float turn : {45.f, -45.f})
@@ -596,6 +606,12 @@ void HairNode::drawSticker(CCDrawNode *node)
 
 // ! --- Hat --- !
 
+namespace
+{
+  // Gems of the crown and the tiara: pink, sky blue, mint
+  constexpr std::array<ccColor3B, 3> kGems{ccColor3B{255, 95, 150}, ccColor3B{100, 205, 255}, ccColor3B{120, 230, 170}};
+}
+
 void HairNode::drawHat(CCDrawNode *node)
 {
   if (m_config.hat == HatStyle::None)
@@ -680,6 +696,106 @@ void HairNode::drawHat(CCDrawNode *node)
     CCPoint const bandLeft = base - right * (size * 5.8f) + up * (tall * 2.6f);
     CCPoint const bandRight = base + right * (size * 5.8f) + up * (tall * 2.6f);
     node->drawSegment(bandLeft, bandRight, size * 1.3f, shaded(color, .55f));
+    break;
+  }
+  case HatStyle::Crown:
+  {
+    // A band with three points, round gems on the tips and in the band, glinting now and then
+    float const half = size * 8.f;
+    float const band = tall * 2.6f;
+    std::vector<CCPoint> crown{base - right * half + up * tall * .5f, base + right * half + up * tall * .5f,
+                               base + right * half + up * (band + tall * 4.6f), base + right * (half * .5f) + up * (band + tall * 1.2f),
+                               base + up * (band + tall * 6.f), base - right * (half * .5f) + up * (band + tall * 1.2f),
+                               base - right * half + up * (band + tall * 4.6f)};
+    node->drawPolygon(crown.data(), static_cast<unsigned>(crown.size()), color, outline, outlineColor);
+    node->drawSegment(base - right * (half * .92f) + up * (tall * 1.8f), base + right * (half * .92f) + up * (tall * 1.8f), size * .9f,
+                      shaded(color, .78f));
+    std::array<CCPoint, 3> tips{base - right * half + up * (band + tall * 4.6f), base + up * (band + tall * 6.f),
+                                base + right * half + up * (band + tall * 4.6f)};
+    for (size_t i = 0; i < tips.size(); ++i)
+    {
+      auto const gem = premultiplied(kGems[i % kGems.size()], color.a);
+      if (outline > 0.f)
+        fillCircle(node, tips[i], size * 1.25f + outline * .7f, outlineColor);
+      fillCircle(node, tips[i], size * 1.25f, gem);
+      drawTwinkle(node, tips[i] + up * (size * .5f) + right * (size * .5f), size * 2.f, m_time + static_cast<float>(i) * .8f, color.a);
+    }
+    auto const middleGem = premultiplied(kGems[0], color.a);
+    if (outline > 0.f)
+      fillCircle(node, base + up * (tall * 1.8f), size * 1.4f + outline * .7f, outlineColor);
+    fillCircle(node, base + up * (tall * 1.8f), size * 1.4f, middleGem);
+    break;
+  }
+  case HatStyle::Tiara:
+  {
+    // A thin arc over the front of the head, small gems along it and a big one in the middle
+    float const half = size * 9.f;
+    std::vector<CCPoint> arc;
+    for (int i = 0; i <= 12; ++i)
+    {
+      float const x = static_cast<float>(i) / 6.f - 1.f;
+      arc.push_back(base - right * (x * half) + up * (tall * (.6f + 3.4f * (1.f - x * x))));
+    }
+    for (size_t i = 1; i < arc.size(); ++i)
+    {
+      if (outline > 0.f)
+        node->drawSegment(arc[i - 1], arc[i], size * .75f + outline, outlineColor);
+    }
+    for (size_t i = 1; i < arc.size(); ++i)
+      node->drawSegment(arc[i - 1], arc[i], size * .75f, color);
+    for (int i : {2, 4, 8, 10})
+    {
+      if (outline > 0.f)
+        fillCircle(node, arc[i] + up * (size * .8f), size * .75f + outline * .6f, outlineColor);
+      fillCircle(node, arc[i] + up * (size * .8f), size * .75f, premultiplied(kGems[1], color.a));
+    }
+    // The big gem: a diamond standing on the middle of the arc
+    CCPoint const gem = arc[6] + up * (tall * 2.4f);
+    std::vector<CCPoint> diamond{gem + up * (tall * 2.2f), gem + right * (size * 1.7f), gem - up * (tall * 1.6f), gem - right * (size * 1.7f)};
+    node->drawPolygon(diamond.data(), static_cast<unsigned>(diamond.size()), premultiplied(kGems[0], color.a), outline * .8f, outlineColor);
+    fillCircle(node, gem + up * (tall * .6f) - right * (size * .5f), size * .35f, faded({1.f, 1.f, 1.f, 1.f}, .8f * color.a));
+    drawTwinkle(node, gem + up * (tall * 1.2f) + right * (size * 1.f), size * 2.6f, m_time, color.a);
+    drawTwinkle(node, arc[2] + up * (size * 1.4f), size * 1.6f, m_time + 1.1f, color.a);
+    break;
+  }
+  case HatStyle::SantaHat:
+  {
+    // A red cone flopping over to the back, a white fluffy trim and a pom-pom on a spring
+    auto const trim = premultiplied(ccColor3B{250, 250, 250}, color.a);
+    CCPoint const middle = base + up * (tall * 6.f);
+    float const bend = radians(55.f + m_bowWobble * 2.f);
+    CCPoint const tip = middle + rotated(up, bend) * (tall * 7.5f);
+    shape({base - right * (size * 9.f) + up * tall, base + right * (size * 9.f) + up * tall, middle + right * (size * 4.f),
+           middle - right * (size * 4.f)},
+          color);
+    shape({middle - right * (size * 4.f), middle + right * (size * 4.f), tip}, color);
+    CCPoint const trimLeft = base - right * (size * 9.5f) + up * (tall * 1.3f);
+    CCPoint const trimRight = base + right * (size * 9.5f) + up * (tall * 1.3f);
+    if (outline > 0.f)
+      node->drawSegment(trimLeft, trimRight, size * 2.4f + outline, outlineColor);
+    node->drawSegment(trimLeft, trimRight, size * 2.4f, trim);
+    if (outline > 0.f)
+      fillCircle(node, tip, size * 2.3f + outline, outlineColor);
+    fillCircle(node, tip, size * 2.3f, trim);
+    break;
+  }
+  case HatStyle::Pumpkin:
+  {
+    // Its own colors: an orange pumpkin with ribs, a green stem and a leaf
+    float const alpha = color.a;
+    auto const orange = premultiplied(ccColor3B{255, 140, 40}, alpha);
+    auto const rib = premultiplied(ccColor3B{220, 105, 25}, alpha);
+    auto const stem = premultiplied(ccColor3B{90, 150, 60}, alpha);
+    CCPoint const middle = base + up * (tall * 4.f);
+    fillEllipse(node, middle, right, size * 8.5f, tall * 5.f, orange, outline, outlineColor);
+    for (float x : {-4.2f, 0.f, 4.2f})
+      fillEllipse(node, middle + right * (x * size), right, size * 1.4f, tall * 4.4f, rib);
+    CCPoint const stemTop = middle + rotated(up, radians(-12.f + m_bowWobble)) * (tall * 7.f);
+    if (outline > 0.f)
+      node->drawSegment(middle + up * (tall * 4.f), stemTop, size * 1.1f + outline, outlineColor);
+    node->drawSegment(middle + up * (tall * 4.f), stemTop, size * 1.1f, stem);
+    fillEllipse(node, stemTop + right * (size * 2.2f) - up * (tall * .6f), rotated(right, radians(-20.f)), size * 2.4f, tall * 1.1f, stem,
+                outline * .7f, outlineColor);
     break;
   }
   case HatStyle::None:

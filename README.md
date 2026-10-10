@@ -50,7 +50,7 @@ The build packages the mod into `build/zhulis.icon-mayhem.geode` and installs it
   - `HitTest.cpp`: which part of the look is under a tap in the customizer preview
 - `src/settings/`: every setting by key; the look in `look.json` in the config folder (read again when edited by hand), the general ones on Geode's page
 - `src/hooks/`: game hooks (level, garage, pause menu, icon previews, profile and menu, Globed)
-- `src/ui/`: the customizer and presets popups
+- `src/ui/`: the customizer and presets popups, the tour (`Tour.cpp`)
 - `src/presets/`: saving, loading and sharing presets, looks per mode and for player 2
 - `src/gallery/`: the client of the gallery server, [icon-mayhem-server](https://github.com/ZhulinskiiDanil/icon-mayhem-server) (Express, Postgres; accounts checked with [Argon](https://github.com/GlobedGD/argon))
 - `resources/`: sprites, the built-in presets and `look-settings.json` (every look setting: name, description, type, range, options, default)

@@ -224,6 +224,16 @@ void HairNode::reloadConfig()
   bool const firstLoad = m_locks.empty();
 
   m_config = m_lookFn ? looks::configFor(m_lookName) : HairConfig::load();
+  // Paired on Globed: our icons in the level wear the matching bow and colors
+  if (m_lookFn && !looks::pairOverlay().isNull() && looks::pairOverlay().size() > 0)
+  {
+    auto play = PlayLayer::get();
+    if (play && m_player && (m_player == play->m_player1 || m_player == play->m_player2))
+      m_config = looks::configForPaired(m_lookName);
+  }
+  // Another player in a crowded level: simpler, so many of them stay smooth
+  if (HairConfig::crowded() && m_lookName.starts_with("@remote:") && Mod::get()->getSettingValue<bool>("lighter-crowds"))
+    m_config.lighten();
   m_configVersion = HairConfig::version();
   m_sim.setStepRate(m_config.simRate);
   this->generateLocks();
@@ -1108,6 +1118,8 @@ ccColor4F HairNode::lockColor(Lock const &lock) const
   }
   if (kind == LockKind::Ear && m_config.earColorSource != HairColorSource::Hair)
     return this->sourceColor(m_config.earColorSource, m_config.earColor);
+  if (kind == LockKind::FurTail)
+    return m_config.furTailColorSource == HairColorSource::Hair ? this->hairColor() : this->sourceColor(m_config.furTailColorSource, m_config.furTailColor);
   if (kind == LockKind::Trail)
     return m_config.trailColorSource == HairColorSource::Hair ? this->hairColor() : this->sourceColor(m_config.trailColorSource, m_config.trailColor);
   if (kind == LockKind::ScarfEnd)
@@ -1209,6 +1221,9 @@ void HairNode::redraw()
 
   // Behind the icon: the hairstyle with its base, the tails with their ties, the ahoge, the ears,
   // the ends of the scarf
+  // The furry tail behind the hair too, it comes out of the body
+  this->drawPart(this, "fur-tail-title", [&]
+                 { this->drawLocks(this, m_furTailStart, m_trailStart, false); });
   this->drawPart(this, "hair-title", [&]
                  { this->drawLocks(this, 0, m_tailsStart, true); });
   this->drawPart(this, "tails-title", [&]
@@ -1225,7 +1240,7 @@ void HairNode::redraw()
                    this->drawLocks(this, m_earsStart, m_scarfStart, false);
                    this->drawEarInners(this); });
   this->drawPart(this, "scarf-title", [&]
-                 { this->drawLocks(this, m_scarfStart, m_trailStart, false); });
+                 { this->drawLocks(this, m_scarfStart, m_furTailStart, false); });
   m_fadeAlpha = hidden;
   this->drawPart(this, "trail-title", [&]
                  { this->drawRibbon(this); });

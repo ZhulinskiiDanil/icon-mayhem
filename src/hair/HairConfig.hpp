@@ -44,6 +44,15 @@ enum class EarStyle
   Fox,
 };
 
+// A furry tail at the back of the icon
+enum class FurTailStyle
+{
+  None,
+  Cat,    // thin, curling up at the end
+  Fox,    // big and bushy, a pointed tip
+  Fluffy, // round and soft all along
+};
+
 enum class SparkleStyle
 {
   None,
@@ -92,6 +101,10 @@ enum class HatStyle
   Beret,
   Beanie,
   WitchHat,
+  Crown,    // three points with gems
+  Tiara,    // a thin arc with a big gem in the middle
+  SantaHat, // red, a white trim, the tip flopping over (also in winter, see seasonal)
+  Pumpkin,  // a little pumpkin with a stem and a leaf (also at Halloween)
 };
 
 enum class StickerStyle
@@ -326,6 +339,15 @@ struct HairConfig
   cocos2d::ccColor3B earColor = {58, 42, 128};
   cocos2d::ccColor3B earInnerColor = {244, 167, 185};
 
+  // A tail at the back, swinging on its own
+  FurTailStyle furTail = FurTailStyle::None;
+  float furTailLength = 22.f; // icon units
+  float furTailSize = 1.f;
+  float furTailCurl = .5f;    // 0 straight out .. 1 curled up
+  bool furTailTip = true;     // a white tip
+  HairColorSource furTailColorSource = HairColorSource::Hair;
+  cocos2d::ccColor3B furTailColor = {58, 42, 128};
+
   // Effects
   bool blush = false;
   cocos2d::ccColor3B blushColor = {255, 143, 163};
@@ -490,6 +512,22 @@ struct HairConfig
 
   // The mod settings, or a look saved in a preset (its settings JSON) on top of them
   static HairConfig load(matjson::Value const *look = nullptr);
+
+  // The season of the "Seasonal touches" setting today: a pumpkin at Halloween, a Santa hat and
+  // snow in winter, on looks without a hat
+  enum class Season
+  {
+    None,
+    Halloween, // Oct 15 - Nov 1
+    Winter,    // Dec 10 - Jan 10
+  };
+  static Season season();
+
+  // Many players with looks around (Globed): their rigs are drawn simpler, see lighten()
+  static bool crowded();
+  static void setCrowded(bool crowded);
+  // Fewer locks and steps, no pet, cape, trail or particles: for the rigs of other players in a crowd
+  void lighten();
 
   // Bumped whenever any mod setting changes, nodes compare it to reload lazily
   static unsigned version();

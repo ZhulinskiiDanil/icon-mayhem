@@ -374,6 +374,41 @@ std::optional<matjson::Value> looks::presetSettings(std::string const &name)
   return settings;
 }
 
+namespace
+{
+  matjson::Value &pairOverlayValue()
+  {
+    static matjson::Value overlay = matjson::Value::object();
+    return overlay;
+  }
+}
+
+void looks::setPairOverlay(matjson::Value overlay)
+{
+  pairOverlayValue() = overlay.isObject() ? std::move(overlay) : matjson::Value::object();
+  HairConfig::bumpVersion();
+}
+
+matjson::Value const &looks::pairOverlay()
+{
+  return pairOverlayValue();
+}
+
+HairConfig looks::configForPaired(std::string const &name)
+{
+  // The whole look first: the main one, a preset, or another player's look tried on
+  matjson::Value settings;
+  if (name.empty())
+    settings = presets::capture("").settings;
+  else if (name.starts_with(kRemotePrefix))
+    settings = presets::withDefaults(remoteLook(name).value_or(matjson::Value::object()));
+  else
+    settings = presets::withDefaults(presetSettings(name).value_or(matjson::Value::object()));
+  for (auto const &[key, value] : pairOverlayValue())
+    settings[key] = value;
+  return HairConfig::load(&settings);
+}
+
 std::string looks::builtInLook(std::string const &name)
 {
   return fmt::format("{}{}", kBuiltInPrefix, name);

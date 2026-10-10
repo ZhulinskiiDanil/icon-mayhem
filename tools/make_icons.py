@@ -352,11 +352,22 @@ def globe():
     return finish(m, [(ImageChops.multiply(lines, mask), (79, 163, 224, 255))])
 
 
+def camera():
+    m = canvas(); d = ImageDraw.Draw(m)
+    d.rounded_rectangle((44, 122, 340, 318), radius=38, fill=255)
+    d.rounded_rectangle((128, 82, 256, 150), radius=22, fill=255)
+    lens = canvas(); ImageDraw.Draw(lens).ellipse((124, 150, 260, 286), fill=255)
+    glass = canvas(); ImageDraw.Draw(glass).ellipse((154, 180, 230, 256), fill=255)
+    flash = canvas(); ImageDraw.Draw(flash).ellipse((272, 146, 308, 182), fill=255)
+    return finish(m, [(lens, INK), (glass, (120, 190, 255, 255)), (flash, (255, 200, 90, 255))])
+
+
 ICONS = {
     'undo': undo, 'reset': reset, 'dice': dice, 'palette': palette, 'match': match, 'jump': jump, 'run': run,
     'stop': stop, 'save': save, 'save-as': save_as, 'hitboxes': hitboxes, 'empty': empty, 'paste': paste,
     'import': import_, 'export': export, 'folder': folder, 'copy': copy, 'rename': rename, 'link': link,
     'target': target, 'trash': trash, 'wind': wind, 'people': people, 'heart': heart, 'gift': gift, 'globe': globe,
+    'camera': camera,
 }
 
 if __name__ == '__main__':

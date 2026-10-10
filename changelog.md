@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.11.0
+
+### On your icon
+- A tail: cat (thin, curling up), fox (big and bushy) or fluffy, swinging with every jump; its length, thickness, curl, color and a white tip. Kitty has one now
+- Hats: a crown with gems, a tiara with a big gem, a Santa hat and a little pumpkin. Gems, star and heart clips glint now and then
+- Seasonal touches: at Halloween a pumpkin, in winter a Santa hat and snow, on every look without a hat (a switch on the settings page)
+
+### Customizer
+- Photo (the camera right of the icon): a PNG of your icon in its look, clear or on a little card with the name of the look, in the photos folder
+- A short tour the first time you open it; "Tour of the customizer" in General shows it again
+
+### Globed
+- Pair up with a player (Pair in Players): you both wear a matching bow and colors until the level ends, and hearts float when you're close
+- Lighter crowds: with 6 or more players in the level, their hair and accessories are drawn simpler so the game stays smooth (a switch on the settings page)
+
+### Gallery
+- Follow authors you like: their new looks show under Following
+
 ## v1.10.2
 
 ### Fixed

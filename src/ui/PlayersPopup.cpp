@@ -255,6 +255,29 @@ void PlayersPopup::rebuild()
       button(menu, textButton(wearing ? "Take off" : "Try on", 64.f, wearing ? "GJ_button_04.png" : "GJ_button_01.png", 22.f), right - 116.f,
              [this, peer]
              { this->toggleTryOn(peer.look); });
+
+      // A pair: matching bows and colors until the level ends
+      bool const paired = globedPairedWith(peer);
+      bool const asked = !paired && globedPairAsked(peer);
+      bool const pending = !paired && !asked && globedPairPending(peer);
+      auto const color = paired ? CircleBaseColor::Pink : asked ? CircleBaseColor::Green : pending ? CircleBaseColor::Gray : CircleBaseColor::Blue;
+      char const *caption = paired ? "Paired" : asked ? "Accept" : pending ? "Asked" : "Pair";
+      button(menu, iconButton("link", color, 22.f, caption), right - 170.f, [this, peer, paired, asked, pending]
+             {
+               if (paired)
+               {
+                 globedEndPair();
+                 notify(fmt::format("Not paired with {} anymore", peer.name), NotificationIcon::Info);
+               }
+               else if (asked)
+               {
+                 if (globedAcceptPair(peer))
+                   notify(fmt::format("Paired with {}: matching bows and colors!", peer.name), NotificationIcon::Success);
+               }
+               else if (!pending && globedAskPair(peer))
+                 notify(fmt::format("Asked {} to pair up", peer.name), NotificationIcon::Success);
+               this->rebuildSoon();
+             });
     }
     content->addChild(node);
   }

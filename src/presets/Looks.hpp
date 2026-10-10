@@ -57,6 +57,13 @@ namespace looks
   HairConfig configFor(std::string const &name);
   // Settings of a preset by name, read from disk once (until invalidate())
   std::optional<matjson::Value> presetSettings(std::string const &name);
+
+  // Paired with another player on Globed (until the level ends): these settings go over the look
+  // we wear in the level and the one we send, a matching bow and colors. An empty object: no pair
+  void setPairOverlay(matjson::Value overlay);
+  matjson::Value const &pairOverlay();
+  // The config of a look with the pair overlay on top
+  HairConfig configForPaired(std::string const &name);
   // Presets were saved, deleted or imported: read them again
   void invalidate();
   // A preset was renamed: the modes, player 2 and icons that wore it wear the new name

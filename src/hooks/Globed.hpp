@@ -43,3 +43,12 @@ std::vector<GlobedGift> &globedGifts();
 int globedAccountOf(PlayerObject *player);
 // Their own game icons back on a player (after reporting their custom icon)
 void globedRestoreIcons(int playerId);
+
+// Pairs: two players on Globed wear a matching bow and colors until the level ends
+bool globedAskPair(GlobedPeer const &peer);
+bool globedAcceptPair(GlobedPeer const &peer);
+void globedEndPair();
+// With them now / they asked us / we asked them
+bool globedPairedWith(GlobedPeer const &peer);
+bool globedPairAsked(GlobedPeer const &peer);
+bool globedPairPending(GlobedPeer const &peer);

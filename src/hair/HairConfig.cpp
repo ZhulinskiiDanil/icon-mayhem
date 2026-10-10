@@ -3,6 +3,7 @@
 #include "../settings/Settings.hpp"
 
 #include <algorithm>
+#include <ctime>
 #include <array>
 #include <string_view>
 
@@ -63,6 +64,17 @@ namespace
     if (value == "Fox")
       return EarStyle::Fox;
     return EarStyle::None;
+  }
+
+  FurTailStyle parseFurTail(std::string const &value)
+  {
+    if (value == "Cat")
+      return FurTailStyle::Cat;
+    if (value == "Fox")
+      return FurTailStyle::Fox;
+    if (value == "Fluffy")
+      return FurTailStyle::Fluffy;
+    return FurTailStyle::None;
   }
 
   SparkleStyle parseSparkles(std::string const &value)
@@ -132,6 +144,14 @@ namespace
       return HatStyle::Beanie;
     if (value == "Witch hat")
       return HatStyle::WitchHat;
+    if (value == "Crown")
+      return HatStyle::Crown;
+    if (value == "Tiara")
+      return HatStyle::Tiara;
+    if (value == "Santa hat")
+      return HatStyle::SantaHat;
+    if (value == "Pumpkin")
+      return HatStyle::Pumpkin;
     return HatStyle::None;
   }
 
@@ -441,6 +461,13 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.earTwitch = number("ear-twitch");
   cfg.earColorSource = parseColorSource(text("ear-color"));
   cfg.earColor = color("ear-custom-color");
+  cfg.furTail = parseFurTail(text("fur-tail"));
+  cfg.furTailLength = number("fur-tail-length");
+  cfg.furTailSize = number("fur-tail-size");
+  cfg.furTailCurl = number("fur-tail-curl");
+  cfg.furTailTip = flag("fur-tail-tip");
+  cfg.furTailColorSource = parseColorSource(text("fur-tail-color"));
+  cfg.furTailColor = color("fur-tail-custom-color");
   cfg.earInnerColor = color("ear-inner-color");
 
   cfg.blush = flag("blush");
@@ -596,6 +623,30 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.streaks = std::clamp(cfg.streaks, 0, 8);
 
   // Performance mode: fewer locks, segments, particles and simulation steps
+  // Seasonal touches, on looks without a hat of their own
+  if (cfg.hat == HatStyle::None)
+  {
+    switch (season())
+    {
+    case Season::Halloween:
+      cfg.hat = HatStyle::Pumpkin;
+      break;
+    case Season::Winter:
+      cfg.hat = HatStyle::SantaHat;
+      cfg.hatColorSource = HairColorSource::Custom;
+      cfg.hatColor = {217, 48, 62};
+      if (!cfg.petals)
+      {
+        cfg.petals = true;
+        cfg.weather = WeatherStyle::Snow;
+        cfg.petalColor = {255, 255, 255};
+      }
+      break;
+    case Season::None:
+      break;
+    }
+  }
+
   switch (cfg.quality)
   {
   case Quality::Balanced:
@@ -619,6 +670,62 @@ HairConfig HairConfig::load(matjson::Value const *look)
   }
 
   return cfg;
+}
+
+HairConfig::Season HairConfig::season()
+{
+  if (!Mod::get()->getSettingValue<bool>("seasonal"))
+    return Season::None;
+
+  // A saved value can pretend another day, to see the seasons any time ("halloween", "winter")
+  auto const pretend = Mod::get()->getSavedValue<std::string>("pretend-season", "");
+  if (pretend == "halloween")
+    return Season::Halloween;
+  if (pretend == "winter")
+    return Season::Winter;
+
+  std::time_t const now = std::time(nullptr);
+  std::tm const today = *std::localtime(&now);
+  int const month = today.tm_mon + 1;
+  int const day = today.tm_mday;
+  if ((month == 10 && day >= 15) || (month == 11 && day <= 1))
+    return Season::Halloween;
+  if ((month == 12 && day >= 10) || (month == 1 && day <= 10))
+    return Season::Winter;
+  return Season::None;
+}
+
+namespace
+{
+  bool s_crowded = false;
+}
+
+bool HairConfig::crowded()
+{
+  return s_crowded;
+}
+
+void HairConfig::setCrowded(bool crowded)
+{
+  if (crowded == s_crowded)
+    return;
+  s_crowded = crowded;
+  bumpVersion();
+}
+
+void HairConfig::lighten()
+{
+  lockCount = std::min(lockCount, 14);
+  segments = std::min(segments, 5);
+  bangsCount = std::min(bangsCount, 6);
+  simRate = std::min(simRate, 90.f);
+  maxParticles = std::min<size_t>(maxParticles, 8);
+  petals = false;
+  sparkles = SparkleStyle::None;
+  haloGlow = false;
+  pet = PetStyle::None;
+  cape = CapeStyle::None;
+  trail = TrailStyle::None;
 }
 
 unsigned HairConfig::version()

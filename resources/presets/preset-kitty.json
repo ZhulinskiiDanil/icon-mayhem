@@ -63,6 +63,8 @@
         "scarf-color": "Custom",
         "scarf-custom-color": "#D9303E",
         "ears": "Cat",
+        "fur-tail": "Cat",
+        "fur-tail-tip": false,
         "ear-size": 1,
         "ear-spread": 40,
         "ear-twitch": 0.6,

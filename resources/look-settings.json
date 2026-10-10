@@ -836,6 +836,79 @@
 		"default": "#F4A7B9",
 		"description": "Color inside the ears"
 	},
+	"fur-tail-title": {
+		"type": "title",
+		"name": "Tail",
+		"description": "A soft tail at the back of the icon that swings with every jump"
+	},
+	"fur-tail": {
+		"name": "Tail",
+		"description": "Cat: thin, curling up at the end. Fox: big and bushy with a pointed tip. Fluffy: round and soft all along",
+		"type": "string",
+		"default": "None",
+		"one-of": [
+			"None",
+			"Cat",
+			"Fox",
+			"Fluffy"
+		]
+	},
+	"fur-tail-length": {
+		"name": "Tail length",
+		"description": "Length of the tail in icon units",
+		"type": "float",
+		"default": 22,
+		"min": 8,
+		"max": 45,
+		"control": {
+			"slider": true
+		}
+	},
+	"fur-tail-size": {
+		"name": "Tail thickness",
+		"description": "How thick the tail is",
+		"type": "float",
+		"default": 1,
+		"min": 0.5,
+		"max": 2,
+		"control": {
+			"slider": true
+		}
+	},
+	"fur-tail-curl": {
+		"name": "Tail curl",
+		"description": "How much the tail curls up towards its end",
+		"type": "float",
+		"default": 0.5,
+		"min": 0,
+		"max": 1,
+		"control": {
+			"slider": true
+		}
+	},
+	"fur-tail-tip": {
+		"name": "White tip",
+		"description": "A white tip at the end of the tail, like a fox",
+		"type": "bool",
+		"default": true
+	},
+	"fur-tail-color": {
+		"name": "Tail color",
+		"description": "Same as the hair, an icon color or the custom color below",
+		"type": "string",
+		"default": "Hair",
+		"one-of": [
+			"Hair",
+			"Primary",
+			"Secondary",
+			"Custom"
+		]
+	},
+	"fur-tail-custom-color": {
+		"name": "Tail custom color",
+		"type": "color",
+		"default": "#3A2A80"
+	},
 	"headband-title": {
 		"type": "title",
 		"name": "Headband"
@@ -1202,14 +1275,18 @@
 	},
 	"hat": {
 		"name": "Hat",
-		"description": "A cute hat on top of the hairstyle",
+		"description": "A cute hat on top of the hairstyle Crown and Tiara sparkle now and then; the Pumpkin keeps its own colors",
 		"type": "string",
 		"default": "None",
 		"one-of": [
 			"None",
 			"Beret",
 			"Beanie",
-			"Witch hat"
+			"Witch hat",
+			"Crown",
+			"Tiara",
+			"Santa hat",
+			"Pumpkin"
 		]
 	},
 	"hat-size": {
