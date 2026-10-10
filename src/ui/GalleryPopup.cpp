@@ -3,6 +3,7 @@
 #include "../hooks/SimplePlayerHair.hpp"
 #include "../presets/Looks.hpp"
 #include "../presets/Presets.hpp"
+#include "../settings/Settings.hpp"
 #include "Buttons.hpp"
 #include "SaveLook.hpp"
 
@@ -527,7 +528,7 @@ void GalleryPopup::onShare(CCObject *)
   auto prompt = NamePrompt::create("Share your look", suggestion, "Share", [self = Ref(this)](std::string const &name)
                                    {
                                      auto look = presets::compact(presets::capture("").settings);
-                                     look["enabled"] = Mod::get()->getSettingValue<bool>("enabled");
+                                     look["enabled"] = settings::flag("enabled");
                                      notify("Sharing your look...", NotificationIcon::Loading);
                                      gallery::publish(name, look, [self](Result<gallery::Look, std::string> result)
                                                       {

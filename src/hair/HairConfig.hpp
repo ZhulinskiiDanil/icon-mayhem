@@ -176,13 +176,6 @@ enum class CapePattern
   Hearts,
 };
 
-enum class FaceStyle
-{
-  None,
-  Eyes,
-  EyesAndMouth,
-};
-
 enum class BangsStyle
 {
   Straight,  // a neat fringe
@@ -192,27 +185,6 @@ enum class BangsStyle
   Clumps,    // a few wide pointed clumps, with thin wisps beside them
 };
 
-enum class FaceLook
-{
-  Onyx,           // big dark eyes, a red liner flick
-  Sapphire,       // blue to violet, streaks and sparkles
-  SapphireHearts, // the same with heart pupils
-  Crimson,        // black whites, a red ringed iris, red veins
-};
-
-// The mood of the eyes, in their shape (tools/make_eyes.py, EXPRESSIONS); the order of the textures
-enum class FaceShape
-{
-  Default,
-  Flirty,    // the lower lid pushed up by the cheek
-  Sultry,    // heavy half lids
-  Angry,     // slanted down to the nose
-  Kind,      // soft and drooping
-  Cheerful,  // round and lifted
-  Judging,   // a flat lid over a half eye
-  Sad,       // slanted up to the nose
-  Surprised, // wide open
-};
 
 enum class FocusMode
 {
@@ -470,18 +442,6 @@ struct HairConfig
   cocos2d::ccColor3B capeColor = {217, 48, 62};
   cocos2d::ccColor3B capeLining = {255, 210, 74};
   CapePattern capePattern = CapePattern::Plain;
-
-  // A living face: eyes (and a mouth) that watch the level
-  FaceStyle face = FaceStyle::None;
-  FaceLook faceStyle = FaceLook::Onyx;
-  FaceShape faceShape = FaceShape::Default;
-  float faceX = 7.5f; // icon units from the middle to each eye
-  float faceY = 1.f;
-  float faceShiftX = 0.f; // both eyes towards the front
-  float faceTilt = 0.f;   // degrees the eye line turns, the front eye up
-  float faceScaleX = 1.f; // each eye stretched sideways
-  float faceScaleY = 1.f;
-  bool faceWatch = false; // look at spikes and orbs ahead, get scared (off while the eyes don't move)
 
   // Colored locks in the hair
   int streaks = 0;

@@ -1,5 +1,7 @@
 #include "SettingRow.hpp"
 
+#include "../settings/Settings.hpp"
+
 #include <Geode/ui/ColorPickPopup.hpp>
 
 #include <algorithm>
@@ -20,27 +22,21 @@ namespace
   constexpr float kInputWidth = 52.f;  // number input on the right, before scaling
   constexpr float kInputScale = .6f;
   constexpr float kChoiceWidth = 90.f; // space for the "< Option >" control
-
-  template <class S>
-  std::shared_ptr<S> as(std::shared_ptr<SettingV3> const &setting)
-  {
-    return typeinfo_pointer_cast<S>(setting);
-  }
 }
 
 // ! --- Creation --- !
 
 SettingRow *SettingRow::create(std::string_view key, float width)
 {
-  auto setting = Mod::get()->getSetting(key);
-  if (!setting)
+  auto def = settings::def(key);
+  if (!def)
   {
     log::warn("Customizer: unknown setting '{}'", key);
     return nullptr;
   }
 
   auto row = new SettingRow();
-  if (row->init(std::move(setting), width))
+  if (row->init(def, width))
   {
     row->autorelease();
     return row;
@@ -49,18 +45,18 @@ SettingRow *SettingRow::create(std::string_view key, float width)
   return nullptr;
 }
 
-bool SettingRow::init(std::shared_ptr<SettingV3> setting, float width)
+bool SettingRow::init(settings::Def const *def, float width)
 {
   if (!CCNode::init())
     return false;
 
-  m_setting = std::move(setting);
+  m_def = def;
   m_width = width;
 
-  bool const isTitle = as<TitleSettingV3>(m_setting) != nullptr;
+  bool const isTitle = m_def->type == settings::Type::Title;
   this->setContentSize({width, isTitle ? kTitleHeight : kRowHeight});
   this->setAnchorPoint({.5f, .5f});
-  this->setID(fmt::format("{}-row", m_setting->getKey()));
+  this->setID(fmt::format("{}-row", m_def->key));
 
   m_menu = CCMenu::create();
   m_menu->setPosition({0.f, 0.f});
@@ -75,14 +71,24 @@ bool SettingRow::init(std::shared_ptr<SettingV3> setting, float width)
 
   this->addLabel();
 
-  if (as<BoolSettingV3>(m_setting))
+  switch (m_def->type)
+  {
+  case settings::Type::Bool:
     this->addToggle();
-  else if (as<IntSettingV3>(m_setting) || as<FloatSettingV3>(m_setting))
+    break;
+  case settings::Type::Int:
+  case settings::Type::Float:
     this->addSlider();
-  else if (as<StringSettingV3>(m_setting))
+    break;
+  case settings::Type::Choice:
     this->addArrows();
-  else if (as<Color3BSettingV3>(m_setting))
+    break;
+  case settings::Type::Color:
     this->addColor();
+    break;
+  default:
+    break;
+  }
 
   this->refresh();
   return true;
@@ -92,7 +98,7 @@ bool SettingRow::init(std::shared_ptr<SettingV3> setting, float width)
 
 void SettingRow::addTitle()
 {
-  auto label = CCLabelBMFont::create(m_setting->getDisplayName().c_str(), "goldFont.fnt");
+  auto label = CCLabelBMFont::create(m_def->name.c_str(), "goldFont.fnt");
   label->setScale(.5f);
   label->setPosition(this->getContentSize() / 2.f);
   this->addChild(label);
@@ -102,14 +108,14 @@ void SettingRow::addLabel()
 {
   float const centerY = this->getContentHeight() / 2.f;
 
-  auto label = CCLabelBMFont::create(m_setting->getDisplayName().c_str(), "bigFont.fnt");
+  auto label = CCLabelBMFont::create(m_def->name.c_str(), "bigFont.fnt");
   label->setAnchorPoint({0.f, .5f});
   label->limitLabelWidth(m_width * kLabelWidth, kLabelScale, .1f);
   label->setPosition({kPadding, centerY});
   this->addChild(label);
   m_label = label;
 
-  if (!m_setting->getDescription())
+  if (m_def->description.empty())
     return;
 
   auto infoSprite = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
@@ -156,7 +162,7 @@ void SettingRow::addSlider()
 {
   float const centerY = this->getContentHeight() / 2.f;
   float const inputWidth = kInputWidth * kInputScale;
-  bool const isInt = as<IntSettingV3>(m_setting) != nullptr;
+  bool const isInt = m_def->type == settings::Type::Int;
 
   // Typing a value works everywhere, the slider is for quick tweaks with the live preview
   m_input = TextInput::create(kInputWidth, "0");
@@ -166,17 +172,17 @@ void SettingRow::addSlider()
 
   m_slider = SliderNode::create([this](SliderNode *, float value)
                                 {
-                                  double const snap = this->numberSnap();
+                                  double const snap = m_def->step;
                                   double snapped = value;
                                   if (snap > 0.0)
                                     snapped = std::round(snapped / snap) * snap;
                                   this->setNumberValue(snapped);
                                   this->changed();
                                 });
-  m_slider->setMin(static_cast<float>(this->numberMin()));
-  m_slider->setMax(static_cast<float>(this->numberMax()));
-  if (this->numberSnap() > 0.0)
-    m_slider->setSnapStep(static_cast<float>(this->numberSnap()));
+  m_slider->setMin(static_cast<float>(m_def->min));
+  m_slider->setMax(static_cast<float>(m_def->max));
+  if (m_def->step > 0.0)
+    m_slider->setSnapStep(static_cast<float>(m_def->step));
   m_slider->setContentSize({kSliderWidth, m_slider->getContentHeight()});
   m_slider->setAnchorPoint({1.f, .5f});
   m_slider->setPosition({m_width - kPadding - inputWidth - 8.f, centerY});
@@ -223,69 +229,35 @@ void SettingRow::addColor()
 
 void SettingRow::refresh()
 {
-  if (auto setting = as<BoolSettingV3>(m_setting); setting && m_toggle)
+  if (m_toggle)
   {
-    m_toggle->toggle(setting->getValue());
+    m_toggle->toggle(settings::flag(m_def->key));
   }
   else if (m_slider)
   {
     // Also updates the linked input
     m_slider->setValue(static_cast<float>(this->numberValue()));
   }
-  else if (auto setting = as<StringSettingV3>(m_setting); setting && m_valueLabel)
+  else if (m_valueLabel)
   {
-    m_valueLabel->setString(setting->getValue().c_str());
+    m_valueLabel->setString(settings::text(m_def->key).c_str());
     m_valueLabel->limitLabelWidth(kChoiceWidth - 28.f, .35f, .1f);
   }
-  else if (auto setting = as<Color3BSettingV3>(m_setting); setting && m_colorSprite)
+  else if (m_colorSprite)
   {
-    m_colorSprite->setColor(setting->getValue());
+    m_colorSprite->setColor(settings::color(m_def->key));
   }
 }
 
 double SettingRow::numberValue() const
 {
-  if (auto setting = as<IntSettingV3>(m_setting))
-    return static_cast<double>(setting->getValue());
-  if (auto setting = as<FloatSettingV3>(m_setting))
-    return setting->getValue();
-  return 0.0;
+  return settings::get(m_def->key).asDouble().unwrapOr(0.0);
 }
 
 void SettingRow::setNumberValue(double value)
 {
-  value = std::clamp(value, this->numberMin(), this->numberMax());
-  if (auto setting = as<IntSettingV3>(m_setting))
-    setting->setValue(static_cast<int64_t>(std::llround(value)));
-  else if (auto setting = as<FloatSettingV3>(m_setting))
-    setting->setValue(value);
-}
-
-double SettingRow::numberMin() const
-{
-  if (auto setting = as<IntSettingV3>(m_setting))
-    return static_cast<double>(setting->getMinValue().value_or(0));
-  if (auto setting = as<FloatSettingV3>(m_setting))
-    return setting->getMinValue().value_or(0.0);
-  return 0.0;
-}
-
-double SettingRow::numberMax() const
-{
-  if (auto setting = as<IntSettingV3>(m_setting))
-    return static_cast<double>(setting->getMaxValue().value_or(100));
-  if (auto setting = as<FloatSettingV3>(m_setting))
-    return setting->getMaxValue().value_or(1.0);
-  return 1.0;
-}
-
-double SettingRow::numberSnap() const
-{
-  if (auto setting = as<IntSettingV3>(m_setting))
-    return static_cast<double>(std::max<int64_t>(setting->getSliderSnap(), 1));
-  if (auto setting = as<FloatSettingV3>(m_setting))
-    return setting->getSliderSnap();
-  return 0.0;
+  // Clamped and rounded for its type by the store
+  settings::set(m_def->key, std::clamp(value, m_def->min, m_def->max));
 }
 
 // ! --- Callbacks --- !
@@ -293,41 +265,32 @@ double SettingRow::numberSnap() const
 void SettingRow::onToggle(CCObject *)
 {
   // The toggler flips its state after the callback
-  if (auto setting = as<BoolSettingV3>(m_setting))
-    setting->setValue(!m_toggle->isToggled());
+  settings::set(m_def->key, !m_toggle->isToggled());
   this->changed();
 }
 
 void SettingRow::onArrow(CCObject *sender)
 {
-  auto setting = as<StringSettingV3>(m_setting);
-  if (!setting)
+  auto const &options = m_def->options;
+  if (options.empty())
     return;
 
-  auto options = setting->getEnumOptions();
-  if (!options || options->empty())
-    return;
-
-  auto const count = static_cast<int>(options->size());
-  auto const current = std::find(options->begin(), options->end(), setting->getValue());
-  int index = current == options->end() ? 0 : static_cast<int>(current - options->begin());
+  auto const count = static_cast<int>(options.size());
+  auto const current = std::find(options.begin(), options.end(), settings::text(m_def->key));
+  int index = current == options.end() ? 0 : static_cast<int>(current - options.begin());
   index = (index + static_cast<CCNode *>(sender)->getTag() + count) % count;
 
-  setting->setValue((*options)[index]);
+  settings::set(m_def->key, options[index]);
   this->refresh();
   this->changed();
 }
 
 void SettingRow::onColor(CCObject *)
 {
-  auto setting = as<Color3BSettingV3>(m_setting);
-  if (!setting)
-    return;
-
-  auto popup = ColorPickPopup::create(setting->getValue());
-  popup->setCallback([self = Ref(this), setting](ccColor4B const &color)
+  auto popup = ColorPickPopup::create(settings::color(m_def->key));
+  popup->setCallback([self = Ref(this)](ccColor4B const &color)
                      {
-                       setting->setValue(ccColor3B{color.r, color.g, color.b});
+                       settings::set(self->m_def->key, "#" + cc3bToHexString(ccColor3B{color.r, color.g, color.b}));
                        self->refresh();
                        self->changed();
                      });
@@ -337,8 +300,8 @@ void SettingRow::onColor(CCObject *)
 void SettingRow::onInfo(CCObject *)
 {
   FLAlertLayer::create(
-      m_setting->getDisplayName().c_str(),
-      m_setting->getDescription().value_or("").c_str(),
+      m_def->name.c_str(),
+      m_def->description.c_str(),
       "OK")
       ->show();
 }

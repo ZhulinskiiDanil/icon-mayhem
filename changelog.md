@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.10.0
+
+### Settings
+- Geode's settings page of the mod is short now: the master switch, where the look shows, quality, focus mode, online and the emote keys. Your look (hair, accessories, effects, physics, game modes) is set in the customizer, "Your look" on the page opens it
+- Your look lives in `look.json` in the config folder of the mod: only what differs from the defaults, easy to read. Edit it in a text editor and save, the icon changes in a moment (a mistake keeps the look and tells you what's wrong). The folder button in General opens it. Your current look moves there by itself
+
+### Pause menu
+- Icon Mayhem adds just one button to the pause menu. Players and gifts on Globed moved into the customizer (next to Save), and the button wears a little badge when players are around or a gift waits
+
+### Customizer
+- Tap a part of your icon in the preview (the bangs, a bow, the glasses, the pet...) and its settings open
+- With a mouse, the part under the cursor glows and shows its name, so you see what a click opens
+- Parts (left of the search): every part on one page, green when it's on, tap one to go there
+- The customizer takes the whole screen: the list of settings is taller and wider
+- Row size: − and + at the top left make the rows of settings smaller (down to 60%) to see more of them at once, or bigger
+
+### Removed
+- The face (anime eyes and the mouth) is gone. Looks and presets that had it simply show no face
+
 ## v1.9.0
 
 ### Custom icons on Globed

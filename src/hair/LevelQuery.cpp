@@ -26,32 +26,6 @@ namespace
     return type == GameObjectType::Hazard || type == GameObjectType::AnimatedHazard;
   }
 
-  bool isBooster(GameObjectType type)
-  {
-    switch (type)
-    {
-    case GameObjectType::YellowJumpPad:
-    case GameObjectType::PinkJumpPad:
-    case GameObjectType::GravityPad:
-    case GameObjectType::RedJumpPad:
-    case GameObjectType::SpiderPad:
-    case GameObjectType::YellowJumpRing:
-    case GameObjectType::PinkJumpRing:
-    case GameObjectType::GravityRing:
-    case GameObjectType::RedJumpRing:
-    case GameObjectType::GreenRing:
-    case GameObjectType::DashRing:
-    case GameObjectType::GravityDashRing:
-    case GameObjectType::DropRing:
-    case GameObjectType::CustomRing:
-    case GameObjectType::SpiderOrb:
-    case GameObjectType::TeleportOrb:
-      return true;
-    default:
-      return false;
-    }
-  }
-
   // The closest object of a kind ahead, measured along `ahead`
   std::optional<CCPoint> nearestAhead(CCPoint const &from, CCPoint const &ahead, float range, float reach,
                                       bool (*matches)(GameObjectType))
@@ -124,11 +98,6 @@ void level::forEachObjectNear(CCRect const &area, std::function<void(GameObject 
 std::optional<CCPoint> level::nearestHazard(CCPoint const &from, CCPoint const &ahead, float range, float reach)
 {
   return nearestAhead(from, ahead, range, reach, isHazard);
-}
-
-std::optional<CCPoint> level::nearestBooster(CCPoint const &from, CCPoint const &ahead, float range, float reach)
-{
-  return nearestAhead(from, ahead, range, reach, isBooster);
 }
 
 std::optional<float> level::groundBelow(float x, float fromY, float halfWidth, float depth, bool flipped)

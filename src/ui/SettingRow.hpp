@@ -6,8 +6,13 @@
 
 #include <functional>
 
+namespace settings
+{
+  struct Def;
+}
+
 // ! --- Setting row --- !
-// One row of the customizer list, built from a mod setting by its type:
+// One row of the customizer list, built from a setting (look.json or Geode's page) by its type:
 // title, toggle, slider with a text input (int / float), arrows (string with options)
 // or color picker.
 // Writing the setting is enough, HairConfig::version() makes the hair pick it up.
@@ -26,7 +31,7 @@ public:
   float useAsHeader(std::string const &title, float left, bool dim);
 
 private:
-  bool init(std::shared_ptr<geode::SettingV3> setting, float width);
+  bool init(settings::Def const *def, float width);
 
   void addTitle();
   void addLabel();
@@ -43,13 +48,10 @@ private:
   // Number settings as doubles, so int and float share one slider
   double numberValue() const;
   void setNumberValue(double value);
-  double numberMin() const;
-  double numberMax() const;
-  double numberSnap() const;
 
   void changed();
 
-  std::shared_ptr<geode::SettingV3> m_setting;
+  settings::Def const *m_def = nullptr;
   std::function<void()> m_onChange;
   cocos2d::CCLabelBMFont *m_label = nullptr;
   CCMenuItemSpriteExtra *m_info = nullptr;

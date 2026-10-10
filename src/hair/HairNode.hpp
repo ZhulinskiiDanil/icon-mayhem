@@ -106,6 +106,14 @@ public:
   void setPlayer(cocos2d::CCNode *player) { m_player = player; }
   cocos2d::CCNode *player() const { return m_player; }
 
+  // The part of the look drawn at a point (world space) in the last frame: the title key of its
+  // block in the customizer ("bangs-title"), "" for none. Points up to `slop` away count too
+  std::string partAt(cocos2d::CCPoint const &world, float slop) const;
+  // The shape `part` had in the last frame as triangles (three points each), `worldToTarget` maps
+  // them into the space wanted (the hover highlight of the customizer)
+  void partShape(std::string_view part, cocos2d::CCAffineTransform const &worldToTarget,
+                 std::vector<cocos2d::CCPoint> &triangles) const;
+
   void visit() override;
   void onEnter() override;
   void onExit() override;
@@ -141,6 +149,24 @@ private:
   };
 
   bool init(cocos2d::CCSprite *head, cocos2d::CCSprite *primary, cocos2d::CCSprite *secondary, cocos2d::CCNode *simSpace);
+
+  // What each part drew this frame, for partAt(): its triangles in the buffer of a draw node
+  struct DrawnPart
+  {
+    cocos2d::CCDrawNode *node = nullptr;
+    GLsizei from = 0;
+    GLsizei to = 0;
+    char const *part = "";
+  };
+  template <class Draw>
+  void drawPart(cocos2d::CCDrawNode *node, char const *part, Draw &&draw)
+  {
+    GLsizei const from = node->m_nBufferCount;
+    draw();
+    if (node->m_nBufferCount > from)
+      m_drawn.push_back({node, from, node->m_nBufferCount, part});
+  }
+  std::string partAtExactly(cocos2d::CCPoint const &world) const;
 
   void reloadConfig();
   void generateLocks();
@@ -229,22 +255,6 @@ private:
   void updateCape(float dt, cocos2d::CCPoint const &headCenter);
   void drawCape(cocos2d::CCDrawNode *node);
 
-  // ! --- Face (Face.cpp) --- !
-
-  enum class FaceMood
-  {
-    Normal,
-    Happy,     // checkpoints and level completes
-    Surprised, // orbs and pads
-  };
-  void updateFace(float dt, cocos2d::CCPoint const &headCenter, bool tookOff);
-  void setFaceMood(FaceMood mood, float duration);
-  void drawFace(cocos2d::CCDrawNode *node);
-  void buildEyeSprites();
-  void hideEyes();
-  // X eyes for a moment after a death, where the face was
-  void drawDeadFace(cocos2d::CCDrawNode *node, float age);
-
   // ! --- Wings (Wings.cpp) and the pet (Pet.cpp) --- !
 
   void updateWings(float dt, bool tookOff);
@@ -327,19 +337,6 @@ private:
   size_t m_bangsStart = 0;
   size_t m_ribbonsStart = 0;
   geode::Ref<cocos2d::CCDrawNode> m_front; // draws the front locks above the icon
-  geode::Ref<cocos2d::CCNode> m_eyes;      // the eye sprites, over the icon and under the front locks
-
-  // One eye made of sprites: the white, the iris clipped by it, the lashes; the closed eye apart
-  struct EyeSprites
-  {
-    cocos2d::CCNode *root = nullptr;
-    cocos2d::CCNode *open = nullptr;
-    cocos2d::CCSprite *iris = nullptr;
-    std::vector<cocos2d::CCSprite *> sprites; // for the opacity
-  };
-  std::array<EyeSprites, 2> m_eyeSprites;
-  int m_eyeStyleBuilt = -1;
-  float m_eyeTexel = 1.f; // sprite units per texture pixel (Geode scales sprites for the texture quality)
   HairSim m_sim;
   std::vector<HairStrandTarget> m_targets;
   std::vector<cocos2d::CCPoint> m_curve; // scratch buffer for drawing
@@ -433,16 +430,6 @@ private:
   ClothSim m_cloth;
   float m_clothSpacing = 0.f; // sim units between cloth points
 
-  cocos2d::CCPoint m_faceLook;     // where the eyes look, icon frame, length up to 1
-  float m_faceScare = 0.f;         // 0..1, a spike right ahead
-  float m_faceBlink = 3.f;         // s until the next blink, negative while blinking
-  float m_faceJump = 0.f;          // s left of looking up after a takeoff
-  float m_faceQueryTimer = 0.f;
-  std::optional<cocos2d::CCPoint> m_watchTarget; // the spike or orb the eyes look at, sim space
-  bool m_watchIsHazard = false;
-  FaceMood m_faceMood = FaceMood::Normal;
-  float m_faceMoodTime = 0.f;
-  float m_deadAge = 0.f; // s since the death, for the X eyes
   std::optional<Emote> m_emote;
   float m_emoteAge = 0.f; // s
   bool m_diedActive = false; // the rig was showing when the icon died, so the pet and the reactions play
@@ -463,4 +450,5 @@ private:
   bool m_isGarage = false;
   bool m_isMenu = false;
   bool m_debugDraw = false;
+  std::vector<DrawnPart> m_drawn;
 };

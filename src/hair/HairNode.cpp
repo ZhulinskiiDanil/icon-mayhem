@@ -182,11 +182,6 @@ HairNode *HairNode::attach(CCSprite *head, CCNode *behind, CCSprite *primary, CC
 
   parent->addChild(node, behind->getZOrder() - 1);
 
-  // The eyes sit on the icon under the front locks: same z, added first
-  node->m_eyes = CCNode::create();
-  node->m_eyes->setID("hair-eyes"_spr);
-  parent->addChild(node->m_eyes, behind->getZOrder() + 1);
-
   // Face locks and bangs go over the icon
   node->m_front = CCDrawNode::create();
   node->m_front->setID("hair-front"_spr);
@@ -651,10 +646,11 @@ void HairNode::visit()
     this->clear();
     if (m_front)
       m_front->clear();
+    std::erase_if(m_drawn, [&](DrawnPart const &drawn)
+                  { return drawn.node == this || drawn.node == m_front; });
     if (!this->isActive())
     {
       m_needsReset = true;
-      this->hideEyes();
       return;
     }
     m_wasDead = false;
@@ -981,7 +977,6 @@ void HairNode::simulate(float dt)
   bool const onGround = m_onGround && m_onGround();
   if (onGround && !m_wasOnGround && !m_needsReset)
     this->onLanded(headCenter, up, across);
-  this->updateFace(dt, headCenter, !onGround && m_wasOnGround && !m_needsReset);
   this->updateWings(dt, !onGround && m_wasOnGround && !m_needsReset);
   m_wasOnGround = onGround;
   this->updatePet(dt, headCenter);
@@ -1187,25 +1182,35 @@ void HairNode::redraw()
 
   // The cape behind everything, it fades in focus like the other things around the icon
   m_fadeAlpha = faded;
-  this->drawCape(this);
+  this->drawPart(this, "cape-title", [&]
+                 { this->drawCape(this); });
   m_fadeAlpha = hair;
 
   // Behind the icon: the hairstyle with its base, the tails with their ties, the ahoge, the ears,
   // the ends of the scarf
-  this->drawLocks(this, 0, m_tailsStart, true);
-  if (m_config.braidTails)
-    this->drawBraids(this, m_tailsStart, m_ahogeStart);
-  else
-    this->drawLocks(this, m_tailsStart, m_ahogeStart, false);
-  this->drawTies(this);
-  this->drawLocks(this, m_ahogeStart, m_earsStart, false);
-  this->drawLocks(this, m_earsStart, m_scarfStart, false);
-  this->drawEarInners(this);
-  this->drawLocks(this, m_scarfStart, m_trailStart, false);
+  this->drawPart(this, "hair-title", [&]
+                 { this->drawLocks(this, 0, m_tailsStart, true); });
+  this->drawPart(this, "tails-title", [&]
+                 {
+                   if (m_config.braidTails)
+                     this->drawBraids(this, m_tailsStart, m_ahogeStart);
+                   else
+                     this->drawLocks(this, m_tailsStart, m_ahogeStart, false);
+                   this->drawTies(this); });
+  this->drawPart(this, "ahoge-title", [&]
+                 { this->drawLocks(this, m_ahogeStart, m_earsStart, false); });
+  this->drawPart(this, "ears-title", [&]
+                 {
+                   this->drawLocks(this, m_earsStart, m_scarfStart, false);
+                   this->drawEarInners(this); });
+  this->drawPart(this, "scarf-title", [&]
+                 { this->drawLocks(this, m_scarfStart, m_trailStart, false); });
   m_fadeAlpha = hidden;
-  this->drawRibbon(this);
+  this->drawPart(this, "trail-title", [&]
+                 { this->drawRibbon(this); });
   m_fadeAlpha = faded;
-  this->drawWings(this);
+  this->drawPart(this, "wings-title", [&]
+                 { this->drawWings(this); });
   m_fadeAlpha = hair;
   if (!m_front)
   {
@@ -1216,27 +1221,43 @@ void HairNode::redraw()
   // In front of it: the blush on the cheeks, the scarf band, then the hair over them. Each group
   // gets its own outline so the bangs clearly lie over the face locks; the clips, bows and the
   // hearts go over everything
-  this->drawBlush(m_front);
-  this->drawSticker(m_front);
-  this->drawFace(m_front);
-  this->drawScarfBand(m_front);
-  this->drawCollarAndBell(m_front);
-  this->drawEarrings(m_front);
-  if (m_config.braidFaceLocks)
-    this->drawBraids(m_front, m_frontStart, m_bangsStart);
-  else
-    this->drawLocks(m_front, m_frontStart, m_bangsStart, false);
-  this->drawGlasses(m_front);
-  this->drawLocks(m_front, m_bangsStart, m_ribbonsStart, false);
-  this->drawHeadband(m_front);
-  this->drawFlowers(m_front);
-  this->drawHeadphones(m_front);
-  this->drawHat(m_front);
-  this->drawClips(m_front);
-  this->drawLocks(m_front, m_ribbonsStart, m_locks.size(), false);
-  this->drawBows(m_front);
+  this->drawPart(m_front, "blush-title", [&]
+                 { this->drawBlush(m_front); });
+  this->drawPart(m_front, "sticker-title", [&]
+                 { this->drawSticker(m_front); });
+  this->drawPart(m_front, "scarf-title", [&]
+                 { this->drawScarfBand(m_front); });
+  this->drawPart(m_front, "bell-title", [&]
+                 { this->drawCollarAndBell(m_front); });
+  this->drawPart(m_front, "earrings-title", [&]
+                 { this->drawEarrings(m_front); });
+  this->drawPart(m_front, "face-locks-title", [&]
+                 {
+                   if (m_config.braidFaceLocks)
+                     this->drawBraids(m_front, m_frontStart, m_bangsStart);
+                   else
+                     this->drawLocks(m_front, m_frontStart, m_bangsStart, false); });
+  this->drawPart(m_front, "glasses-title", [&]
+                 { this->drawGlasses(m_front); });
+  this->drawPart(m_front, "bangs-title", [&]
+                 { this->drawLocks(m_front, m_bangsStart, m_ribbonsStart, false); });
+  this->drawPart(m_front, "headband-title", [&]
+                 { this->drawHeadband(m_front); });
+  this->drawPart(m_front, "flowers-title", [&]
+                 { this->drawFlowers(m_front); });
+  this->drawPart(m_front, "headphones-title", [&]
+                 { this->drawHeadphones(m_front); });
+  this->drawPart(m_front, "hat-title", [&]
+                 { this->drawHat(m_front); });
+  this->drawPart(m_front, "clips-title", [&]
+                 { this->drawClips(m_front); });
+  this->drawPart(m_front, "bow-title", [&]
+                 {
+                   this->drawLocks(m_front, m_ribbonsStart, m_locks.size(), false);
+                   this->drawBows(m_front); });
   m_fadeAlpha = faded;
-  this->drawHalo(m_front);
+  this->drawPart(m_front, "halo-title", [&]
+                 { this->drawHalo(m_front); });
   m_fadeAlpha = 1.f;
 
   if (m_debugDraw)

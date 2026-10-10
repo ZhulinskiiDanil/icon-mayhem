@@ -81,7 +81,7 @@ bool HairNode::decorActive() const
          m_config.flowers != FlowerStyle::None || m_config.halo || m_config.petals || m_config.sleepy ||
          m_config.wings != WingStyle::None || m_config.pet != PetStyle::None || m_config.hat != HatStyle::None ||
          m_config.sticker != StickerStyle::None || m_config.reactions || m_config.cuteDeath || this->charmsActive() ||
-         m_config.face != FaceStyle::None || m_config.cape != CapeStyle::None;
+         m_config.cape != CapeStyle::None;
 }
 
 // ! --- Hair look --- !

@@ -6,7 +6,7 @@ A [Geode](https://geode-sdk.org) mod for Geometry Dash with cute and crazy custo
 
 ## Features
 
-- **Alive**: detailed anime eyes, capes of real cloth, a pet that runs on the blocks with you
+- **Alive**: capes of real cloth, a pet that runs on the blocks with you
 - **Physics-based hair** in every game mode: three hairstyles, face locks and bangs, ponytail and twin tails, braids, an ahoge, gusty wind
 - **Accessories**: ears, bows, hair clips, a scarf, a headband, flowers, a halo, wings, hats, headphones, glasses, earrings, a cat bell and a little pet with moods
 - **Effects**: blush, face stickers, hearts and sparkles, weather (sakura, snow, leaves, stars), a ribbon trail, a sleepy icon, reactions to deaths, checkpoints, level completes, orbs and pads
@@ -46,9 +46,11 @@ The build packages the mod into `build/zhulis.icon-mayhem.geode` and installs it
   - `HairSim`: verlet strand simulation, head collider, wind
   - `HairNode`: the rig attached to an icon, hair drawing
   - `Extras.cpp`, `Decor.cpp`, `Charms.cpp`, `Wings.cpp`, `Pet.cpp`, `Effects.cpp`: tails, accessories, headphones / glasses / earrings, wings, the pet, particles and reactions
-  - `HairConfig`: settings read from the mod settings
+  - `HairConfig`: the look read from the settings (or a preset)
+  - `HitTest.cpp`: which part of the look is under a tap in the customizer preview
+- `src/settings/`: every setting by key; the look in `look.json` in the config folder (read again when edited by hand), the general ones on Geode's page
 - `src/hooks/`: game hooks (level, garage, pause menu, icon previews, profile and menu, Globed)
 - `src/ui/`: the customizer and presets popups
 - `src/presets/`: saving, loading and sharing presets, looks per mode and for player 2
 - `src/gallery/`: the client of the gallery server, [icon-mayhem-server](https://github.com/ZhulinskiiDanil/icon-mayhem-server) (Express, Postgres; accounts checked with [Argon](https://github.com/GlobedGD/argon))
-- `resources/`: sprites and the built-in presets
+- `resources/`: sprites, the built-in presets and `look-settings.json` (every look setting: name, description, type, range, options, default)

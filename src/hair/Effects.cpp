@@ -269,7 +269,6 @@ void HairNode::updateParticles(float dt)
 void HairNode::onLanded(CCPoint const &headCenter, CCPoint const &, CCPoint const &)
 {
   m_idleTime = 0.f;
-  m_faceBlink = std::min(m_faceBlink, 0.f); // a squash blink
   m_landPop = 1.f;
 
   if (m_config.blush && m_config.blushPop)
@@ -291,7 +290,6 @@ void HairNode::burst(ParticleKind kind, int count, CCPoint const &headCenter)
 
 void HairNode::celebrate()
 {
-  this->setFaceMood(FaceMood::Happy, 2.5f);
   if (m_config.reactions)
     this->burst(ParticleKind::Heart, kCelebrateHearts, m_frameParams.headCenter);
   this->petReact(PetMood::Happy, 3.f);
@@ -299,7 +297,6 @@ void HairNode::celebrate()
 
 void HairNode::checkpointReached()
 {
-  this->setFaceMood(FaceMood::Happy, 1.2f);
   if (m_config.reactions)
     this->burst(ParticleKind::Sparkle, kCheckpointSparkles, m_frameParams.headCenter);
   this->petReact(PetMood::Happy, 1.5f);
@@ -307,7 +304,6 @@ void HairNode::checkpointReached()
 
 void HairNode::boosted(CCPoint const &up)
 {
-  this->setFaceMood(FaceMood::Surprised, .5f);
   if (!m_config.orbReaction || m_needsReset || !this->isActive())
     return;
 
@@ -566,6 +562,8 @@ void HairNode::drawParticles(CCDrawNode *node)
 void HairNode::visitEffects(CCDrawNode *node)
 {
   node->clear();
+  std::erase_if(m_drawn, [&](DrawnPart const &drawn)
+                { return drawn.node == node; });
   unsigned const frame = CCDirector::sharedDirector()->getTotalFrames();
 
   // Death: the reactions start here, the hair node itself may be hidden with the player.
@@ -608,13 +606,9 @@ void HairNode::visitEffects(CCDrawNode *node)
     if (m_petFrame != frame)
       this->updatePetAlone(dt);
     m_fadeAlpha = 1.f - m_focus * (1.f - m_config.focusOpacity);
-    this->drawPet(node);
+    this->drawPart(node, "pet-title", [&]
+                   { this->drawPet(node); });
   }
-
-  // X eyes for a moment where the face was
-  m_deadAge = dead && m_diedActive ? m_deadAge + dt : 0.f;
-  if (dead && m_diedActive)
-    this->drawDeadFace(node, m_deadAge);
 
   m_fadeAlpha = 1.f - m_focus;
   this->drawParticles(node);

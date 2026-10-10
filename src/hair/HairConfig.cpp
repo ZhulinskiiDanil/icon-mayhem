@@ -1,5 +1,7 @@
 #include "HairConfig.hpp"
 
+#include "../settings/Settings.hpp"
+
 #include <algorithm>
 #include <array>
 #include <string_view>
@@ -245,27 +247,6 @@ namespace
     return CapePattern::Plain;
   }
 
-  FaceStyle parseFace(std::string const &value)
-  {
-    if (value == "Eyes")
-      return FaceStyle::Eyes;
-    if (value == "Eyes and mouth")
-      return FaceStyle::EyesAndMouth;
-    return FaceStyle::None;
-  }
-
-  FaceShape parseFaceShape(std::string const &value)
-  {
-    constexpr std::array<std::string_view, 9> names = {"Default", "Flirty", "Sultry", "Angry", "Kind",
-                                                       "Cheerful", "Judging", "Sad", "Surprised"};
-    for (size_t i = 0; i < names.size(); ++i)
-    {
-      if (value == names[i])
-        return static_cast<FaceShape>(i);
-    }
-    return FaceShape::Default;
-  }
-
   BangsStyle parseBangsStyle(std::string const &value)
   {
     if (value == "Parted")
@@ -277,17 +258,6 @@ namespace
     if (value == "Clumps")
       return BangsStyle::Clumps;
     return BangsStyle::Straight;
-  }
-
-  FaceLook parseFaceLook(std::string const &value)
-  {
-    if (value == "Sapphire")
-      return FaceLook::Sapphire;
-    if (value == "Sapphire hearts")
-      return FaceLook::SapphireHearts;
-    if (value == "Crimson")
-      return FaceLook::Crimson;
-    return FaceLook::Onyx;
   }
 
   FocusMode parseFocus(std::string const &value)
@@ -323,7 +293,7 @@ HairConfig HairConfig::load(matjson::Value const *look)
   auto mod = Mod::get();
   HairConfig cfg;
 
-  // A look from a preset: its values win, settings it doesn't have come from the mod settings
+  // A look from a preset: its values win, settings it doesn't have come from look.json
   auto lookValue = [&](std::string_view key) -> matjson::Value const *
   {
     if (!look)
@@ -335,25 +305,25 @@ HairConfig HairConfig::load(matjson::Value const *look)
   {
     if (auto value = lookValue(key); value && value->isNumber())
       return static_cast<float>(value->asDouble().unwrapOr(0.0));
-    return static_cast<float>(mod->getSettingValue<double>(key));
+    return settings::number(key);
   };
   auto integer = [&](std::string_view key)
   {
     if (auto value = lookValue(key); value && value->isNumber())
       return static_cast<int>(value->asInt().unwrapOr(0));
-    return static_cast<int>(mod->getSettingValue<int64_t>(key));
+    return settings::integer(key);
   };
   auto flag = [&](std::string_view key)
   {
     if (auto value = lookValue(key); value && value->isBool())
       return value->asBool().unwrapOr(false);
-    return mod->getSettingValue<bool>(key);
+    return settings::flag(key);
   };
   auto text = [&](std::string_view key)
   {
     if (auto value = lookValue(key); value && value->isString())
       return value->asString().unwrapOr("");
-    return mod->getSettingValue<std::string>(key);
+    return settings::text(key);
   };
   auto color = [&](std::string_view key)
   {
@@ -365,10 +335,11 @@ HairConfig HairConfig::load(matjson::Value const *look)
       if (auto parsed = cc3bFromHexString(text, true))
         return parsed.unwrap();
     }
-    return mod->getSettingValue<ccColor3B>(key);
+    return settings::color(key);
   };
 
-  // The switches of the mod itself always come from the mod settings
+  // The switches of the mod itself never come from a look: the general ones from Geode's settings,
+  // the game modes from look.json
 
   cfg.customization = mod->getSettingValue<bool>("customization");
   cfg.enabled = flag("enabled"); // part of a look: an empty look has no hair
@@ -383,7 +354,7 @@ HairConfig HairConfig::load(matjson::Value const *look)
       "mode-cube", "mode-ship", "mode-ball", "mode-ufo", "mode-wave",
       "mode-robot", "mode-spider", "mode-swing", "mode-jetpack"};
   for (size_t i = 0; i < kModeKeys.size(); ++i)
-    cfg.modes[i] = mod->getSettingValue<bool>(kModeKeys[i]);
+    cfg.modes[i] = settings::flag(kModeKeys[i]);
 
   cfg.style = parseStyle(text("style"));
   cfg.spinWithIcon = flag("spin-with-icon");
@@ -562,15 +533,6 @@ HairConfig HairConfig::load(matjson::Value const *look)
   cfg.capeLining = color("cape-lining");
   cfg.capePattern = parseCapePattern(text("cape-pattern"));
 
-  cfg.face = parseFace(text("face"));
-  cfg.faceStyle = parseFaceLook(text("face-style"));
-  cfg.faceShape = parseFaceShape(text("face-shape"));
-  cfg.faceX = number("face-x");
-  cfg.faceY = number("face-y");
-  cfg.faceShiftX = number("face-shift-x");
-  cfg.faceTilt = number("face-tilt");
-  cfg.faceScaleX = number("face-scale-x");
-  cfg.faceScaleY = number("face-scale-y");
 
   cfg.streaks = integer("streaks");
   cfg.streakPlacement = parseStreaks(text("streak-placement"));

@@ -11,6 +11,8 @@
 #include <Geode/ui/Popup.hpp>
 #include <Geode/ui/ScrollLayer.hpp>
 
+class HairNode;
+
 // ! --- Customizer popup --- !
 // Icon preview on the left (switch game modes, jump, run), settings of the selected
 // section on the right. Sections are plain lists of setting keys, see Sections.hpp.
@@ -36,6 +38,7 @@ private:
   void addGroup(CustomizerGroup const &group, std::string const &title);
   cocos2d::CCNode *createGroupHeader(CustomizerGroup const &group, std::string const &title, bool open, bool expandable);
   cocos2d::CCNode *createFineRow(CustomizerGroup const &group, size_t count, bool open);
+  cocos2d::CCNode *createLookFileRow(float width);
   bool isOpen(std::string const &id) const;
   void setOpen(std::string const &id, bool open);
   void onOnNow(cocos2d::CCObject *sender);
@@ -44,6 +47,24 @@ private:
   void clearList();
   void addRow(char const *key);
   void updatePreviewIcon();
+  // A tap on the preview: the part of the look under it opens its block
+  void onPreviewTap(cocos2d::CCPoint const &world);
+  // The part of the look at a point of the preview ("" for none) and the rig that drew it
+  std::string partUnder(cocos2d::CCPoint const &world, HairNode **owner) const;
+  // With a mouse: the part under the cursor glows and its block is named, before the click
+  void updateHover(float dt);
+  // No other window is open over this one
+  bool isTopmost();
+  // Shows the block `id` (its title key): its tab, unfolded, at the top of the list, flashing
+  void jumpToGroup(std::string const &id);
+  void onParts(cocos2d::CCObject *sender);
+  // Players on Globed: their looks, likes and gifts
+  void onPlayers(cocos2d::CCObject *sender);
+  void onScale(cocos2d::CCObject *sender);
+  void refreshScaleLabel();
+  // Width to build a list row at, and adding it at the row scale
+  float rowWidth() const;
+  void addToList(cocos2d::CCNode *row);
 
   void update(float dt) override;
   // Streaks of air through the preview: as strong, gusty and fluttering as the air the hair feels
@@ -129,6 +150,7 @@ private:
   geode::ScrollLayer *m_list = nullptr;
   std::vector<SettingRow *> m_rows;
   std::vector<char const *> m_shownKeys; // what Reset resets
+  unsigned m_settingsRevision = 0;     // of look.json, edited by hand
   size_t m_section = 0;
   geode::TextInput *m_search = nullptr;
   std::string m_query;
@@ -136,4 +158,11 @@ private:
   ButtonSprite *m_onNowSprite = nullptr;
   std::set<std::string> m_open; // open blocks, and "<block>+fine" for their fine tuning
   bool m_rebuildPending = false; // rebuilt next frame, never inside the touch of a row
+  cocos2d::CCLabelBMFont *m_scaleLabel = nullptr;
+  cocos2d::CCNode *m_panel = nullptr; // the preview
+  geode::Ref<cocos2d::CCNode> m_hoverShape; // drawn into the texture, not in the scene
+  cocos2d::CCRenderTexture *m_hoverTexture = nullptr;
+  cocos2d::CCNode *m_hoverTag = nullptr; // the name of the part under the mouse
+  cocos2d::CCLabelBMFont *m_hoverLabel = nullptr;
+  float m_hoverTime = 0.f; // s over the same kind of thing, for the breathing
 };

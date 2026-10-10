@@ -3,6 +3,7 @@
 #include "../presets/Looks.hpp"
 #include "../icons/CustomIcons.hpp"
 #include "../presets/Presets.hpp"
+#include "../settings/Settings.hpp"
 
 #include <dankmeme.globed2/include/globed/soft-link/API.hpp>
 #include <dankmeme.globed2/include/globed/core/data/Messages.hpp>
@@ -211,7 +212,7 @@ namespace
       return payload;
 
     auto settings = presets::capture("").settings;
-    bool enabled = Mod::get()->getSettingValue<bool>("enabled");
+    bool enabled = settings::flag("enabled");
     if (auto remote = name.starts_with("@remote:") ? looks::remoteLook(name) : std::nullopt)
     {
       // A look tried on: the others see it too

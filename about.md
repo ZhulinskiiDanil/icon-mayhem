@@ -4,7 +4,6 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 
 ## Alive
 
-- **Anime eyes**: detailed eyes in three styles, Onyx (big and round), Sapphire (long and sharp, also with heart pupils) and Crimson (wide and heavy-lidded), and a shape for the mood: flirty, sultry, angry, kind, cheerful, judging, sad or surprised
 - **Capes of real cloth**: a cape, a short cape or a flag that streams behind you, hangs in folds when you stand and shows its lining when it turns over
 - **A pet that plays the level with you**: it runs on the blocks, jumps over spikes, catches up and rides on your head when you fly
 
@@ -51,7 +50,7 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 
 - **Gallery**: looks shared by everyone, the most liked and the newest, each on your own icon, alive. Wear one in a tap, keep it in your presets, like it. Share yours with a name. Your Geometry Dash account is checked with Argon once, your password never leaves the game
 - **Your custom icons on Globed**: the others see your custom icons (from More Icons or a texture pack) instead of the game's, even without More Icons, and you see theirs. Turn it off in General if you like
-- **Friends on Globed**: Players in the pause menu shows everybody in the level in their look. Save a look you like, try it on until the level ends (they see it on you too), like it (hearts burst on their icon), or gift them yours
+- **Friends on Globed**: Players (in the customizer, when you play with others; the pause button shows a badge) shows everybody in the level in their look. Save a look you like, try it on until the level ends (they see it on you too), like it (hearts burst on their icon), or gift them yours
 
 ## Customizer and presets
 
@@ -63,6 +62,8 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Tidy blocks**: every part (Cape, Pet, Bangs, Glasses...) folds into one line with its switch right in it. A part that is off shows nothing more, turning it on opens its settings. Positions and fine detail wait under **Fine tuning**
 - **On now** shows everything you are wearing, from every tab, in one list
 - **Search** over all the settings
+- **Tap a part** of your icon in the preview (the bangs, a bow, the glasses, the pet...) and its settings open. **Parts** lists every part on one page
+- **The whole screen**: the customizer fills it, and − / + make the rows of settings smaller to see more of them at once
 - **Built-in presets**: Kitty, Sakura, Angel, Fairy, Ponytail, Short and Ahoge
 - **Empty look**: start from nothing and build a look from scratch
 - **Your own presets**: the customizer shows which preset your look came from and whether it changed; **Save** puts the changes back into it in one tap. The presets window lists your looks latest first, with search, and shows the selected one on your icon before you load it. Rename, save over, share through the clipboard or as a file, import presets from friends the same way
@@ -74,6 +75,8 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 - **Focus mode** for hard levels: at faster speeds and when you click a lot, everything floating around the icon fades away so nothing covers your view, and comes back when it calms down
 
 ## Settings
+
+Geode's settings page has only the general ones: Customization, where the look shows, Quality, Focus mode, Online and the emote keys. Everything else is in the customizer. Your look is set in the customizer and kept in **look.json** in the config folder of the mod (the folder button in General, or "Your look" on the settings page): only what differs from the defaults, readable. Edit a value in a text editor and save, your icon changes in a moment; delete a line to put it back to its default.
 
 | Setting | What it does |
 | --- | --- |
@@ -117,7 +120,6 @@ A growing collection of **cute and crazy customizations** for your icons: **phys
 | Halo | Height, size, color and glow |
 | Wings | Angel, fairy or bat: size, how strongly they flap, color |
 | Hat | Beret, beanie or witch hat: size, tilt, position, color |
-| Face | Eyes or eyes and a mouth: style (Onyx, Sapphire, Sapphire hearts, Crimson), shape (Flirty, Sultry, Angry, Kind, Cheerful, Judging, Sad, Surprised), spread, shift and tilt of the eye line, position, width and height of each eye. Needs Quality: High |
 | Cape | Cape, short cape or flag: length, width, color, lining, pattern (stripes, stars, hearts) |
 | Pet behavior | Float behind you, or run on the blocks of the level |
 | Pet | Cat, ghost, bird, bunny or slime: size, how far behind it floats, color, moods |

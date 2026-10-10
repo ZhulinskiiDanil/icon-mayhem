@@ -2,15 +2,19 @@
 #include "GalleryPopup.hpp"
 #include "LinkerPopup.hpp"
 #include "LooksPopup.hpp"
+#include "PartsPopup.hpp"
+#include "PlayersPopup.hpp"
 
 // More Icons is optional: its functions are reached through Geode events, without linking to it
 #define MORE_ICONS_EVENTS
 #include <hiimjustin000.more_icons/include/MoreIcons.hpp>
 
 #include "../hair/HairConfig.hpp"
+#include "../hooks/Globed.hpp"
 #include "../hooks/LevelHair.hpp"
 #include "../hooks/SimplePlayerHair.hpp"
 #include "../presets/Looks.hpp"
+#include "../settings/Settings.hpp"
 #include "Buttons.hpp"
 #include "Confirm.hpp"
 #include "PresetsPopup.hpp"
@@ -31,11 +35,11 @@ using namespace geode::prelude;
 
 namespace
 {
-  constexpr float kWidth = 440.f;
-  constexpr float kHeight = 270.f;
+  // The window takes the screen: the list gets the room, the preview keeps its size
+  constexpr float kMaxWidth = 620.f;
+  constexpr float kScreenMargin = 14.f;
 
   // Preview panel on the left
-  constexpr CCPoint kPreviewCenter = {90.f, 113.f};
   constexpr CCSize kPreviewSize = {150.f, 190.f};
   constexpr CCPoint kStagePosition = {75.f, 112.f}; // in the preview panel
   constexpr float kPreviewScale = 1.3f;
@@ -47,10 +51,50 @@ namespace
 
   // Settings list on the right
   constexpr CCPoint kListOrigin = {180.f, 38.f};
-  constexpr CCSize kListSize = {240.f, 146.f};
-  constexpr float kSearchY = 201.f;
   constexpr float kOnNowWidth = 58.f; // the "On now" button right of the search
-  constexpr float kTabsY = 228.f;
+  constexpr float kPartsWidth = 44.f; // "Parts" left of it
+
+  // Rows of the list, smaller with − to see more settings at once
+  constexpr char const *kRowScaleSave = "customizer-row-scale";
+  constexpr float kRowScaleMin = .6f;
+  constexpr float kRowScaleMax = 1.2f;
+  constexpr float kRowScaleStep = .1f;
+
+  struct Layout
+  {
+    float width = 0.f;
+    float height = 0.f;
+    CCPoint previewCenter;
+    CCSize listSize;
+    float searchY = 0.f;
+    float searchWidth = 0.f;
+    float tabsY = 0.f;
+  };
+
+  // From the screen size, once
+  Layout const &layout()
+  {
+    static Layout const value = []
+    {
+      auto const screen = CCDirector::sharedDirector()->getWinSize();
+      Layout out;
+      out.width = std::clamp(screen.width - 2.f * kScreenMargin, 440.f, kMaxWidth);
+      out.height = std::max(screen.height - kScreenMargin, 270.f);
+      // The preview in the middle of the left column
+      out.previewCenter = CCPoint{90.f, 113.f + (out.height - 270.f) / 2.f};
+      out.tabsY = out.height - 42.f;
+      out.searchY = out.height - 69.f;
+      out.listSize = CCSize{out.width - kListOrigin.x - 20.f, out.searchY - 17.f - kListOrigin.y};
+      out.searchWidth = out.listSize.width - kOnNowWidth - kPartsWidth - 8.f;
+      return out;
+    }();
+    return value;
+  }
+
+  float rowScale()
+  {
+    return std::clamp(Mod::get()->getSavedValue<float>(kRowScaleSave, 1.f), kRowScaleMin, kRowScaleMax);
+  }
 
   // Undo
   constexpr size_t kUndoSteps = 30;
@@ -112,6 +156,129 @@ namespace
 
 }
 
+// ! --- Tapping the preview --- !
+
+namespace
+{
+  constexpr float kTapSlop = 8.f; // moved less than this: a tap, not a drag
+  constexpr float kPartSlop = 4.f; // a thin lock this close to the finger counts
+  // The part under the mouse brightens softly, breathing a little
+  constexpr float kHoverOpacity = 70.f;
+  constexpr float kHoverPulse = 25.f;
+  constexpr float kHoverPulseSpeed = 5.f; // radians / s
+
+  // Plain triangles in white, for the hover highlight. A draw node smooths the edges of every
+  // polygon, which stretches thin pieces of hair into long spikes
+  class FlatShape : public CCNode
+  {
+  public:
+    static FlatShape *create()
+    {
+      auto node = new FlatShape();
+      node->init();
+      node->autorelease();
+      return node;
+    }
+
+    void draw() override
+    {
+      if (m_triangles.size() < 3)
+        return;
+      static_assert(sizeof(CCPoint) == 2 * sizeof(GLfloat));
+      auto shader = CCShaderCache::sharedShaderCache()->programForKey(kCCShader_Position_uColor);
+      shader->use();
+      shader->setUniformsForBuiltins();
+      GLfloat white[4] = {1.f, 1.f, 1.f, 1.f};
+      shader->setUniformLocationWith4fv(shader->getUniformLocationForName("u_color"), white, 1);
+      shader->setUniformLocationWith1f(shader->getUniformLocationForName("u_pointSize"), 1.f);
+      ccGLBindVAO(0);
+      ccGLEnableVertexAttribs(kCCVertexAttribFlag_Position);
+      glVertexAttribPointer(kCCVertexAttrib_Position, 2, GL_FLOAT, GL_FALSE, 0, m_triangles.data());
+      glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(m_triangles.size()));
+      CC_INCREMENT_GL_DRAWS(1);
+    }
+
+    std::vector<CCPoint> m_triangles;
+  };
+
+  // A button (enabled and showing) somewhere under `node` is at the point
+  bool isOnButton(CCNode *node, CCPoint const &world)
+  {
+    for (auto child : CCArrayExt<CCNode *>(node->getChildren()))
+    {
+      if (!child->isVisible())
+        continue;
+      if (auto item = typeinfo_cast<CCMenuItem *>(child))
+      {
+        if (item->isEnabled() && item->getParent() &&
+            item->boundingBox().containsPoint(item->getParent()->convertToNodeSpace(world)))
+          return true;
+        continue;
+      }
+      if (isOnButton(child, world))
+        return true;
+    }
+    return false;
+  }
+
+  // Reports taps on its area; buttons over it (registered first, same priority) win
+  class TapArea : public CCLayer
+  {
+  public:
+    static TapArea *create(CCSize const &size, int priority, std::function<void(CCPoint)> onTap)
+    {
+      auto layer = new TapArea();
+      layer->init();
+      layer->autorelease();
+      layer->setContentSize(size);
+      layer->m_priority = priority;
+      layer->m_onTap = std::move(onTap);
+      return layer;
+    }
+
+    void onEnter() override
+    {
+      CCLayer::onEnter();
+      CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, m_priority, true);
+    }
+
+    void onExit() override
+    {
+      CCDirector::sharedDirector()->getTouchDispatcher()->removeDelegate(this);
+      CCLayer::onExit();
+    }
+
+    bool ccTouchBegan(CCTouch *touch, CCEvent *) override
+    {
+      if (!nodeIsVisible(this))
+        return false;
+      CCPoint const local = this->convertToNodeSpace(touch->getLocation());
+      auto const size = this->getContentSize();
+      if (local.x < 0.f || local.y < 0.f || local.x > size.width || local.y > size.height)
+        return false;
+      // The buttons over the area keep their touches, whichever got registered first
+      if (this->getParent() && isOnButton(this->getParent(), touch->getLocation()))
+        return false;
+      m_start = touch->getLocation();
+      return true;
+    }
+
+    void ccTouchMoved(CCTouch *, CCEvent *) override {}
+    void ccTouchCancelled(CCTouch *, CCEvent *) override {}
+
+    void ccTouchEnded(CCTouch *touch, CCEvent *) override
+    {
+      if (m_onTap && touch->getLocation().getDistance(m_start) < kTapSlop)
+        m_onTap(touch->getLocation());
+    }
+
+  private:
+    int m_priority = 0;
+    CCPoint m_start;
+    std::function<void(CCPoint)> m_onTap;
+  };
+}
+
 // ! --- Creation --- !
 
 CustomizerPopup *CustomizerPopup::create()
@@ -128,28 +295,42 @@ CustomizerPopup *CustomizerPopup::create()
 
 bool CustomizerPopup::initCustomizer()
 {
-  if (!Popup::init(kWidth, kHeight))
+  if (!Popup::init(layout().width, layout().height))
     return false;
 
   this->setID("customizer-popup"_spr);
   this->setTitle("Icon Mayhem");
 
+  // Row size, right of the close button: smaller rows show more settings at once
+  for (int dir : {-1, 1})
+  {
+    auto button = CCMenuItemSpriteExtra::create(textButton(dir < 0 ? "-" : "+", 20.f, "GJ_button_04.png", 18.f), this,
+                                                menu_selector(CustomizerPopup::onScale));
+    button->setTag(dir);
+    button->setID(dir < 0 ? "smaller-button" : "bigger-button");
+    m_buttonMenu->addChildAtPosition(button, Anchor::TopLeft, {dir < 0 ? 40.f : 110.f, -16.f});
+  }
+  m_scaleLabel = CCLabelBMFont::create("", "bigFont.fnt");
+  m_scaleLabel->setID("scale-label");
+  m_mainLayer->addChildAtPosition(m_scaleLabel, Anchor::TopLeft, {75.f, -16.f});
+  this->refreshScaleLabel();
+
   // List first: every menu of the popup has to sit above it to receive touches
   auto listBg = NineSlice::create("square02b_001.png");
   listBg->setColor({0, 0, 0});
   listBg->setOpacity(80);
-  listBg->setContentSize(kListSize);
+  listBg->setContentSize(layout().listSize);
   listBg->setAnchorPoint({0.f, 0.f});
   m_mainLayer->addChildAtPosition(listBg, Anchor::BottomLeft, kListOrigin);
 
-  m_list = ScrollLayer::create(kListSize);
+  m_list = ScrollLayer::create(layout().listSize);
   m_list->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(0.f));
   m_list->setTouchEnabled(true);
   m_mainLayer->addChildAtPosition(m_list, Anchor::BottomLeft, kListOrigin);
 
   auto scrollbar = Scrollbar::create(m_list);
   m_mainLayer->addChildAtPosition(scrollbar, Anchor::BottomLeft,
-                                  {kListOrigin.x + kListSize.width + 8.f, kListOrigin.y + kListSize.height / 2.f});
+                                  {kListOrigin.x + layout().listSize.width + 8.f, kListOrigin.y + layout().listSize.height / 2.f});
 
   int const buttonPriority = m_list->getTouchPriority() - 1;
   m_buttonMenu->setTouchPriority(buttonPriority);
@@ -157,8 +338,13 @@ bool CustomizerPopup::initCustomizer()
   this->buildPreview();
   this->buildTabs();
 
-  // Search over all tabs, between the tabs and the list
-  m_search = TextInput::create((kListSize.width - kOnNowWidth - 6.f) / .7f, "Search settings");
+  // Search over all tabs, between the tabs and the list, "Parts" on its left
+  auto partsButton = CCMenuItemSpriteExtra::create(textButton("Parts", kPartsWidth, "GJ_button_04.png", 22.f), this,
+                                                   menu_selector(CustomizerPopup::onParts));
+  partsButton->setID("parts-button");
+  m_buttonMenu->addChildAtPosition(partsButton, Anchor::BottomLeft, {kListOrigin.x + kPartsWidth / 2.f, layout().searchY});
+
+  m_search = TextInput::create(layout().searchWidth / .7f, "Search settings");
   m_search->setScale(.7f);
   m_search->setID("search");
   m_search->setCallback([this](std::string const &text)
@@ -168,12 +354,12 @@ bool CustomizerPopup::initCustomizer()
                           this->buildTabs();
                         });
   m_mainLayer->addChildAtPosition(m_search, Anchor::BottomLeft,
-                                  {kListOrigin.x + (kListSize.width - kOnNowWidth - 6.f) / 2.f, kSearchY});
+                                  {kListOrigin.x + kPartsWidth + 4.f + layout().searchWidth / 2.f, layout().searchY});
 
   m_onNowSprite = textButton("On now", kOnNowWidth, "GJ_button_04.png", 22.f);
   auto onNow = CCMenuItemSpriteExtra::create(m_onNowSprite, this, menu_selector(CustomizerPopup::onOnNow));
   onNow->setID("on-now-button");
-  m_buttonMenu->addChildAtPosition(onNow, Anchor::BottomLeft, {kListOrigin.x + kListSize.width - kOnNowWidth / 2.f, kSearchY});
+  m_buttonMenu->addChildAtPosition(onNow, Anchor::BottomLeft, {kListOrigin.x + layout().listSize.width - kOnNowWidth / 2.f, layout().searchY});
 
   // Open blocks: the first of every tab the first time
   auto const open = Mod::get()->getSavedValue<std::vector<std::string>>(kOpenSave, {kNeverSaved});
@@ -202,6 +388,17 @@ bool CustomizerPopup::initCustomizer()
   save->setID("save-button");
   m_buttonMenu->addChildAtPosition(save, Anchor::BottomLeft, {kListOrigin.x + 92.f, 25.f});
 
+  // On Globed: everybody in the level, or a gift waiting
+  bool const gifts = !globedGifts().empty();
+  if (gifts || !globedPeers().empty())
+  {
+    auto players = CCMenuItemSpriteExtra::create(iconButton(gifts ? "gift" : "people", gifts ? CircleBaseColor::Green : CircleBaseColor::Pink,
+                                                            24.f, gifts ? "Gift" : "Players"),
+                                                 this, menu_selector(CustomizerPopup::onPlayers));
+    players->setID("players-button");
+    m_buttonMenu->addChildAtPosition(players, Anchor::BottomLeft, {kListOrigin.x + 132.f, 25.f});
+  }
+
   // Hitbox helpers: gray off, cyan on
   m_showHitboxes = Mod::get()->getSavedValue<bool>(kHitboxesSave, false);
   auto hitboxes = CCMenuItemToggler::create(iconButton("hitboxes", CircleBaseColor::Gray, 24.f, "Hitboxes"),
@@ -209,12 +406,12 @@ bool CustomizerPopup::initCustomizer()
                                             menu_selector(CustomizerPopup::onHitboxes));
   hitboxes->toggle(m_showHitboxes);
   hitboxes->setID("hitboxes-toggle");
-  m_buttonMenu->addChildAtPosition(hitboxes, Anchor::BottomLeft, {kListOrigin.x + kListSize.width - 50.f, 25.f});
+  m_buttonMenu->addChildAtPosition(hitboxes, Anchor::BottomLeft, {kListOrigin.x + layout().listSize.width - 50.f, 25.f});
 
   auto reset = CCMenuItemSpriteExtra::create(iconButton("reset", CircleBaseColor::Gray, 24.f, "Reset"), this,
                                              menu_selector(CustomizerPopup::onReset));
   reset->setID("reset-button");
-  m_buttonMenu->addChildAtPosition(reset, Anchor::BottomLeft, {kListOrigin.x + kListSize.width - 14.f, 25.f});
+  m_buttonMenu->addChildAtPosition(reset, Anchor::BottomLeft, {kListOrigin.x + layout().listSize.width - 14.f, 25.f});
 
   // Top right: the preset the look came from, and whether it is saved
   presets::adoptMatchingPreset();
@@ -227,6 +424,7 @@ bool CustomizerPopup::initCustomizer()
 
   this->showSection(0);
   this->scheduleUpdate();
+  m_settingsRevision = settings::revision();
 
   // Undo starts from the look the popup opened with
   m_stable = presets::capture("Undo");
@@ -247,7 +445,7 @@ void CustomizerPopup::buildPreview()
   panel->setContentSize(kPreviewSize);
   panel->setAnchorPoint({.5f, .5f});
   panel->setID("preview");
-  m_mainLayer->addChildAtPosition(panel, Anchor::BottomLeft, kPreviewCenter);
+  m_mainLayer->addChildAtPosition(panel, Anchor::BottomLeft, layout().previewCenter);
 
   // Ground under the icon, the hair spreads over it
   float const groundY = kStagePosition.y - kHeadRadius * kPreviewScale;
@@ -272,6 +470,33 @@ void CustomizerPopup::buildPreview()
   panel->addChild(m_stage);
   // The near air passes in front of the icon
   panel->addChild(m_windFront);
+  m_panel = panel;
+
+#ifdef GEODE_IS_DESKTOP
+  // With a mouse: what a click would open brightens under the cursor, its name in a little tag
+  // above it. The shape goes into a texture first so overlapping pieces brighten evenly
+  m_hoverShape = FlatShape::create();
+  m_hoverTexture = CCRenderTexture::create(static_cast<int>(kPreviewSize.width), static_cast<int>(kPreviewSize.height));
+  m_hoverTexture->setPosition(kPreviewSize / 2.f);
+  // Its sprite blends as premultiplied (GL_ONE): with plain alpha blending the opacity fades it
+  m_hoverTexture->getSprite()->setBlendFunc({GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA});
+  m_hoverTexture->setVisible(false);
+  m_hoverTexture->setID("hover-highlight");
+  panel->addChild(m_hoverTexture);
+
+  m_hoverTag = CCNode::create();
+  m_hoverTag->setID("hover-tag");
+  m_hoverTag->setAnchorPoint({.5f, 0.f});
+  m_hoverTag->setVisible(false);
+  auto tagBg = NineSlice::create("square02_small.png");
+  tagBg->setColor({0, 0, 0});
+  tagBg->setOpacity(170);
+  tagBg->setID("background");
+  m_hoverTag->addChild(tagBg);
+  m_hoverLabel = CCLabelBMFont::create("", "bigFont.fnt");
+  m_hoverTag->addChild(m_hoverLabel);
+  panel->addChild(m_hoverTag, 10);
+#endif
 
   // What the hitbox helper colors mean
   m_legend = CCNode::create();
@@ -382,7 +607,187 @@ void CustomizerPopup::buildPreview()
     m_lookSwitch->addChild(segment);
   }
 
+  // Tapping a part of the look opens its settings
+  auto tap = TapArea::create(kPreviewSize, m_list->getTouchPriority() - 1, [this](CCPoint world)
+                             { this->onPreviewTap(world); });
+  tap->setID("tap-area");
+  panel->addChild(tap);
+
   this->updatePreviewIcon();
+}
+
+std::string CustomizerPopup::partUnder(CCPoint const &world, HairNode **owner) const
+{
+  auto const hair = getSimplePlayerHair(m_player);
+  for (HairNode *node : {hair.icon, hair.robot, hair.spider})
+  {
+    if (!node || !nodeIsVisible(node))
+      continue;
+    if (auto part = node->partAt(world, kPartSlop); !part.empty())
+    {
+      if (owner)
+        *owner = node;
+      return part;
+    }
+  }
+  return "";
+}
+
+void CustomizerPopup::onPreviewTap(CCPoint const &world)
+{
+  if (auto part = this->partUnder(world, nullptr); !part.empty())
+  {
+    this->jumpToGroup(part);
+    return;
+  }
+  Notification::create("Tap a part of the look (hair, a bow, glasses...) to find its settings",
+                       NotificationIcon::Info, 1.5f)
+      ->show();
+}
+
+void CustomizerPopup::updateHover(float dt)
+{
+  if (!m_hoverTexture || !m_panel)
+    return;
+
+  // Over the preview, not over one of its buttons, and no other window on top
+  CCPoint const mouse = getMousePos();
+  CCPoint const local = m_panel->convertToNodeSpace(mouse);
+  auto const size = m_panel->getContentSize();
+  bool const inside = local.x >= 0.f && local.y >= 0.f && local.x <= size.width && local.y <= size.height;
+  HairNode *owner = nullptr;
+  std::string const part = inside && this->isTopmost() && !isOnButton(m_panel, mouse) ? this->partUnder(mouse, &owner) : "";
+
+  if (part.empty() || !owner)
+  {
+    m_hoverTexture->setVisible(false);
+    m_hoverTag->setVisible(false);
+    m_hoverTime = 0.f;
+    return;
+  }
+
+  auto shape = static_cast<FlatShape *>(m_hoverShape.data());
+  shape->m_triangles.clear();
+  owner->partShape(part, m_panel->worldToNodeTransform(), shape->m_triangles);
+  m_hoverTexture->beginWithClear(0.f, 0.f, 0.f, 0.f);
+  shape->visit();
+  m_hoverTexture->end();
+
+  m_hoverTime += dt;
+  float const opacity = kHoverOpacity + kHoverPulse * std::sin(m_hoverTime * kHoverPulseSpeed);
+  m_hoverTexture->getSprite()->setOpacity(static_cast<GLubyte>(std::clamp(opacity, 0.f, 255.f)));
+  m_hoverTexture->setVisible(true);
+
+  // The name of the block a click opens, in a tag above the cursor, inside the preview
+  auto const &groups = customizerGroups();
+  auto group = std::find_if(groups.begin(), groups.end(), [&](CustomizerGroup const &group)
+                            { return group.id == part; });
+  m_hoverLabel->setString(group != groups.end() ? group->name.c_str() : part.c_str());
+  m_hoverLabel->limitLabelWidth(size.width - 24.f, .22f, .1f);
+  CCSize const tag{m_hoverLabel->getScaledContentWidth() + 10.f, 13.f};
+  m_hoverTag->setContentSize(tag);
+  if (auto bg = static_cast<CCNode *>(m_hoverTag->getChildByID("background")))
+  {
+    bg->setContentSize(tag);
+    bg->setPosition(tag / 2.f);
+  }
+  m_hoverLabel->setPosition(tag / 2.f);
+  float const half = tag.width / 2.f;
+  m_hoverTag->setPosition({std::clamp(local.x, half + 3.f, size.width - half - 3.f),
+                           std::min(local.y + 12.f, size.height - tag.height - 3.f)});
+  m_hoverTag->setVisible(true);
+}
+
+bool CustomizerPopup::isTopmost()
+{
+  // Another window (Parts, presets, a question) opened over this one
+  auto parent = this->getParent();
+  if (!parent)
+    return false;
+  bool above = false;
+  for (auto child : CCArrayExt<CCNode *>(parent->getChildren()))
+  {
+    if (child == this)
+      above = true;
+    else if (above && child->isVisible() && typeinfo_cast<FLAlertLayer *>(child))
+      return false;
+  }
+  return true;
+}
+
+void CustomizerPopup::jumpToGroup(std::string const &id)
+{
+  auto const &groups = customizerGroups();
+  auto group = std::find_if(groups.begin(), groups.end(), [&](CustomizerGroup const &group)
+                            { return group.id == id; });
+  if (group == groups.end())
+    return;
+
+  // Like a tab: the search and "On now" end
+  m_query.clear();
+  m_search->setString("");
+  m_onNow = false;
+  m_onNowSprite->updateBGImage("GJ_button_04.png");
+  this->setOpen(id, true);
+  this->showSection(group->section);
+  this->buildTabs();
+
+  auto content = m_list->m_contentLayer;
+  auto header = content->getChildByID(fmt::format("{}-header", id));
+  if (!header)
+    return;
+
+  // The block on top of the list
+  float const view = m_list->getContentHeight();
+  float const lowest = std::min(view - content->getContentHeight(), 0.f);
+  content->setPositionY(std::clamp(view - header->boundingBox().getMaxY(), lowest, 0.f));
+
+  auto flash = CCLayerColor::create({255, 210, 90, 0}, header->getContentWidth(), header->getContentHeight());
+  header->addChild(flash, 10);
+  flash->runAction(CCSequence::create(CCFadeTo::create(.12f, 120), CCFadeTo::create(.7f, 0), CCRemoveSelf::create(), nullptr));
+}
+
+void CustomizerPopup::onPlayers(CCObject *)
+{
+  if (auto popup = PlayersPopup::create())
+    popup->show();
+}
+
+void CustomizerPopup::onParts(CCObject *)
+{
+  if (auto popup = PartsPopup::create([self = Ref(this)](std::string const &id)
+                                      { self->jumpToGroup(id); }))
+    popup->show();
+}
+
+void CustomizerPopup::onScale(CCObject *sender)
+{
+  // Smaller rows: more settings on the screen at once
+  float const step = static_cast<float>(static_cast<CCNode *>(sender)->getTag()) * kRowScaleStep;
+  float const scale = std::round(std::clamp(rowScale() + step, kRowScaleMin, kRowScaleMax) / kRowScaleStep) * kRowScaleStep;
+  Mod::get()->setSavedValue(kRowScaleSave, scale);
+  this->refreshScaleLabel();
+  m_rebuildPending = true;
+}
+
+void CustomizerPopup::refreshScaleLabel()
+{
+  if (!m_scaleLabel)
+    return;
+  m_scaleLabel->setString(fmt::format("Rows {}%", static_cast<int>(std::lround(rowScale() * 100.f))).c_str());
+  m_scaleLabel->limitLabelWidth(50.f, .3f, .1f);
+}
+
+float CustomizerPopup::rowWidth() const
+{
+  return layout().listSize.width / rowScale();
+}
+
+void CustomizerPopup::addToList(CCNode *row)
+{
+  // Built as wide as the list is at this scale, so it fills the list when scaled
+  row->setScale(rowScale());
+  m_list->m_contentLayer->addChild(row);
 }
 
 void CustomizerPopup::updatePreviewIcon()
@@ -414,6 +819,13 @@ void CustomizerPopup::update(float dt)
 {
   this->trackUndo(dt);
   this->updateWind(dt);
+  this->updateHover(dt);
+  // look.json edited by hand: the rows show the new values
+  if (m_settingsRevision != settings::revision())
+  {
+    m_settingsRevision = settings::revision();
+    m_rebuildPending = true;
+  }
   if (m_rebuildPending)
   {
     m_rebuildPending = false;
@@ -476,7 +888,7 @@ void CustomizerPopup::buildTabs()
   m_tabMenu = CCMenu::create();
   m_tabMenu->ignoreAnchorPointForPosition(false);
   m_tabMenu->setAnchorPoint({.5f, .5f});
-  m_tabMenu->setContentSize({kListSize.width, 30.f});
+  m_tabMenu->setContentSize({layout().listSize.width, 30.f});
   m_tabMenu->setLayout(RowLayout::create()->setGap(4.f));
   m_tabMenu->setTouchPriority(m_list->getTouchPriority() - 1);
   m_tabMenu->setID("tabs");
@@ -493,7 +905,7 @@ void CustomizerPopup::buildTabs()
   m_tabMenu->updateLayout();
 
   m_mainLayer->addChildAtPosition(m_tabMenu, Anchor::BottomLeft,
-                                  {kListOrigin.x + kListSize.width / 2.f, kTabsY});
+                                  {kListOrigin.x + layout().listSize.width / 2.f, layout().tabsY});
 }
 
 void CustomizerPopup::showSection(size_t index)
@@ -532,13 +944,13 @@ void CustomizerPopup::showOnNow()
   if (!any)
   {
     auto row = CCNode::create();
-    row->setContentSize({kListSize.width, 40.f});
+    row->setContentSize({this->rowWidth(), 40.f});
     auto label = CCLabelBMFont::create("Nothing is on: turn things on in the tabs", "bigFont.fnt");
-    label->limitLabelWidth(kListSize.width - 20.f, .35f, .1f);
+    label->limitLabelWidth(this->rowWidth() - 20.f, .35f, .1f);
     label->setOpacity(150);
-    label->setPosition({kListSize.width / 2.f, 20.f});
+    label->setPosition({this->rowWidth() / 2.f, 20.f});
     row->addChild(label);
-    m_list->m_contentLayer->addChild(row);
+    this->addToList(row);
   }
 
   m_list->m_contentLayer->updateLayout();
@@ -584,7 +996,7 @@ void CustomizerPopup::addGroup(CustomizerGroup const &group, std::string const &
   bool const on = groupIsOn(group);
   bool const expandable = (!group.hidesWhenOff || on) && !group.keys.empty();
   bool const open = expandable && this->isOpen(group.id);
-  m_list->m_contentLayer->addChild(this->createGroupHeader(group, title, open, expandable));
+  this->addToList(this->createGroupHeader(group, title, open, expandable));
 
   // Reset covers the whole block, folded or not
   if (group.master)
@@ -609,7 +1021,7 @@ void CustomizerPopup::addGroup(CustomizerGroup const &group, std::string const &
     return;
 
   bool const fineOpen = this->isOpen(group.id + "+fine");
-  m_list->m_contentLayer->addChild(this->createFineRow(group, fine.size(), fineOpen));
+  this->addToList(this->createFineRow(group, fine.size(), fineOpen));
   if (fineOpen)
   {
     for (auto key : fine)
@@ -619,7 +1031,7 @@ void CustomizerPopup::addGroup(CustomizerGroup const &group, std::string const &
 
 CCNode *CustomizerPopup::createGroupHeader(CustomizerGroup const &group, std::string const &title, bool open, bool expandable)
 {
-  float const width = kListSize.width;
+  float const width = this->rowWidth();
   auto header = CCNode::create();
   header->setContentSize({width, kHeaderHeight});
   header->setAnchorPoint({.5f, .5f});
@@ -689,7 +1101,7 @@ CCNode *CustomizerPopup::createGroupHeader(CustomizerGroup const &group, std::st
 
 CCNode *CustomizerPopup::createFineRow(CustomizerGroup const &group, size_t count, bool open)
 {
-  float const width = kListSize.width;
+  float const width = this->rowWidth();
   auto row = CCNode::create();
   row->setContentSize({width, 22.f});
   row->setAnchorPoint({.5f, .5f});
@@ -730,32 +1142,77 @@ void CustomizerPopup::clearList()
   m_shownKeys.clear();
 }
 
+CCNode *CustomizerPopup::createLookFileRow(float width)
+{
+  auto row = CCNode::create();
+  row->setContentSize({width, 30.f});
+
+  auto label = CCLabelBMFont::create("look.json, edit by hand", "bigFont.fnt");
+  label->limitLabelWidth(width - 80.f, .4f, .1f);
+  label->setAnchorPoint({0.f, .5f});
+  label->setPosition({8.f, 15.f});
+  row->addChild(label);
+
+  auto menu = CCMenu::create();
+  menu->setPosition({0.f, 0.f});
+  menu->setContentSize(row->getContentSize());
+  row->addChild(menu);
+
+  auto info = CCMenuItemExt::createSpriteExtraWithFrameName("GJ_infoIcon_001.png", .4f, [](auto)
+                                                           {
+                                                             FLAlertLayer::create(
+                                                                 "look.json",
+                                                                 "Your look is kept in <cy>look.json</c> in the config folder of the mod, "
+                                                                 "only the values that differ from the defaults. Edit a value in a text editor and "
+                                                                 "save the file: the game picks it up in a moment. Delete a line to put it back "
+                                                                 "to its default.",
+                                                                 "OK")
+                                                                 ->show();
+                                                           });
+  info->setPosition({8.f + label->getScaledContentWidth() + 8.f, 15.f});
+  menu->addChild(info);
+
+  auto button = CCMenuItemExt::createSpriteExtra(iconButton("folder", CircleBaseColor::Gray, 24.f), [](auto)
+                                                 {
+                                                   settings::flush();
+                                                   file::openFolder(settings::filePath().parent_path());
+                                                 });
+  button->setPosition({width - 22.f, 15.f});
+  menu->addChild(button);
+  return row;
+}
+
 void CustomizerPopup::addRow(char const *key)
 {
   if (std::string_view(key) == "@looks")
   {
-    m_list->m_contentLayer->addChild(createLooksRow(kListSize.width));
+    this->addToList(createLooksRow(this->rowWidth()));
     return;
   }
   if (std::string_view(key) == "@gallery")
   {
-    m_list->m_contentLayer->addChild(createGalleryRow(kListSize.width));
+    this->addToList(createGalleryRow(this->rowWidth()));
     return;
   }
   if (std::string_view(key) == "@linker")
   {
-    m_list->m_contentLayer->addChild(createLinkerRow(kListSize.width));
+    this->addToList(createLinkerRow(this->rowWidth()));
     return;
   }
   if (std::string_view(key) == "@emote-keys")
   {
-    m_list->m_contentLayer->addChild(createEmoteKeysRow(kListSize.width));
+    this->addToList(createEmoteKeysRow(this->rowWidth()));
+    return;
+  }
+  if (std::string_view(key) == "@look-file")
+  {
+    this->addToList(createLookFileRow(this->rowWidth()));
     return;
   }
 
-  if (auto row = SettingRow::create(key, kListSize.width))
+  if (auto row = SettingRow::create(key, this->rowWidth()))
   {
-    m_list->m_contentLayer->addChild(row);
+    this->addToList(row);
     m_rows.push_back(row);
     m_shownKeys.push_back(key);
   }
@@ -770,11 +1227,11 @@ void CustomizerPopup::showSearch(std::string const &query)
     return text;
   };
   std::string const needle = lower(query);
-  auto matches = [&](char const *key, std::shared_ptr<SettingV3> const &setting)
+  auto matches = [&](char const *key, settings::Def const &def)
   {
     return lower(key).find(needle) != std::string::npos ||
-           lower(setting->getDisplayName()).find(needle) != std::string::npos ||
-           lower(setting->getDescription().value_or("")).find(needle) != std::string::npos;
+           lower(def.name).find(needle) != std::string::npos ||
+           lower(def.description).find(needle) != std::string::npos;
   };
 
   this->clearList();
@@ -787,16 +1244,16 @@ void CustomizerPopup::showSearch(std::string const &query)
     std::string lastHeader;
     for (auto key : section.keys)
     {
-      auto setting = Mod::get()->getSetting(key);
-      if (!setting)
+      auto def = settings::def(key);
+      if (!def)
         continue;
-      if (typeinfo_pointer_cast<TitleSettingV3>(setting))
+      if (def->type == settings::Type::Title)
       {
-        title = setting->getDisplayName();
-        titleMatches = matches(key, setting);
+        title = def->name;
+        titleMatches = matches(key, *def);
         continue;
       }
-      if (!titleMatches && !matches(key, setting))
+      if (!titleMatches && !matches(key, *def))
         continue;
 
       std::string const header = title.empty() ? section.name : fmt::format("{} > {}", section.name, title);
@@ -804,13 +1261,13 @@ void CustomizerPopup::showSearch(std::string const &query)
       {
         lastHeader = header;
         auto row = CCNode::create();
-        row->setContentSize({kListSize.width, 18.f});
+        row->setContentSize({this->rowWidth(), 18.f});
         auto label = CCLabelBMFont::create(header.c_str(), "goldFont.fnt");
         label->setScale(.45f);
         label->setAnchorPoint({0.f, .5f});
         label->setPosition({6.f, 9.f});
         row->addChild(label);
-        m_list->m_contentLayer->addChild(row);
+        this->addToList(row);
       }
       this->addRow(key);
     }
@@ -819,13 +1276,13 @@ void CustomizerPopup::showSearch(std::string const &query)
   if (m_rows.empty())
   {
     auto row = CCNode::create();
-    row->setContentSize({kListSize.width, 40.f});
+    row->setContentSize({this->rowWidth(), 40.f});
     auto label = CCLabelBMFont::create("Nothing found", "bigFont.fnt");
     label->setScale(.4f);
     label->setOpacity(150);
-    label->setPosition({kListSize.width / 2.f, 20.f});
+    label->setPosition({this->rowWidth() / 2.f, 20.f});
     row->addChild(label);
-    m_list->m_contentLayer->addChild(row);
+    this->addToList(row);
   }
 
   m_list->m_contentLayer->updateLayout();
@@ -1305,10 +1762,7 @@ void CustomizerPopup::onReset(CCObject *)
           return;
 
         for (auto key : self->m_shownKeys)
-        {
-          if (auto setting = Mod::get()->getSetting(key))
-            setting->reset();
-        }
+          settings::reset(key);
         self->m_rebuildPending = true;
       });
 }

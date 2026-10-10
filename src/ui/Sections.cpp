@@ -1,5 +1,7 @@
 #include "Sections.hpp"
 
+#include "../settings/Settings.hpp"
+
 #include <Geode/Geode.hpp>
 
 #include <algorithm>
@@ -35,6 +37,7 @@ std::vector<CustomizerSection> const &customizerSections()
            "@looks",
            "@linker",
            "@gallery",
+           "@look-file",
            "online-title",
            "share-icons",
            "show-icons",
@@ -108,16 +111,6 @@ std::vector<CustomizerSection> const &customizerSections()
            "clip-size",
            "clip-color",
            "clip-custom-color",
-           "face-title",
-           "face",
-           "face-style",
-           "face-shape",
-           "face-x",
-           "face-shift-x",
-           "face-tilt",
-           "face-y",
-           "face-scale-x",
-           "face-scale-y",
        }},
       {"Extras",
        {
@@ -307,11 +300,10 @@ namespace
   constexpr std::array<std::string_view, 3> kNotSwitches{"customization", "mode-cube", "reactions"};
 
   // Fitting a part to the icon and fine detail, behind "More"
-  constexpr std::array<std::string_view, 41> kFineTuning{
+  constexpr std::array<std::string_view, 37> kFineTuning{
       "segments", "lock-width", "hair-top-gap", "spin-with-icon", "shine-position", "tips-start",
       "face-lock-inset-x", "face-lock-inset-y", "face-lock-shift-x", "face-lock-tilt",
       "bangs-arc-size", "bangs-arc-softness", "bangs-inset-x", "bangs-inset-y",
-      "face-x", "face-shift-x", "face-tilt", "face-y",
       "ponytail-position", "bow-position", "ear-spread", "headband-inset", "flower-position",
       "halo-height", "hat-tilt", "hat-inset", "glasses-x", "glasses-y", "earring-height", "earring-inset-x",
       "blush-spread", "blush-height", "sticker-x", "sticker-y", "orb-kick",
@@ -321,19 +313,16 @@ namespace
   {
     if (key.starts_with('@') || std::find(kNotSwitches.begin(), kNotSwitches.end(), key) != kNotSwitches.end())
       return false;
-    auto setting = Mod::get()->getSetting(key);
-    if (!setting)
+    auto def = settings::def(key);
+    if (!def)
       return false;
-    if (typeinfo_pointer_cast<BoolSettingV3>(setting))
+    if (def->type == settings::Type::Bool)
       return true;
-    if (auto string = typeinfo_pointer_cast<StringSettingV3>(setting))
-    {
-      auto options = string->getEnumOptions();
-      return options && (std::find(options->begin(), options->end(), "None") != options->end() ||
-                         std::find(options->begin(), options->end(), "Off") != options->end());
-    }
-    if (auto number = typeinfo_pointer_cast<IntSettingV3>(setting))
-      return number->getMinValue().value_or(-1) == 0;
+    if (def->type == settings::Type::Choice)
+      return std::find(def->options.begin(), def->options.end(), "None") != def->options.end() ||
+             std::find(def->options.begin(), def->options.end(), "Off") != def->options.end();
+    if (def->type == settings::Type::Int)
+      return def->min == 0.0;
     return false;
   }
 }
@@ -354,14 +343,14 @@ std::vector<CustomizerGroup> const &customizerGroups()
 
       for (char const *key : sections[s].keys)
       {
-        auto setting = Mod::get()->getSetting(key);
-        if (setting && typeinfo_pointer_cast<TitleSettingV3>(setting))
+        auto def = settings::def(key);
+        if (def && def->type == settings::Type::Title)
         {
           if (group.master || !group.keys.empty())
             out.push_back(std::move(group));
           group = CustomizerGroup{};
           group.id = key;
-          group.name = setting->getDisplayName();
+          group.name = def->name;
           group.section = s;
           fresh = true;
           continue;
@@ -369,7 +358,7 @@ std::vector<CustomizerGroup> const &customizerGroups()
         if (fresh && isSwitch(key))
         {
           group.master = key;
-          group.hidesWhenOff = !typeinfo_pointer_cast<IntSettingV3>(setting);
+          group.hidesWhenOff = def->type != settings::Type::Int;
         }
         else
           group.keys.push_back(key);
@@ -387,13 +376,16 @@ bool groupIsOn(CustomizerGroup const &group)
 {
   if (!group.master)
     return true;
-  auto setting = Mod::get()->getSetting(group.master);
-  if (auto toggle = typeinfo_pointer_cast<BoolSettingV3>(setting))
-    return toggle->getValue();
-  if (auto string = typeinfo_pointer_cast<StringSettingV3>(setting))
-    return string->getValue() != "None" && string->getValue() != "Off";
-  if (auto number = typeinfo_pointer_cast<IntSettingV3>(setting))
-    return number->getValue() != 0;
+  auto def = settings::def(group.master);
+  if (!def)
+    return true;
+  auto const value = settings::get(group.master);
+  if (def->type == settings::Type::Bool)
+    return value.asBool().unwrapOr(true);
+  if (def->type == settings::Type::Choice)
+    return value.asString().unwrapOr("") != "None" && value.asString().unwrapOr("") != "Off";
+  if (def->type == settings::Type::Int)
+    return value.asInt().unwrapOr(0) != 0;
   return true;
 }
 
@@ -425,9 +417,8 @@ std::vector<std::string_view> const &lookSettingKeys()
         if (std::find(kNotLook.begin(), kNotLook.end(), key) != kNotLook.end())
           continue;
         // Special rows like "@looks" have no setting
-        if (!Mod::get()->getSetting(key))
-          continue;
-        if (typeinfo_pointer_cast<TitleSettingV3>(Mod::get()->getSetting(key)))
+        auto def = settings::def(key);
+        if (!def || def->type == settings::Type::Title)
           continue;
         list.push_back(key);
       }
