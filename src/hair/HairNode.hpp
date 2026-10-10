@@ -149,6 +149,8 @@ private:
   };
 
   bool init(cocos2d::CCSprite *head, cocos2d::CCSprite *primary, cocos2d::CCSprite *secondary, cocos2d::CCNode *simSpace);
+  // The head, the colors and the sim space all still exist
+  bool anchorsAlive() const;
 
   // What each part drew this frame, for partAt(): its triangles in the buffer of a draw node
   struct DrawnPart
@@ -315,6 +317,12 @@ private:
   cocos2d::CCSprite *m_primary = nullptr;
   cocos2d::CCSprite *m_secondary = nullptr;
   cocos2d::CCNode *m_simSpace = nullptr;
+  // The nodes above may go away under the rig (a profile page builds its icons again, a preview
+  // moves to another parent): checked every frame before they are touched
+  geode::WeakRef<cocos2d::CCSprite> m_headAlive;
+  geode::WeakRef<cocos2d::CCSprite> m_primaryAlive;
+  geode::WeakRef<cocos2d::CCSprite> m_secondaryAlive;
+  geode::WeakRef<cocos2d::CCNode> m_simSpaceAlive;
 
   std::function<bool()> m_shouldShow;
   std::function<GameMode()> m_gameModeFn;

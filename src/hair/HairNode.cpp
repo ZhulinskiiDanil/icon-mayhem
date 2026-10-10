@@ -205,6 +205,10 @@ bool HairNode::init(CCSprite *head, CCSprite *primary, CCSprite *secondary, CCNo
   m_primary = primary;
   m_secondary = secondary;
   m_simSpace = simSpace;
+  m_headAlive = head;
+  m_primaryAlive = primary;
+  m_secondaryAlive = secondary;
+  m_simSpaceAlive = simSpace;
   m_upAngle = kPi * .5f;
 
   this->setID("hair"_spr);
@@ -617,8 +621,25 @@ void HairEffectsNode::visit()
 
 // ! --- Frame --- !
 
+bool HairNode::anchorsAlive() const
+{
+  return m_headAlive.valid() && m_simSpaceAlive.valid() && m_primaryAlive.valid() && (!m_secondary || m_secondaryAlive.valid());
+}
+
 void HairNode::visit()
 {
+  // What the rig hangs on is gone: nothing to draw from, it stays empty
+  if (!this->anchorsAlive())
+  {
+    this->clear();
+    if (m_front)
+      m_front->clear();
+    std::erase_if(m_drawn, [&](DrawnPart const &drawn)
+                  { return drawn.node == this || drawn.node == m_front; });
+    m_needsReset = true;
+    return;
+  }
+
   auto director = CCDirector::sharedDirector();
   unsigned const frame = director->getTotalFrames();
 

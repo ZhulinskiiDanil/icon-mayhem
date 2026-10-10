@@ -564,6 +564,8 @@ void HairNode::visitEffects(CCDrawNode *node)
   node->clear();
   std::erase_if(m_drawn, [&](DrawnPart const &drawn)
                 { return drawn.node == node; });
+  if (!this->anchorsAlive())
+    return;
   unsigned const frame = CCDirector::sharedDirector()->getTotalFrames();
 
   // Death: the reactions start here, the hair node itself may be hidden with the player.

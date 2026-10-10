@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.10.2
+
+### Fixed
+- Opening your own profile could crash the game: the profile builds its icons twice, and the hair of the first ones kept using nodes that were already gone. The hair now checks every frame that the icon it hangs on still exists, everywhere
+
 ## v1.10.1
 
 ### Customizer
