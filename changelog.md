@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.10.1
+
+### Customizer
+- Colors are picked right under their row: a palette, the hex code and hue, saturation and brightness sliders. The icon changes while you move them, nothing covers the preview anymore
+- Presets: tap a preset twice quickly to load it
+- Editing the look of an icon (Icon) no longer asks to save when you switch to Main or close the customizer: the changes wait unsaved, and your icon already wears them in levels, the garage and on Globed, so you can try them first. Save keeps them; loading the preset again drops them
+- Main and Icon no longer touch the game mode switcher; − and + of Rows have room around the text
+
+### Globed
+- Looks go to the other players through the Icon Mayhem server: Globed carries only a short code, so a look of any size arrives at once and in full instead of in many small parts. Looks are fetched once and kept. When the server can't be reached, the look goes through Globed like before. Gifts go the same way
+- Sharing your look needs you logged in to your Geometry Dash account (checked once with Argon, like for custom icons)
+
+### Physics
+- Calm jumps is off and Hitbox multiplier is 0.6 by default (the built-in presets too)
+
+### Hair
+- The base under the hair is smaller and stays hidden behind the icon
+
+### Fixed
+- The macOS build of v1.10.0 failed, so that release had no file to download
+
 ## v1.10.0
 
 ### Settings

@@ -7,6 +7,7 @@
 #include <Geode/ui/ScrollLayer.hpp>
 #include <Geode/ui/TextInput.hpp>
 
+#include <chrono>
 #include <functional>
 #include <optional>
 #include <vector>
@@ -38,6 +39,8 @@ private:
   void refreshDetail();
   cocos2d::CCNode *createRow(Preset const &preset);
   void select(Preset const &preset);
+  // A tap on a row selects it, a second quick tap on the same one loads it
+  void tapRow(Preset const &preset);
 
   void onTab(cocos2d::CCObject *sender);
   void onSaveCurrent(cocos2d::CCObject *sender);
@@ -66,6 +69,8 @@ private:
   bool m_showBuiltIn = false;
   std::string m_query;
   std::optional<Preset> m_selected;
+  std::optional<Preset> m_lastTap;
+  std::chrono::steady_clock::time_point m_lastTapTime;
 
   // Current look
   cocos2d::CCLabelBMFont *m_currentName = nullptr;

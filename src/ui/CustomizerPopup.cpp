@@ -48,6 +48,8 @@ namespace
   constexpr float kJumpDuration = .42f; // s, like a cube jump in the game
   constexpr float kJumpHeight = 45.f;   // stage units
   constexpr float kHeadRadius = 15.f;   // icon units, for the rolling ball
+  constexpr float kModeY = 70.f;        // the game mode switcher under the ground
+  constexpr float kLookSwitchY = 46.f;  // Main | Icon under it, above Jump and Run
 
   // Settings list on the right
   constexpr CCPoint kListOrigin = {180.f, 38.f};
@@ -195,7 +197,6 @@ namespace
       ccGLEnableVertexAttribs(kCCVertexAttribFlag_Position);
       glVertexAttribPointer(kCCVertexAttrib_Position, 2, GL_FLOAT, GL_FALSE, 0, m_triangles.data());
       glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(m_triangles.size()));
-      CC_INCREMENT_GL_DRAWS(1);
     }
 
     std::vector<CCPoint> m_triangles;
@@ -308,11 +309,11 @@ bool CustomizerPopup::initCustomizer()
                                                 menu_selector(CustomizerPopup::onScale));
     button->setTag(dir);
     button->setID(dir < 0 ? "smaller-button" : "bigger-button");
-    m_buttonMenu->addChildAtPosition(button, Anchor::TopLeft, {dir < 0 ? 40.f : 110.f, -16.f});
+    m_buttonMenu->addChildAtPosition(button, Anchor::TopLeft, {dir < 0 ? 44.f : 122.f, -16.f});
   }
   m_scaleLabel = CCLabelBMFont::create("", "bigFont.fnt");
   m_scaleLabel->setID("scale-label");
-  m_mainLayer->addChildAtPosition(m_scaleLabel, Anchor::TopLeft, {75.f, -16.f});
+  m_mainLayer->addChildAtPosition(m_scaleLabel, Anchor::TopLeft, {83.f, -16.f});
   this->refreshScaleLabel();
 
   // List first: every menu of the popup has to sit above it to receive touches
@@ -535,17 +536,17 @@ void CustomizerPopup::buildPreview()
   for (int dir : {-1, 1})
   {
     auto sprite = CCSprite::createWithSpriteFrameName("navArrowBtn_001.png");
-    sprite->setScale(.4f);
+    sprite->setScale(.28f);
     sprite->setFlipX(dir < 0);
     auto arrow = CCMenuItemSpriteExtra::create(sprite, this, menu_selector(CustomizerPopup::onMode));
     arrow->setTag(dir);
-    arrow->setPosition({kPreviewSize.width / 2.f + dir * 55.f, 66.f});
+    arrow->setPosition({kPreviewSize.width / 2.f + dir * 55.f, kModeY});
     menu->addChild(arrow);
   }
 
   m_modeLabel = CCLabelBMFont::create("", "bigFont.fnt");
-  m_modeLabel->setScale(.45f);
-  m_modeLabel->setPosition({kPreviewSize.width / 2.f, 66.f});
+  m_modeLabel->setScale(.4f);
+  m_modeLabel->setPosition({kPreviewSize.width / 2.f, kModeY});
   panel->addChild(m_modeLabel);
 
   // Quick actions in a row on the top of the preview: undo, a random look (the dice), random
@@ -596,14 +597,14 @@ void CustomizerPopup::buildPreview()
   m_lookSwitch->setContentSize(kPreviewSize);
   m_lookSwitch->setTouchPriority(m_list->getTouchPriority() - 1);
   panel->addChild(m_lookSwitch);
-  m_mainSprite = textButton("Main", 52.f, "GJ_button_01.png", 18.f);
-  m_iconSprite = textButton("Icon", 52.f, "GJ_button_04.png", 18.f);
+  m_mainSprite = textButton("Main", 48.f, "GJ_button_01.png", 16.f);
+  m_iconSprite = textButton("Icon", 48.f, "GJ_button_04.png", 16.f);
   for (int i = 0; i < 2; ++i)
   {
     auto segment = CCMenuItemSpriteExtra::create(i == 0 ? m_mainSprite : m_iconSprite, this, menu_selector(CustomizerPopup::onLookSwitch));
     segment->setTag(i);
     segment->setID(i == 0 ? "main-look-button" : "icon-look-button");
-    segment->setPosition({kPreviewSize.width / 2.f + (i == 0 ? -27.f : 27.f), 48.f});
+    segment->setPosition({kPreviewSize.width / 2.f + (i == 0 ? -26.f : 26.f), kLookSwitchY});
     m_lookSwitch->addChild(segment);
   }
 
@@ -775,7 +776,8 @@ void CustomizerPopup::refreshScaleLabel()
   if (!m_scaleLabel)
     return;
   m_scaleLabel->setString(fmt::format("Rows {}%", static_cast<int>(std::lround(rowScale() * 100.f))).c_str());
-  m_scaleLabel->limitLabelWidth(50.f, .3f, .1f);
+  // A gap on both sides, the buttons don't touch it
+  m_scaleLabel->limitLabelWidth(40.f, .3f, .1f);
 }
 
 float CustomizerPopup::rowWidth() const
@@ -1212,6 +1214,9 @@ void CustomizerPopup::addRow(char const *key)
 
   if (auto row = SettingRow::create(key, this->rowWidth()))
   {
+    // A color picker opening under it: the list again, at the same place
+    row->setOnResize([this]
+                     { m_rebuildPending = true; });
     this->addToList(row);
     m_rows.push_back(row);
     m_shownKeys.push_back(key);
@@ -1664,9 +1669,17 @@ bool CustomizerPopup::startIconEdit(bool tell)
     return false;
   }
 
-  // The main look waits aside, the icon look goes in to be edited: Save keeps it in its preset
-  presets::stashMainLook();
+  // The main look waits aside, the icon look goes in to be edited: Save keeps it in its preset.
+  // Changes not saved last time come back on top of it
+  presets::stashMainLook(name);
   presets::load(*preset);
+  auto const unsaved = presets::draft(name);
+  if (unsaved)
+  {
+    Preset changes;
+    changes.settings = *unsaved;
+    presets::apply(changes);
+  }
   m_editingIcon = true;
   m_iconLook = name;
   m_undo.clear();
@@ -1676,45 +1689,31 @@ bool CustomizerPopup::startIconEdit(bool tell)
   this->refreshLookSwitch();
   this->refreshLookLabel();
   if (tell)
-    Notification::create(fmt::format("Editing the look of this icon, \"{}\"", name), NotificationIcon::Info)->show();
+    Notification::create(fmt::format("Editing the look of this icon, \"{}\"{}", name, unsaved ? ", not saved yet" : ""),
+                         NotificationIcon::Info)
+        ->show();
   return true;
 }
 
 void CustomizerPopup::endIconEdit(std::function<void()> then)
 {
-  auto finish = [self = Ref(this), then]
-  {
-    presets::restoreMainLook();
-    self->m_editingIcon = false;
-    self->m_iconLook.clear();
-    self->m_undo.clear();
-    self->m_stable = presets::capture("Undo");
-    self->m_seenVersion = HairConfig::version();
-    self->m_rebuildPending = true;
-    self->refreshLookSwitch();
-    self->refreshLookLabel();
-    if (then)
-      then();
-  };
-
-  if (!presets::modified())
-  {
-    finish();
-    return;
-  }
-  // Save first: closing the question keeps the changes too
-  createQuickPopup("Icon look", fmt::format("Save the changes to <cy>{}</c>?", m_iconLook), "Save", "Discard",
-                   [finish, name = m_iconLook](FLAlertLayer *, bool discard)
-                   {
-                     if (!discard)
-                     {
-                       if (auto result = presets::save(presets::capture(name)); !result)
-                         Notification::create(fmt::format("Unable to save: {}", result.unwrapErr()), NotificationIcon::Error)->show();
-                       else
-                         Notification::create(fmt::format("Saved \"{}\"", name), NotificationIcon::Success)->show();
-                     }
-                     finish();
-                   });
+  // No question: what isn't saved stays as a draft of the preset (restoreMainLook keeps it), worn
+  // in levels too, until Save or loading the preset again
+  bool const unsaved = presets::modified();
+  std::string const name = m_iconLook;
+  presets::restoreMainLook();
+  m_editingIcon = false;
+  m_iconLook.clear();
+  m_undo.clear();
+  m_stable = presets::capture("Undo");
+  m_seenVersion = HairConfig::version();
+  m_rebuildPending = true;
+  this->refreshLookSwitch();
+  this->refreshLookLabel();
+  if (unsaved && presets::draft(name))
+    Notification::create(fmt::format("\"{}\" isn't saved yet: try it in a level, Save it in Icon", name), NotificationIcon::Info, 2.5f)->show();
+  if (then)
+    then();
 }
 
 void CustomizerPopup::onClose(CCObject *sender)

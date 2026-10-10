@@ -27,6 +27,7 @@ using namespace geode::prelude;
 
 namespace
 {
+  constexpr std::chrono::milliseconds kDoubleTap{400}; // two taps on a preset this quick load it
   constexpr float kWidth = 440.f;
   constexpr float kHeight = 290.f;
 
@@ -418,7 +419,7 @@ CCNode *PresetsPopup::createRow(Preset const &preset)
   auto hitArea = CCNode::create();
   hitArea->setContentSize({kListSize.width - hitLeft, kRowHeight});
   auto rowButton = CCMenuItemExt::createSpriteExtra(hitArea, [this, preset](auto)
-                                                    { this->select(preset); });
+                                                    { this->tapRow(preset); });
   rowButton->m_scaleMultiplier = 1.f;
   rowButton->setPosition({hitLeft + (kListSize.width - hitLeft) / 2.f, centerY});
   menu->addChild(rowButton);
@@ -441,6 +442,18 @@ CCNode *PresetsPopup::createRow(Preset const &preset)
     row->addChild(mark);
   }
   return row;
+}
+
+void PresetsPopup::tapRow(Preset const &preset)
+{
+  auto const now = std::chrono::steady_clock::now();
+  bool const twice = m_lastTap && samePreset(*m_lastTap, preset) && now - m_lastTapTime < kDoubleTap;
+  m_lastTap = twice ? std::nullopt : std::optional(preset);
+  m_lastTapTime = now;
+  if (twice)
+    this->load(preset);
+  else
+    this->select(preset);
 }
 
 void PresetsPopup::select(Preset const &preset)

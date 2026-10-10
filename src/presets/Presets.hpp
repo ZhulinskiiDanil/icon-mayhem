@@ -84,9 +84,18 @@ namespace presets
   std::vector<std::string> recent();
 
   // Editing the look of an icon in the customizer: the main look and the preset it came from
-  // wait aside, saved, so even a restart in the middle brings them back
-  void stashMainLook();
+  // wait aside, saved, so even a restart in the middle brings them back. `editing` is the preset
+  // of the icon: what changed in it stays as its draft when the main look comes back
+  void stashMainLook(std::string const &editing);
   bool hasStashedLook();
   void restoreMainLook();
+
+  // Unsaved changes to a preset (an icon look edited in the customizer and not saved yet). Worn
+  // everywhere like the preset itself, so it can be tried in a level, until it is saved (save()
+  // drops it) or the preset is loaded again in the customizer
+  std::optional<matjson::Value> draft(std::string_view name);
+  // Keeps `settings` as the draft of `name`; nothing when they are the saved preset
+  void setDraft(std::string const &name, matjson::Value const &settings);
+  void clearDraft(std::string_view name);
   geode::Result<> writeFile(Preset const &preset, std::filesystem::path const &path);
 }

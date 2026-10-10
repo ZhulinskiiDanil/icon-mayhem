@@ -27,7 +27,7 @@ namespace
   constexpr float kPressedRoundScale = 1.03f;
   // Base under the locks: barely peeks out of the head so it never shows as a cushion
   // when the locks move away, and is much rounder than the collider
-  constexpr float kCapScale = 1.05f;   // half size of the base relative to the head
+  constexpr float kCapScale = .9f;     // half size of the base relative to the head: inside it, hidden behind the icon
   constexpr float kCapExponent = 3.f;  // squircle exponent of the base on cubes, 2 is a circle
   constexpr int kCapPoints = 24;
   constexpr float kCapEdgeFade = .15f;    // part of the base arc on each end that sinks into the head

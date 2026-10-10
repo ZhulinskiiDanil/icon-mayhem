@@ -462,9 +462,9 @@ struct HairConfig
   bool cuteDeath = false; // the hair bursts into petals and hearts on death
   WeatherStyle weather = WeatherStyle::Sakura;
 
-  float hitboxMultiplier = 1.f; // size of the head collider
+  float hitboxMultiplier = .6f; // size of the head collider
   float windMultiplier = 1.f;  // 0 makes the hair look the same moving and standing still
-  bool calmJumps = true;       // the hair turns with a spinning icon instead of whipping around
+  bool calmJumps = false;      // the hair turns with a spinning icon instead of whipping around
   float gusts = .4f;           // how much the wind strength changes over time
   float gustSpeed = 1.f;       // how quickly the gusts come and go
   float flutter = .3f;         // small random flicks of every lock

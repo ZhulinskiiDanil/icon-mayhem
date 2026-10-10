@@ -1,6 +1,7 @@
 #include "Globed.hpp"
 #include "LevelHair.hpp"
 #include "../presets/Looks.hpp"
+#include "../gallery/GalleryApi.hpp"
 #include "../icons/CustomIcons.hpp"
 #include "../presets/Presets.hpp"
 #include "../settings/Settings.hpp"
@@ -14,6 +15,8 @@
 #include <Geode/ui/Notification.hpp>
 
 #include <chrono>
+#include <filesystem>
+#include <functional>
 #include <optional>
 #include <map>
 #include <set>
@@ -24,8 +27,11 @@ using namespace geode::prelude;
 // ! --- Globed --- !
 // Globed is an optional dependency, reached through its soft-link API: no Globed, no calls.
 // Every player sends its look (the settings that differ from the defaults, as JSON) to the others
-// in the level when they show up and whenever the look changes. The other players' icons get a rig
-// that wears the look they sent; players without the mod send nothing and stay plain.
+// in the level when they show up and whenever the look changes. The look goes up to the Icon Mayhem
+// server and only its hash goes through Globed (its events are small and limited); the others
+// fetch it once and keep it. When the server can't be reached the look goes through Globed in
+// parts, as before. The other players' icons get a rig that wears the look they sent; players
+// without the mod send nothing and stay plain.
 
 namespace
 {
@@ -34,6 +40,8 @@ namespace
   constexpr char const *kLikeEvent = "zhulis.icon-mayhem/like";
   constexpr char const *kGiftEvent = "zhulis.icon-mayhem/gift";
   constexpr char const *kIconsEvent = "zhulis.icon-mayhem/icons";
+  constexpr char const *kLookHashEvent = "zhulis.icon-mayhem/look-hash";
+  constexpr char const *kGiftHashEvent = "zhulis.icon-mayhem/gift-hash";
   constexpr float kGiftEvery = 60.f; // s between two gifts to the same player
   constexpr float kLikeQuiet = 10.f; // s: likes from the same player closer than this are dropped
   constexpr float kScanEvery = .5f; // s between looking for new players and look changes
@@ -110,6 +118,8 @@ namespace
     table->net->registerEvent(kLikeEvent, globed::EventServer::Game);
     table->net->registerEvent(kGiftEvent, globed::EventServer::Game);
     table->net->registerEvent(kIconsEvent, globed::EventServer::Game);
+    table->net->registerEvent(kLookHashEvent, globed::EventServer::Game);
+    table->net->registerEvent(kGiftHashEvent, globed::EventServer::Game);
     log::info("Globed: looks, emotes, likes and gifts are shared with other players");
   }
 
@@ -185,6 +195,97 @@ namespace
     }
     s_pendingLooks.erase(sender);
     return whole;
+  }
+
+  // ! --- Looks through the server --- !
+
+  std::unordered_map<std::string, std::string> s_uploaded; // our look (its JSON) -> hash
+  std::set<std::string> s_uploading;
+  std::set<std::string> s_uploadFailed; // these go through Globed in parts
+  std::unordered_map<std::string, matjson::Value> s_fetched; // hash -> look
+  std::set<std::string> s_fetching;
+  std::set<std::string> s_fetchFailed;
+  std::unordered_map<int, std::string> s_wantedLook; // sender -> the hash of the look they wear now
+
+  bool isLookHash(std::string const &text)
+  {
+    return text.size() == 64 && text.find_first_not_of("0123456789abcdef") == std::string::npos;
+  }
+
+  std::filesystem::path lookCacheFile(std::string const &hash)
+  {
+    return Mod::get()->getSaveDir() / "look-cache" / fmt::format("{}.json", hash);
+  }
+
+  // The hash of our look once it is on the server; nothing yet (it goes up now) or when it can't
+  // be (`failed`: send it through Globed instead)
+  std::optional<std::string> uploadedHash(std::string const &payload, bool &failed)
+  {
+    failed = s_uploadFailed.contains(payload);
+    if (auto known = s_uploaded.find(payload); known != s_uploaded.end())
+      return known->second;
+    if (failed || s_uploading.contains(payload))
+      return std::nullopt;
+
+    auto look = matjson::parse(payload);
+    if (!look || !look.unwrap().isObject())
+    {
+      s_uploadFailed.insert(payload);
+      failed = true;
+      return std::nullopt;
+    }
+    s_uploading.insert(payload);
+    gallery::uploadWorn(look.unwrap(), [payload](Result<std::string, std::string> result)
+                        {
+                          s_uploading.erase(payload);
+                          if (result && isLookHash(result.unwrap()))
+                          {
+                            s_uploaded[payload] = result.unwrap();
+                            log::info("Globed: our look is on the server ({})", result.unwrap().substr(0, 8));
+                          }
+                          else
+                          {
+                            s_uploadFailed.insert(payload);
+                            log::warn("Globed: our look can't go to the server ({}), it goes through Globed",
+                                      result ? std::string("no hash") : result.unwrapErr());
+                          }
+                        });
+    return std::nullopt;
+  }
+
+  // A look by its hash: right away when it is here (memory or disk), else `then` gets it later
+  void fetchLook(std::string const &hash, std::function<void(matjson::Value const &)> then)
+  {
+    if (auto known = s_fetched.find(hash); known != s_fetched.end())
+    {
+      then(known->second);
+      return;
+    }
+    // Kept on disk: a look never changes under its hash
+    if (auto cached = file::readJson(lookCacheFile(hash)); cached && cached.unwrap().isObject())
+    {
+      s_fetched[hash] = cached.unwrap();
+      then(s_fetched[hash]);
+      return;
+    }
+    if (s_fetchFailed.contains(hash) || s_fetching.contains(hash))
+      return;
+
+    s_fetching.insert(hash);
+    gallery::fetchWorn(hash, [hash, then = std::move(then)](Result<matjson::Value, std::string> result)
+                       {
+                         s_fetching.erase(hash);
+                         if (!result)
+                         {
+                           log::warn("Globed: the look {} isn't there ({})", hash.substr(0, 8), result.unwrapErr());
+                           s_fetchFailed.insert(hash);
+                           return;
+                         }
+                         s_fetched[hash] = result.unwrap();
+                         (void)file::createDirectoryAll(lookCacheFile(hash).parent_path());
+                         (void)file::writeStringSafe(lookCacheFile(hash), result.unwrap().dump(matjson::NO_INDENTATION));
+                         then(s_fetched[hash]);
+                       });
   }
 
   void send(char const *event, std::string const &payload, std::vector<int32_t> targets)
@@ -265,7 +366,7 @@ namespace
         auto const lookName = looks::setRemoteLook(fmt::format("gift-{}", ++s_giftCount), std::move(look).unwrap());
         s_gifts.push_back(GlobedGift{who, lookName});
         log::info("Globed: {} gifted us their look", who);
-        Notification::create(fmt::format("{} gifted you their look! Players, in the pause menu", who), NotificationIcon::Success)->show();
+        Notification::create(fmt::format("{} gifted you their look! Players, in the customizer", who), NotificationIcon::Success)->show();
       }
       else if (name == kLikeEvent)
       {
@@ -278,8 +379,33 @@ namespace
         levelHairEmote(HairNode::Emote::Heart);
         Notification::create(fmt::format("{} likes your look!", playerName(sender)), NotificationIcon::Success)->show();
       }
+      else if (name == kLookHashEvent && isLookHash(payload))
+      {
+        // Their look by its hash: fetched once, worn when it is here (if they still wear it)
+        s_wantedLook[sender] = payload;
+        fetchLook(payload, [sender, hash = payload](matjson::Value const &look)
+                  {
+                    if (s_wantedLook[sender] != hash)
+                      return;
+                    log::info("Globed: got the look of player {} ({})", sender, hash.substr(0, 8));
+                    looks::setRemote(sender, look);
+                  });
+      }
+      else if (name == kGiftHashEvent && isLookHash(payload))
+      {
+        std::string const who = playerName(sender);
+        fetchLook(payload, [who](matjson::Value const &look)
+                  {
+                    auto const lookName = looks::setRemoteLook(fmt::format("gift-{}", ++s_giftCount), look);
+                    s_gifts.push_back(GlobedGift{who, lookName});
+                    log::info("Globed: {} gifted us their look", who);
+                    Notification::create(fmt::format("{} gifted you their look! Players, in the customizer", who), NotificationIcon::Success)->show();
+                  });
+      }
       else if (name == kLookEvent)
       {
+        // In parts (their server was out of reach, or an older Icon Mayhem)
+        s_wantedLook.erase(sender);
         auto whole = receiveLookPart(sender * 2, payload);
         if (!whole)
           continue;
@@ -398,7 +524,12 @@ bool globedGift(GlobedPeer const &peer)
   if (!globedActive() || (it != s_lastGift.end() && at - it->second < kGiftEvery))
     return false;
   s_lastGift[peer.id] = at;
-  sendLook(currentLookPayload(), kGiftEvent, {peer.id});
+  // By its hash when our look is on the server, else in parts
+  bool failed = false;
+  if (auto hash = uploadedHash(currentLookPayload(), failed))
+    send(kGiftHashEvent, *hash, {peer.id});
+  else
+    sendLook(currentLookPayload(), kGiftEvent, {peer.id});
   log::info("Globed: gifted our look to {}", peer.name);
   return true;
 }
@@ -462,6 +593,7 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     std::map<int, WeakRef<CCNode>> m_attached;
     std::set<int> m_seen;     // players we already sent our look for
     std::string m_sentLook;
+    bool m_lookWaiting = false; // changed, not sent yet (going up to the server)
     std::string m_sentIcons;
     std::map<int, int> m_iconModes; // player id * 2 + second icon -> what it showed when last dressed
     bool m_wasActive = false;
@@ -473,6 +605,10 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     s_remoteRigs.clear();
     s_pendingLooks.clear();
     s_liked.clear();
+    // A new level: the server may be back, what failed is tried again
+    s_wantedLook.clear();
+    s_uploadFailed.clear();
+    s_fetchFailed.clear();
     looks::clearRemotes();
     custom_icons::forgetPlayers();
     looks::setTryOn("");
@@ -607,6 +743,23 @@ class $modify(GlobedHairPlayLayer, PlayLayer)
     if (look != fields->m_sentLook || newPlayer)
     {
       fields->m_sentLook = look;
+      fields->m_lookWaiting = true;
+    }
+    if (!fields->m_lookWaiting)
+      return;
+
+    // Its hash once it is on the server (it goes up on the first try, then waits a moment);
+    // in parts when the server can't take it
+    bool failed = false;
+    if (auto hash = uploadedHash(look, failed))
+    {
+      fields->m_lookWaiting = false;
+      send(kLookHashEvent, *hash);
+      log::info("Globed: sent our look to {} players ({})", fields->m_seen.size(), hash->substr(0, 8));
+    }
+    else if (failed)
+    {
+      fields->m_lookWaiting = false;
       sendLook(look);
       log::info("Globed: sent our look to {} players ({} bytes in {} parts)", fields->m_seen.size(), look.size(),
                 (look.size() + kLookPart - 1) / kLookPart);

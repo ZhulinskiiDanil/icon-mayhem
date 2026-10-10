@@ -287,6 +287,33 @@ void gallery::fetchIcon(std::string const &hash, Done<matjson::Value> done)
           });
 }
 
+void gallery::uploadWorn(matjson::Value const &look, Done<std::string> done)
+{
+  auto body = matjson::Value::object();
+  body["look"] = look;
+  withAccount("POST", "/v1/worn", body, [done](Reply reply)
+              {
+                if (!reply.error.empty())
+                  done(Err(reply.error));
+                else
+                  done(Ok(reply.json["hash"].asString().unwrapOr("")));
+              });
+}
+
+void gallery::fetchWorn(std::string const &hash, Done<matjson::Value> done)
+{
+  request("GET", fmt::format("/v1/worn/{}", hash), std::nullopt, "", [done](Reply reply)
+          {
+            auto look = reply.json.get("look");
+            if (!reply.error.empty())
+              done(Err(reply.error));
+            else if (!look || !look.unwrap().isObject())
+              done(Err(std::string("not a look")));
+            else
+              done(Ok(look.unwrap()));
+          });
+}
+
 void gallery::reportIcon(std::string const &hash, Done<bool> done)
 {
   withAccount("POST", fmt::format("/v1/icons/{}/report", hash), matjson::Value::object(), [done](Reply reply)

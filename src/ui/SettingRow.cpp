@@ -2,10 +2,11 @@
 
 #include "../settings/Settings.hpp"
 
-#include <Geode/ui/ColorPickPopup.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <set>
 
 using namespace geode::prelude;
 
@@ -22,6 +23,64 @@ namespace
   constexpr float kInputWidth = 52.f;  // number input on the right, before scaling
   constexpr float kInputScale = .6f;
   constexpr float kChoiceWidth = 90.f; // space for the "< Option >" control
+
+  // The color picker under a color row
+  constexpr float kPickerHeight = 78.f;
+  constexpr float kSwatchSize = 13.f;
+  constexpr float kSwatchStep = 17.f;
+  constexpr float kPickerLineStep = 16.f;
+  constexpr std::array<ccColor3B, 12> kPalette{
+      ccColor3B{255, 255, 255}, ccColor3B{43, 41, 41}, ccColor3B{230, 57, 70}, ccColor3B{255, 143, 177},
+      ccColor3B{255, 159, 67}, ccColor3B{255, 216, 74}, ccColor3B{126, 214, 105}, ccColor3B{72, 202, 228},
+      ccColor3B{70, 110, 230}, ccColor3B{150, 95, 220}, ccColor3B{140, 90, 60}, ccColor3B{160, 160, 170}};
+
+  // Color rows with the picker open, by setting key: they stay open when the list is built again
+  std::set<std::string> s_openPickers;
+
+  ccColor3B fromHsv(float hue, float saturation, float value)
+  {
+    float const c = value * saturation;
+    float const h = std::fmod(std::max(hue, 0.f), 360.f) / 60.f;
+    float const x = c * (1.f - std::abs(std::fmod(h, 2.f) - 1.f));
+    float r = 0.f, g = 0.f, b = 0.f;
+    if (h < 1.f)
+      r = c, g = x;
+    else if (h < 2.f)
+      r = x, g = c;
+    else if (h < 3.f)
+      g = c, b = x;
+    else if (h < 4.f)
+      g = x, b = c;
+    else if (h < 5.f)
+      r = x, b = c;
+    else
+      r = c, b = x;
+    float const m = value - c;
+    auto channel = [&](float v)
+    { return static_cast<GLubyte>(std::clamp(std::lround((v + m) * 255.f), 0l, 255l)); };
+    return {channel(r), channel(g), channel(b)};
+  }
+
+  std::array<float, 3> toHsv(ccColor3B color)
+  {
+    float const r = color.r / 255.f, g = color.g / 255.f, b = color.b / 255.f;
+    float const high = std::max({r, g, b});
+    float const low = std::min({r, g, b});
+    float const delta = high - low;
+    float hue = 0.f;
+    if (delta > 0.f)
+    {
+      if (high == r)
+        hue = 60.f * std::fmod((g - b) / delta, 6.f);
+      else if (high == g)
+        hue = 60.f * ((b - r) / delta + 2.f);
+      else
+        hue = 60.f * ((r - g) / delta + 4.f);
+    }
+    if (hue < 0.f)
+      hue += 360.f;
+    return {hue, high > 0.f ? delta / high : 0.f, high};
+  }
 }
 
 // ! --- Creation --- !
@@ -54,7 +113,8 @@ bool SettingRow::init(settings::Def const *def, float width)
   m_width = width;
 
   bool const isTitle = m_def->type == settings::Type::Title;
-  this->setContentSize({width, isTitle ? kTitleHeight : kRowHeight});
+  bool const picking = m_def->type == settings::Type::Color && s_openPickers.contains(m_def->key);
+  this->setContentSize({width, isTitle ? kTitleHeight : kRowHeight + (picking ? kPickerHeight : 0.f)});
   this->setAnchorPoint({.5f, .5f});
   this->setID(fmt::format("{}-row", m_def->key));
 
@@ -106,7 +166,7 @@ void SettingRow::addTitle()
 
 void SettingRow::addLabel()
 {
-  float const centerY = this->getContentHeight() / 2.f;
+  float const centerY = this->lineY();
 
   auto label = CCLabelBMFont::create(m_def->name.c_str(), "bigFont.fnt");
   label->setAnchorPoint({0.f, .5f});
@@ -129,7 +189,7 @@ float SettingRow::useAsHeader(std::string const &title, float left, bool dim)
 {
   if (!m_label)
     return left;
-  float const centerY = this->getContentHeight() / 2.f;
+  float const centerY = this->lineY();
   m_label->removeFromParent();
   m_label = CCLabelBMFont::create(title.c_str(), "goldFont.fnt");
   m_label->setAnchorPoint({0.f, .5f});
@@ -154,13 +214,13 @@ void SettingRow::changed()
 void SettingRow::addToggle()
 {
   m_toggle = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(SettingRow::onToggle), .55f);
-  m_toggle->setPosition({m_width - kPadding - 12.f, this->getContentHeight() / 2.f});
+  m_toggle->setPosition({m_width - kPadding - 12.f, this->lineY()});
   m_menu->addChild(m_toggle);
 }
 
 void SettingRow::addSlider()
 {
-  float const centerY = this->getContentHeight() / 2.f;
+  float const centerY = this->lineY();
   float const inputWidth = kInputWidth * kInputScale;
   bool const isInt = m_def->type == settings::Type::Int;
 
@@ -193,7 +253,7 @@ void SettingRow::addSlider()
 
 void SettingRow::addArrows()
 {
-  float const centerY = this->getContentHeight() / 2.f;
+  float const centerY = this->lineY();
   float const right = m_width - kPadding;
 
   auto makeArrow = [&](bool left)
@@ -221,8 +281,107 @@ void SettingRow::addColor()
   m_colorSprite = CCSprite::createWithSpriteFrameName("GJ_colorBtn_001.png");
   m_colorSprite->setScale(.55f);
   auto button = CCMenuItemSpriteExtra::create(m_colorSprite, this, menu_selector(SettingRow::onColor));
-  button->setPosition({m_width - kPadding - 12.f, this->getContentHeight() / 2.f});
+  button->setPosition({m_width - kPadding - 12.f, this->lineY()});
   m_menu->addChild(button);
+
+  if (s_openPickers.contains(m_def->key))
+    this->addColorPicker();
+}
+
+float SettingRow::lineY() const
+{
+  return this->getContentHeight() - kRowHeight / 2.f;
+}
+
+void SettingRow::addColorPicker()
+{
+  // A darker panel under the row, the main line stays as it was
+  auto panel = CCLayerColor::create({0, 0, 0, 60}, m_width - 2.f * kPadding, kPickerHeight - 4.f);
+  panel->setPosition({kPadding, 2.f});
+  this->addChild(panel, -1);
+
+  // The palette and the hex code
+  float const paletteY = kPickerHeight - 12.f;
+  for (size_t i = 0; i < kPalette.size(); ++i)
+  {
+    auto sprite = CCSprite::createWithSpriteFrameName("GJ_colorBtn_001.png");
+    sprite->setScale(kSwatchSize / std::max(sprite->getContentWidth(), 1.f));
+    sprite->setColor(kPalette[i]);
+    auto swatch = CCMenuItemSpriteExtra::create(sprite, this, menu_selector(SettingRow::onSwatch));
+    swatch->setTag(static_cast<int>(i));
+    swatch->setPosition({kPadding + 10.f + static_cast<float>(i) * kSwatchStep, paletteY});
+    m_menu->addChild(swatch);
+  }
+
+  float const hexWidth = 62.f;
+  m_hexInput = TextInput::create(hexWidth / .5f, "#rrggbb");
+  m_hexInput->setScale(.5f);
+  m_hexInput->setFilter("#0123456789abcdefABCDEF");
+  m_hexInput->setMaxCharCount(7);
+  m_hexInput->setPosition({m_width - kPadding - 6.f - hexWidth / 2.f, paletteY});
+  m_hexInput->setCallback([this](std::string const &text)
+                          {
+                            auto hex = text;
+                            if (!hex.empty() && hex.front() == '#')
+                              hex.erase(0, 1);
+                            if (hex.size() != 6)
+                              return;
+                            if (auto color = cc3bFromHexString(hex, true))
+                              this->setColor(color.unwrap(), false);
+                          });
+  this->addChild(m_hexInput);
+
+  // Hue, saturation, brightness
+  constexpr std::array<char const *, 3> kNames{"Hue", "Saturation", "Brightness"};
+  constexpr std::array<float, 3> kMax{360.f, 1.f, 1.f};
+  m_hsvValue = toHsv(settings::color(m_def->key));
+  float const sliderLeft = kPadding + 62.f;
+  float const sliderWidth = m_width - sliderLeft - kPadding - 10.f;
+  for (int i = 0; i < 3; ++i)
+  {
+    float const y = paletteY - 20.f - static_cast<float>(i) * kPickerLineStep;
+    auto name = CCLabelBMFont::create(kNames[i], "bigFont.fnt");
+    name->setScale(.26f);
+    name->setAnchorPoint({0.f, .5f});
+    name->setPosition({kPadding + 6.f, y});
+    name->setOpacity(200);
+    this->addChild(name);
+
+    auto slider = SliderNode::create([this, i](SliderNode *, float value)
+                                     {
+                                       m_hsvValue[i] = value;
+                                       this->setColor(fromHsv(m_hsvValue[0], m_hsvValue[1], m_hsvValue[2]), true);
+                                     });
+    slider->setMin(0.f);
+    slider->setMax(kMax[i]);
+    slider->setValue(m_hsvValue[i]);
+    slider->setAnchorPoint({0.f, .5f});
+    slider->setScale(.8f);
+    slider->setContentSize({sliderWidth / .8f, slider->getContentHeight()});
+    slider->setPosition({sliderLeft, y});
+    this->addChild(slider);
+    m_hsv[i] = slider;
+  }
+}
+
+void SettingRow::setColor(ccColor3B color, bool fromSliders)
+{
+  settings::set(m_def->key, "#" + cc3bToHexString(color));
+  if (m_colorSprite)
+    m_colorSprite->setColor(color);
+  if (m_hexInput)
+    m_hexInput->setString("#" + utils::string::toLower(cc3bToHexString(color)));
+  // The sliders follow a palette color or a typed code, not their own drags
+  if (!fromSliders)
+  {
+    m_hsvValue = toHsv(color);
+    for (int i = 0; i < 3; ++i)
+    {
+      if (m_hsv[i])
+        m_hsv[i]->setValue(m_hsvValue[i]);
+    }
+  }
+  this->changed();
 }
 
 // ! --- Values --- !
@@ -287,14 +446,20 @@ void SettingRow::onArrow(CCObject *sender)
 
 void SettingRow::onColor(CCObject *)
 {
-  auto popup = ColorPickPopup::create(settings::color(m_def->key));
-  popup->setCallback([self = Ref(this)](ccColor4B const &color)
-                     {
-                       settings::set(self->m_def->key, "#" + cc3bToHexString(ccColor3B{color.r, color.g, color.b}));
-                       self->refresh();
-                       self->changed();
-                     });
-  popup->show();
+  // The picker opens under the row (or closes), the preview stays in sight
+  if (s_openPickers.contains(m_def->key))
+    s_openPickers.erase(m_def->key);
+  else
+    s_openPickers.insert(m_def->key);
+  if (m_onResize)
+    m_onResize();
+}
+
+void SettingRow::onSwatch(CCObject *sender)
+{
+  auto const index = static_cast<size_t>(static_cast<CCNode *>(sender)->getTag());
+  if (index < kPalette.size())
+    this->setColor(kPalette[index], false);
 }
 
 void SettingRow::onInfo(CCObject *)

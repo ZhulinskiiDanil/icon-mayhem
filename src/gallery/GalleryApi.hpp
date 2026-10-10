@@ -53,4 +53,9 @@ namespace gallery
   void uploadIcon(matjson::Value const &icon, Done<std::string> done);
   void fetchIcon(std::string const &hash, Done<matjson::Value> done);
   void reportIcon(std::string const &hash, Done<bool> done);
+
+  // The look worn in a level: Globed carries only its hash, the others fetch it here.
+  // `look` is the settings that differ from the defaults, the answer its hash
+  void uploadWorn(matjson::Value const &look, Done<std::string> done);
+  void fetchWorn(std::string const &hash, Done<matjson::Value> done);
 }

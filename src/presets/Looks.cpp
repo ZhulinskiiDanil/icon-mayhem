@@ -365,7 +365,10 @@ std::optional<matjson::Value> looks::presetSettings(std::string const &name)
   }
   else if (!settings)
   {
-    if (auto preset = presets::find(name))
+    // Changes not saved yet are worn too, to try them in a level
+    if (auto unsaved = presets::draft(name))
+      settings = *unsaved;
+    else if (auto preset = presets::find(name))
       settings = preset->settings;
   }
   return settings;

@@ -22,6 +22,7 @@ namespace
   constexpr char const *kBaselineSave = "current-preset-look"; // the look when it was loaded or saved
   constexpr char const *kRecentSave = "recent-presets";
   constexpr char const *kStashSave = "stashed-main-look";
+  constexpr char const *kDraftsSave = "preset-drafts";
   constexpr size_t kMaxRecent = 64;
 
   void replaceName(std::vector<std::string> &names, std::string_view from, std::string const &to)
@@ -268,8 +269,10 @@ std::optional<Preset> presets::find(std::string_view name)
 Result<> presets::save(Preset const &preset)
 {
   GEODE_UNWRAP(file::createDirectoryAll(folder()));
-  looks::invalidate();
   GEODE_UNWRAP(writeFile(preset, pathOf(preset.name)));
+  // Saved for good: no draft over it anymore
+  clearDraft(preset.name);
+  looks::invalidate();
   touch(preset.name);
   return Ok();
 }
@@ -278,6 +281,7 @@ Result<> presets::remove(std::string_view name)
 {
   std::error_code error;
   std::filesystem::remove(pathOf(name), error);
+  clearDraft(name);
   looks::invalidate();
   if (error)
     return Err("Unable to delete the preset: {}", error.message());
@@ -310,6 +314,11 @@ Result<> presets::rename(std::string_view from, std::string const &to)
 
   auto renamed = std::move(preset).unwrap();
   renamed.name = to;
+  // Its draft goes along
+  auto const unsaved = draft(from);
+  clearDraft(from);
+  if (unsaved)
+    setDraft(to, *unsaved);
   GEODE_UNWRAP(file::createDirectoryAll(folder()));
   GEODE_UNWRAP(writeFile(renamed, pathOf(to)));
   if (!sameFile)
@@ -411,9 +420,10 @@ std::vector<std::string> presets::recent()
   return Mod::get()->getSavedValue<std::vector<std::string>>(kRecentSave, {});
 }
 
-void presets::stashMainLook()
+void presets::stashMainLook(std::string const &editing)
 {
   auto stash = matjson::Value::object();
+  stash["editing"] = editing;
   stash["look"] = capture("").settings;
   stash["name"] = current();
   stash["builtIn"] = currentIsBuiltIn();
@@ -433,6 +443,10 @@ void presets::restoreMainLook()
   if (!stash.isObject())
     return;
 
+  // The icon look being edited: what isn't saved stays as its draft
+  if (auto editing = stash.get("editing"); editing && editing.unwrap().isString() && !editing.unwrap().asString().unwrap().empty())
+    setDraft(editing.unwrap().asString().unwrap(), capture("").settings);
+
   if (auto look = stash.get("look"); look && look.unwrap().isObject())
   {
     Preset preset;
@@ -450,6 +464,54 @@ void presets::restoreMainLook()
   if (auto value = stash.get("baseline"); value && value.unwrap().isObject())
     Mod::get()->setSavedValue(kBaselineSave, value.unwrap());
   Mod::get()->setSavedValue(kStashSave, matjson::Value());
+}
+
+// ! --- Drafts --- !
+
+std::optional<matjson::Value> presets::draft(std::string_view name)
+{
+  auto const drafts = Mod::get()->getSavedValue<matjson::Value>(kDraftsSave, matjson::Value::object());
+  if (auto settings = drafts.get(name); settings && settings.unwrap().isObject())
+    return settings.unwrap();
+  return std::nullopt;
+}
+
+void presets::setDraft(std::string const &name, matjson::Value const &settings)
+{
+  // The same as the saved preset is no draft
+  if (auto saved = find(name))
+  {
+    auto const full = withDefaults(saved->settings);
+    bool same = true;
+    for (auto key : lookSettingKeys())
+    {
+      auto a = full.get(key);
+      auto b = settings.get(key);
+      if (!a || !b || !sameValue(a.unwrap(), b.unwrap()))
+      {
+        same = false;
+        break;
+      }
+    }
+    if (same)
+    {
+      clearDraft(name);
+      return;
+    }
+  }
+  auto drafts = Mod::get()->getSavedValue<matjson::Value>(kDraftsSave, matjson::Value::object());
+  drafts[name] = settings;
+  Mod::get()->setSavedValue(kDraftsSave, drafts);
+  looks::invalidate();
+}
+
+void presets::clearDraft(std::string_view name)
+{
+  auto drafts = Mod::get()->getSavedValue<matjson::Value>(kDraftsSave, matjson::Value::object());
+  if (!drafts.erase(name))
+    return;
+  Mod::get()->setSavedValue(kDraftsSave, drafts);
+  looks::invalidate();
 }
 
 Result<> presets::writeFile(Preset const &preset, std::filesystem::path const &path)

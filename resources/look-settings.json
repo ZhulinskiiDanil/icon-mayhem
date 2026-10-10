@@ -1516,7 +1516,7 @@
 		"name": "Hitbox multiplier",
 		"description": "Size of the invisible head the hair lies on, relative to the icon. Bigger keeps the hair further from the icon, smaller lets it fall closer and hide behind it",
 		"type": "float",
-		"default": 1,
+		"default": 0.6,
 		"min": 0.5,
 		"max": 2,
 		"control": {
@@ -1560,7 +1560,7 @@
 		"name": "Calm jumps",
 		"description": "While the icon spins in a jump the hair turns with it as one piece, instead of whipping around and shaking after the landing",
 		"type": "bool",
-		"default": true
+		"default": false
 	},
 	"wind-title": {
 		"type": "title",
